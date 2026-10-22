@@ -1,0 +1,19 @@
+# PlatformIO / Python
+.pio/
+.venv/
+__pycache__/
+
+# Editores
+.vscode/
+.idea/
+
+# Segredos (tokens Wokwi, códigos de licença Coreflux, chaves de API)
+.env
+*.env.local
+
+# Dados gerados pelo broker (CSV exportados, etc.)
+hackathon/broker/exports/*
+!hackathon/broker/exports/.gitkeep
+
+# Sistema
+.DS_Store

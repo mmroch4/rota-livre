@@ -1,0 +1,55 @@
+# Ambiente local Coreflux da equipa O(1/n): broker + HUB + Mailpit (caixa de email de teste).
+#
+#   docker compose up -d       arranca tudo
+#   docker compose down        pára (os dados do broker ficam no volume broker-data)
+#   docker compose down -v     pára e APAGA o broker (inclui a licença ativada!)
+#
+# HUB:     http://localhost:3000  (ligação: host "broker", porta 1883, root / coreflux)
+# Mailpit: http://localhost:8025  (o broker envia para mailpit:1025 dentro do Docker)
+# Saúde:   http://localhost:9100/health
+#
+# Licença do evento: pôr COREFLUX_ACTIVATION_CODE=CFLX-... em hackathon/broker/.env
+# antes do primeiro `up`, ou usar -activateLicense no Command Console do HUB.
+services:
+  broker:
+    image: ${BROKER_IMAGE:-coreflux/coreflux-mqtt-broker:2.22.0}
+    container_name: o1n-broker
+    restart: unless-stopped
+    ports:
+      - "1883:1883"   # MQTT (VS Code, paho-mqtt, mosquitto_pub/sub)
+      - "9100:9100"   # health
+    volumes:
+      - broker-data:/etc/project
+      - ./templates:/templates:ro   # templates HTML para Connectors EMAIL
+      - ./exports:/data/exports     # ficheiros escritos por Connectors FILE_STORAGE
+    environment:
+      - COREFLUX_ACTIVATION_CODE=${COREFLUX_ACTIVATION_CODE:-}
+
+  hub:
+    image: ${HUB_IMAGE:-coreflux/coreflux-hub:2.12.0}
+    container_name: o1n-hub
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # O HUB corre dentro do Docker: chega ao broker pelo nome do serviço, não por localhost
+      - HUB_DEFAULT_CONNECTION_NAME=O(1/n)
+      - HUB_DEFAULT_CONNECTION_HOST=broker
+      - HUB_DEFAULT_CONNECTION_PROTOCOL=mqtt
+      - HUB_DEFAULT_CONNECTION_PORT=1883
+    volumes:
+      - hub-data:/opt/coreflux-hub/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: o1n-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+    environment:
+      - MP_SMTP_AUTH_ACCEPT_ANY=1
+      - MP_SMTP_AUTH_ALLOW_INSECURE=1
+
+volumes:
+  broker-data:
+  hub-data:

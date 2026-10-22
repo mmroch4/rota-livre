@@ -1,0 +1,47 @@
+# Teste de simulação: cada pressão do botão avança o modo.
+#   pio run -e uno && wokwi-cli --scenario test/wokwi/mode_cycle.yaml --timeout 10000
+#
+# Nota: wait-serial só vê texto que chega depois de o passo começar, por isso
+# espera-se pela mensagem logo após premir (o debounce dispara com o botão premido).
+name: Mode cycle with the button
+version: 1
+author: scitech-2026
+
+steps:
+  - wait-serial: 'System ready'
+  - expect-pin: { part-id: led_in1, pin: A, value: 0 }
+  - expect-pin: { part-id: led_in2, pin: A, value: 0 }
+
+  # 1ª pressão -> FORWARD: IN1=1 IN2=0, IN3=1 IN4=0
+  - set-control: { part-id: btn1, control: pressed, value: 1 }
+  - wait-serial: 'MODE=FORWARD A=200 B=200 SERVO=90'
+  - set-control: { part-id: btn1, control: pressed, value: 0 }
+  - delay: 100ms
+  - expect-pin: { part-id: led_in1, pin: A, value: 1 }
+  - expect-pin: { part-id: led_in2, pin: A, value: 0 }
+  - expect-pin: { part-id: led_in3, pin: A, value: 1 }
+  - expect-pin: { part-id: led_in4, pin: A, value: 0 }
+
+  # 2ª pressão -> BACKWARD: sentido invertido
+  - set-control: { part-id: btn1, control: pressed, value: 1 }
+  - wait-serial: 'MODE=BACKWARD A=-200 B=-200 SERVO=90'
+  - set-control: { part-id: btn1, control: pressed, value: 0 }
+  - delay: 100ms
+  - expect-pin: { part-id: led_in1, pin: A, value: 0 }
+  - expect-pin: { part-id: led_in2, pin: A, value: 1 }
+
+  # 3ª pressão -> ROTATE: motores em sentidos opostos
+  - set-control: { part-id: btn1, control: pressed, value: 1 }
+  - wait-serial: 'MODE=ROTATE A=200 B=-200 SERVO=180'
+  - set-control: { part-id: btn1, control: pressed, value: 0 }
+  - delay: 100ms
+  - expect-pin: { part-id: led_in1, pin: A, value: 1 }
+  - expect-pin: { part-id: led_in4, pin: A, value: 1 }
+
+  # 4ª pressão -> volta a STOPPED
+  - set-control: { part-id: btn1, control: pressed, value: 1 }
+  - wait-serial: 'MODE=STOPPED A=0 B=0 SERVO=0'
+  - set-control: { part-id: btn1, control: pressed, value: 0 }
+  - delay: 100ms
+  - expect-pin: { part-id: led_in1, pin: A, value: 0 }
+  - expect-pin: { part-id: led_in4, pin: A, value: 0 }
