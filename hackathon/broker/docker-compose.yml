@@ -8,6 +8,10 @@
 # Mailpit: http://localhost:8025  (o broker envia para mailpit:1025 dentro do Docker)
 # Saúde:   http://localhost:9100/health
 #
+# Segurança: na rede da FCUP há outras equipas. Por omissão todas as portas ficam só em
+# 127.0.0.1. Para um dispositivo (Arduino/ESP32) ou portátil de um colega ligar ao MQTT,
+# definir MQTT_BIND=0.0.0.0 em .env e mudar a password de root antes (ver README).
+#
 # Licença do evento: pôr COREFLUX_ACTIVATION_CODE=CFLX-... em hackathon/broker/.env
 # antes do primeiro `up`, ou usar -activateLicense no Command Console do HUB.
 services:
@@ -16,8 +20,8 @@ services:
     container_name: o1n-broker
     restart: unless-stopped
     ports:
-      - "1883:1883"   # MQTT (VS Code, paho-mqtt, mosquitto_pub/sub)
-      - "9100:9100"   # health
+      - "${MQTT_BIND:-127.0.0.1}:1883:1883"   # MQTT (VS Code, paho-mqtt, mosquitto_pub/sub)
+      - "127.0.0.1:9100:9100"   # health
     volumes:
       - broker-data:/etc/project
       - ./templates:/templates:ro   # templates HTML para Connectors EMAIL
@@ -30,7 +34,7 @@ services:
     container_name: o1n-hub
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       # O HUB corre dentro do Docker: chega ao broker pelo nome do serviço, não por localhost
       - HUB_DEFAULT_CONNECTION_NAME=O(1/n)
@@ -45,7 +49,7 @@ services:
     container_name: o1n-mailpit
     restart: unless-stopped
     ports:
-      - "8025:8025"
+      - "127.0.0.1:8025:8025"
     environment:
       - MP_SMTP_AUTH_ACCEPT_ANY=1
       - MP_SMTP_AUTH_ALLOW_INSECURE=1

@@ -84,7 +84,19 @@ docker compose up -d
 
 - `docker compose down` pára e mantém os dados; `docker compose down -v` **apaga tudo, incluindo a licença**.
 - O HUB liga-se a `broker` (nome do serviço Docker), não a `localhost`.
-- Porta ocupada? Mudar o número da esquerda em `docker-compose.yml` (ex.: `"3001:3000"`).
+- Porta ocupada? Mudar o número da porta do host em `docker-compose.yml` (ex.: `"127.0.0.1:3001:3000"`).
+
+### Segurança na rede do evento
+
+Na FCUP estamos na mesma rede que as outras equipas, e a password por omissão (`root` / `coreflux`)
+é igual para todas. Por isso **todas as portas ficam só em `127.0.0.1`** (apenas a própria máquina).
+Para um Arduino/ESP32 ou o portátil de um colega publicar no nosso broker:
+
+1. **Primeiro** mudar a password de `root` (ou criar um utilizador próprio para os dispositivos)
+   no HUB: ver a [documentação do broker](https://docs.coreflux.org/latest/mqtt-broker/overview).
+2. Depois pôr `MQTT_BIND=0.0.0.0` em `broker/.env` e fazer `docker compose up -d`.
+
+O HUB, o Mailpit e o endpoint de saúde ficam sempre só em localhost.
 
 ### Licença do evento
 
