@@ -1,8 +1,11 @@
-// Porto Street Maintenance: citizen-facing report form.
+// Rua Viva: citizen-facing report form.
 // Frontend only for now: reports are kept in localStorage. Later, sendReport()
 // will publish the same JSON to the Coreflux broker on "porto/reports/new".
 
-const PORTO_CENTER = [41.1579, -8.6291];
+// Rough bounding box of the municipality of Porto (south-west, north-east).
+const PORTO_BOUNDS = L.latLngBounds([41.136, -8.695], [41.188, -8.551]);
+// OpenStreetMap's free geocoder (max ~1 request/second, fine for a demo).
+const NOMINATIM = "https://nominatim.openstreetmap.org";
 const STORAGE_KEY = "porto-reports";
 
 // Category → label and the city team that receives it.
@@ -23,8 +26,12 @@ const photoInput = document.getElementById("photo");
 const photoPreview = document.getElementById("photo-preview");
 const photoError = document.getElementById("photo-error");
 const categoryError = document.getElementById("category-error");
+const otherTypeWrap = document.getElementById("other-type-wrap");
+const otherTypeInput = document.getElementById("other-type");
 const descriptionInput = document.getElementById("description");
 const locationStatus = document.getElementById("location-status");
+const addressInput = document.getElementById("address");
+const addressResults = document.getElementById("address-results");
 const myLocationButton = document.getElementById("use-my-location");
 const routing = document.getElementById("routing");
 const submitButton = document.getElementById("submit");
@@ -34,7 +41,7 @@ const emptyState = document.getElementById("empty");
 const toast = document.getElementById("toast");
 
 let photoData = null;       // resized photo as a data URL
-let pickedLocation = null;  // { lat, lng, source }
+let pickedLocation = null;  // { lat, lng, source, address }
 
 function selectedCategory() {
   return form.querySelector('input[name="category"]:checked')?.value || null;
@@ -42,37 +49,191 @@ function selectedCategory() {
 
 // --- Map -------------------------------------------------------------------
 
-const map = L.map("map").setView(PORTO_CENTER, 13);
+const map = L.map("map", {
+  maxBounds: PORTO_BOUNDS.pad(0.05),
+  maxBoundsViscosity: 1.0,   // can't drag the map out of Porto
+  minZoom: 12,
+}).fitBounds(PORTO_BOUNDS);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
+  bounds: PORTO_BOUNDS.pad(0.05),
 }).addTo(map);
 let marker = null;
+
+// Dim everything outside the service area.
+const world = [[-85, -180], [-85, 180], [85, 180], [85, -180]];
+const area = [
+  PORTO_BOUNDS.getSouthWest(), PORTO_BOUNDS.getNorthWest(),
+  PORTO_BOUNDS.getNorthEast(), PORTO_BOUNDS.getSouthEast(),
+];
+L.polygon([world, area], {
+  stroke: false, fillColor: "#14212f", fillOpacity: 0.35, interactive: false,
+}).addTo(map);
+L.rectangle(PORTO_BOUNDS, {
+  color: "#f5a400", weight: 2, dashArray: "6 6", fill: false, interactive: false,
+}).addTo(map);
 
 function setLocationStatus(text, kind) {
   locationStatus.textContent = text;
   locationStatus.className = "location-chip" + (kind ? " " + kind : "");
 }
 
-function setLocation(lat, lng, source) {
-  pickedLocation = { lat, lng, source };
+function setLocation(lat, lng, source, address) {
+  if (!PORTO_BOUNDS.contains([lat, lng])) {
+    const where = { photo: "This photo was taken", browser: "You are", map: "That point is", address: "That address is" }[source];
+    setLocationStatus(`${where} outside Porto. Only issues in Porto can be reported; click inside the area.`, "warn");
+    return;
+  }
+  const loc = { lat, lng, source, address: address || null };
+  pickedLocation = loc;
   if (marker) marker.setLatLng([lat, lng]);
   else marker = L.marker([lat, lng]).addTo(map);
   map.setView([lat, lng], 17);
-  const labels = { photo: "from photo", browser: "your location", map: "set on map" };
-  setLocationStatus(`${lat.toFixed(5)}, ${lng.toFixed(5)} · ${labels[source]}`, "set");
+  showPickedLocation();
+  if (address) addressInput.value = address;
+  else lookUpAddress(loc);
 }
+
+function showPickedLocation() {
+  const { lat, lng, source, address } = pickedLocation;
+  const labels = { photo: "from photo", browser: "your location", map: "set on map", address: "from address" };
+  const where = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  setLocationStatus(`${where} · ${labels[source]}`, "set");
+}
+
+// --- Address: search and reverse lookup -----------------------------------
+
+// "Rua X, 100, Cedofeita, Porto, ..." → "Rua X 100, Cedofeita"
+function shortAddress(a, fallback) {
+  if (!a) return fallback;
+  const street = [a.road || a.pedestrian || a.footway || a.square, a.house_number].filter(Boolean).join(" ");
+  const area = a.suburb || a.quarter || a.neighbourhood || a.city_district;
+  return [street, area].filter(Boolean).join(", ") || fallback;
+}
+
+// The bounding box also covers bits of Gaia and Matosinhos; the address tells us for sure.
+function municipalityOf(a) {
+  return a && (a.city || a.town || a.municipality || a.village);
+}
+
+// Fills in the street name for a point picked on the map, by photo or by GPS.
+async function lookUpAddress(loc) {
+  try {
+    const res = await fetch(`${NOMINATIM}/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${loc.lat}&lon=${loc.lng}`);
+    const data = await res.json();
+    if (pickedLocation !== loc) return;   // user picked another point meanwhile
+    const city = municipalityOf(data.address);
+    if (city && city !== "Porto") {
+      pickedLocation = null;
+      map.removeLayer(marker);
+      marker = null;
+      addressInput.value = "";
+      setLocationStatus(`That point is in ${city}, outside Porto. Only issues in Porto can be reported.`, "warn");
+      return;
+    }
+    loc.address = shortAddress(data.address, data.display_name);
+    addressInput.value = loc.address || "";
+    showPickedLocation();
+  } catch (_) { /* keep showing coordinates */ }
+}
+
+let searchTimer = null;
+let searchResults = [];
+let activeResult = -1;
+
+addressInput.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  const q = addressInput.value.trim();
+  if (q.length < 3) { hideResults(); return; }
+  searchTimer = setTimeout(() => searchAddress(q), 450);
+});
+
+async function searchAddress(q) {
+  const box = [PORTO_BOUNDS.getWest(), PORTO_BOUNDS.getNorth(), PORTO_BOUNDS.getEast(), PORTO_BOUNDS.getSouth()].join(",");
+  const url = `${NOMINATIM}/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=pt`
+    + `&viewbox=${box}&bounded=1&q=${encodeURIComponent(q)}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (addressInput.value.trim() !== q) return;   // user kept typing
+    const seen = new Set();
+    searchResults = data
+      .filter((r) => municipalityOf(r.address) === "Porto")
+      .map((r) => ({
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
+        title: shortAddress(r.address, r.name || r.display_name),
+        detail: [r.address?.postcode, r.address?.city || "Porto"].filter(Boolean).join(" "),
+      }))
+      .filter((r) => !seen.has(r.title) && seen.add(r.title));   // one row per street/place
+    renderResults();
+  } catch (_) {
+    searchResults = [];
+    renderResults("Address search is unavailable right now. Click the map instead.");
+  }
+}
+
+function renderResults(note) {
+  activeResult = -1;
+  addressResults.innerHTML = "";
+  if (!searchResults.length) {
+    const li = document.createElement("li");
+    li.className = "note";
+    li.textContent = note || "No matching address in Porto.";
+    addressResults.appendChild(li);
+  }
+  searchResults.forEach((r, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = "<span></span><small></small>";
+    li.firstChild.textContent = r.title;
+    li.lastChild.textContent = r.detail;
+    li.addEventListener("mousedown", (e) => { e.preventDefault(); chooseResult(i); });
+    addressResults.appendChild(li);
+  });
+  addressResults.hidden = false;
+}
+
+function chooseResult(i) {
+  const r = searchResults[i];
+  if (!r) return;
+  hideResults();
+  setLocation(r.lat, r.lng, "address", r.title);
+}
+
+function hideResults() {
+  addressResults.hidden = true;
+  searchResults = [];
+}
+
+addressInput.addEventListener("keydown", (e) => {
+  if (addressResults.hidden) return;
+  const items = addressResults.querySelectorAll("li:not(.note)");
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    activeResult = (activeResult + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items.forEach((li, i) => li.classList.toggle("active", i === activeResult));
+  } else if (e.key === "Enter") {
+    e.preventDefault();   // don't submit the whole form
+    chooseResult(Math.max(activeResult, 0));
+  } else if (e.key === "Escape") {
+    hideResults();
+  }
+});
+addressInput.addEventListener("blur", () => setTimeout(hideResults, 100));
 
 map.on("click", (e) => setLocation(e.latlng.lat, e.latlng.lng, "map"));
 
 myLocationButton.addEventListener("click", () => {
   if (!navigator.geolocation) {
-    setLocationStatus("Location not available in this browser. Click the map instead.", "warn");
+    setLocationStatus("Location not available in this browser. Type an address or click the map.", "warn");
     return;
   }
   setLocationStatus("Getting your location…");
   navigator.geolocation.getCurrentPosition(
     (pos) => setLocation(pos.coords.latitude, pos.coords.longitude, "browser"),
-    () => setLocationStatus("Couldn't get your location. Click the map instead.", "warn")
+    (err) => setLocationStatus(err.code === err.PERMISSION_DENIED
+      ? "Location access is blocked in this browser. Allow it, or type an address instead."
+      : "Couldn't get your location. Type an address or click the map.", "warn")
   );
 });
 
@@ -102,7 +263,7 @@ photoInput.addEventListener("change", async () => {
     }
   } catch (_) { /* no EXIF, fall through */ }
   if (!pickedLocation) {
-    setLocationStatus("This photo has no location. Use your location or click the map.", "warn");
+    setLocationStatus("This photo has no location. Type an address or click the map.", "warn");
   }
 });
 
@@ -129,6 +290,9 @@ function resizeImage(file, maxWidth) {
 form.addEventListener("change", (e) => {
   if (e.target.name !== "category") return;
   categoryError.hidden = true;
+  const isOther = e.target.value === "other";
+  otherTypeWrap.hidden = !isOther;
+  if (isOther) otherTypeInput.focus();
   const { department } = CATEGORIES[e.target.value];
   routing.innerHTML = `Will be routed to <strong>${department}</strong>`;
 });
@@ -138,22 +302,27 @@ form.addEventListener("change", (e) => {
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const category = selectedCategory();
+  const otherType = category === "other" ? otherTypeInput.value.trim() : "";
+  const categoryOk = category && (category !== "other" || otherType);
 
   photoError.hidden = !!photoData;
-  categoryError.hidden = !!category;
+  categoryError.textContent = category ? "Describe what kind of issue it is." : "Choose the type of issue.";
+  categoryError.hidden = !!categoryOk;
   if (!pickedLocation) {
-    setLocationStatus("A location is required: use your location or click the map.", "warn");
+    setLocationStatus("A location is required: type an address or click the map.", "warn");
   }
-  if (!photoData || !category || !pickedLocation) return;
+  if (!photoData || !categoryOk || !pickedLocation) return;
 
   const report = {
     id: `R-${Date.now().toString(36).toUpperCase().slice(-6)}`,
     category,
+    otherType,
     department: CATEGORIES[category].department,
     description: descriptionInput.value.trim(),
     lat: pickedLocation.lat,
     lng: pickedLocation.lng,
     gpsSource: pickedLocation.source,
+    address: pickedLocation.address,
     photo: photoData,
     createdAt: new Date().toISOString(),
     status: "received",
@@ -172,10 +341,12 @@ function resetForm() {
   photoData = null;
   photoPreview.hidden = true;
   dropzone.classList.remove("has-photo");
+  otherTypeWrap.hidden = true;
   pickedLocation = null;
   if (marker) { map.removeLayer(marker); marker = null; }
-  map.setView(PORTO_CENTER, 13);
-  setLocationStatus("Upload a photo, use your location, or click the map");
+  map.fitBounds(PORTO_BOUNDS);
+  addressInput.value = "";
+  setLocationStatus("Upload a photo, type an address, or click the map");
   routing.textContent = "Select an issue type to see which team receives it";
 }
 
@@ -223,9 +394,11 @@ function renderReports() {
         <div class="ticket-meta"></div>
       </div>`;
     li.querySelector(".ticket-id").textContent = r.id;
-    li.querySelector(".ticket-title").textContent = `${info.label} · ${info.department}`;
+    const label = r.otherType ? `Other: ${r.otherType}` : info.label;
+    li.querySelector(".ticket-title").textContent = `${label} · ${info.department}`;
     li.querySelector(".ticket-desc").textContent = r.description || "No description";
-    li.querySelector(".ticket-meta").textContent = new Date(r.createdAt).toLocaleString();
+    li.querySelector(".ticket-meta").textContent =
+      [r.address, new Date(r.createdAt).toLocaleString()].filter(Boolean).join(" · ");
     reportList.appendChild(li);
   }
 }

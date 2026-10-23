@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Porto Street Maintenance</title>
+  <title>Rua Viva</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -13,12 +14,10 @@
   <div class="hazard"></div>
   <header class="topbar">
     <div class="brand">
-      <div class="brand-mark">
-        <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>
-      </div>
+      <img class="brand-mark" src="logo.svg" alt="">
       <div>
-        <div class="brand-name">Porto Street Maintenance</div>
-        <div class="brand-sub">Public space issue reporting</div>
+        <div class="brand-name">Rua<span>Viva</span></div>
+        <div class="brand-sub">Spot it. Report it. Fixed.</div>
       </div>
     </div>
     <div class="topbar-status"><span class="dot"></span> Service online</div>
@@ -75,6 +74,10 @@
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/></svg>
             <span>Other</span><small>General</small></label>
         </div>
+        <div class="other-type" id="other-type-wrap" hidden>
+          <label for="other-type">What kind of issue is it?</label>
+          <input type="text" id="other-type" maxlength="60" placeholder="e.g. Broken bench, blocked drain, damaged playground">
+        </div>
         <p class="error" id="category-error" hidden>Choose the type of issue.</p>
       </section>
 
@@ -87,9 +90,15 @@
             Use my location
           </button>
         </div>
+        <div class="address-search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <input type="text" id="address" autocomplete="off"
+                 placeholder="Type an address, e.g. Rua de Santa Catarina 100">
+          <ul class="address-results" id="address-results" hidden></ul>
+        </div>
         <div class="map-wrap">
           <div id="map"></div>
-          <div class="location-chip" id="location-status">Upload a photo, use your location, or click the map</div>
+          <div class="location-chip" id="location-status">Upload a photo, type an address, or click the map</div>
         </div>
       </section>
 
