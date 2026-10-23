@@ -17,9 +17,11 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 
 1. Load the skill for the kind you are writing; check what exists with `explore_topics` /
    `list_entities` (coreflux-broker MCP).
-2. Write or edit the block in the right notebook (`00-setup`, `10-models`, `20-actions`,
-   `30-connectors`, `40-rules`, `50-panel`). Python for `CALL PYTHON` goes in a `python` cell with
-   `# Script Name: <Name>`; keep it pure and add `pytest` tests in `services/tests/`.
+2. Write or edit the block in the notebook of its **feature** (one owner per notebook, see the table in
+   [`PLAN.md`](PLAN.md#notebooks)); a notebook holds that feature's Models, Actions, Connectors and Python.
+   The broker loads by kind (Models before Actions), so a notebook may use a Model from another.
+   Python for `CALL PYTHON` goes in a `python` cell with `# Script Name: <Name>`; keep it pure and add
+   `pytest` tests in `services/tests/`.
 3. Deploy with the `/lot-deploy` skill (validate → swap → diagnose). For quick experiments,
    `validate_lot` + `deploy_lot` a single block, then move it into the notebook.
 4. Prove it works: `run_action <Name> {"topic":…,"payload":…}` or publish a test message, and
@@ -39,6 +41,27 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 - Small callable Actions with `INPUT`/`OUTPUT` instead of one big Action.
 - LoT for publish/subscribe, conditionals and simple math; Python only for what LoT does badly
   (sorting 96 prices, the planner). The LLM only translates text to JSON and never decides.
+
+## Broker 2.22.0 quirks (verified live on 23/10; these override the skills)
+
+- **`CALL PYTHON` must return a `str`.** Return `json.dumps({...})`. A returned dict or int fails at
+  runtime with `Self referencing loop detected with type 'Python.Runtime.PyObject'` and **aborts the
+  rest of the Action** (an earlier attempt gave the opaque `{"h":...,"r":1}`). Arguments arrive as `str`.
+- **`GET JSON` on a Python result:** `SET "x" WITH GET JSON "k" IN {r} AS DOUBLE` works when `{r}` is the
+  `RETURN AS` variable itself (or `PAYLOAD`). Wrapping it in parentheses, or reading from a copy
+  (`SET "c" WITH {r}`), fails at runtime with `SafeParseDouble ... instance reference`.
+  `validate_lot` accepts all of these forms, so **run `diagnose` after every deploy and after the first message**.
+- `GET JSON ... AS BOOL` publishes `True`/`False` (capitalized).
+- **REST connector:** `WITH ENDPOINT "...?date={payload.json.date}"` works. A non-2xx answer is published to
+  DESTINATION_TOPIC as `{"success":false,"statusCode":404,...}`; check for it.
+- **FILE_STORAGE:** the QUERY is `CLEAN:{table: <name>, data: {value.json}}` (comma, not the template's
+  semicolon). Use `FORMAT "JSON"`: CSV triple-quotes strings. The host folder must be writable by uid 10001
+  (`chmod 777 broker/exports`), otherwise every write fails with "Access to the path ... is denied"
+  (only visible in `docker logs o1n-broker`).
+- **EMAIL to Mailpit:** `HOST "mailpit"`, `PORT 1025`, `USE_TLS false`; USERNAME/PASSWORD are required but
+  Mailpit accepts anything. USERNAME is the From address.
+- **Community limits** (`curl localhost:9100/license`): 3 Connectors, 24 Actions (Connector events and
+  Python scripts count too), 24 Models, **0 Rules**, 5 Panels, and no `TYPE LLM`.
 
 ## Boundaries
 
