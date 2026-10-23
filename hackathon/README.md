@@ -129,7 +129,7 @@ Rules of the contract:
 | Dashboard | `lot/` (Panel) + `dashboard/` | **HUB Panel first** (MVP by H+2); then our own web app (HTML + MQTT over WebSocket + price chart with the plan overlaid) if time allows |
 | Infrastructure | `broker/` | Docker Compose: Coreflux Broker 2.22, HUB 2.12, Mailpit |
 
-WebSocket: verified on 23/10. The broker serves MQTT over WebSocket on container port 5000, path `/mqtt`; the compose file maps it to **`ws://localhost:9001/mqtt`**.
+WebSocket: verified on 23/10. The broker serves MQTT over WebSocket on container port 5000, path `/mqtt`; it is **opt-in** via `broker/docker-compose.ws.yml` → `ws://localhost:9001/mqtt`. Read that file's warning first: any web page on the laptop can reach a localhost WebSocket, so change the root password (or use a limited dashboard user) before enabling it.
 
 ## 4. Demo
 
@@ -185,7 +185,7 @@ docker compose up -d
 |---------|---------|-------------|
 | Coreflux HUB | <http://localhost:3000> | pre-filled connection: host `broker`, port `1883`, `root` / `coreflux` |
 | MQTT broker (from outside Docker) | `localhost:1883` | `root` / `coreflux` |
-| MQTT over WebSocket (browser dashboard) | `ws://localhost:9001/mqtt` | `root` / `coreflux` |
+| MQTT over WebSocket (opt-in, `docker-compose.ws.yml`) | `ws://localhost:9001/mqtt` | a limited dashboard user, not root |
 | Mailpit (test email inbox) | <http://localhost:8025> | — |
 | Broker health | <http://localhost:9100/health> | — |
 | Broker MCP server (AI agents) | <http://localhost:6278/mcp> (`/health` without a token) | bearer token, see [`AI.md`](AI.md) |

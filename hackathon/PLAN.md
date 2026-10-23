@@ -39,7 +39,7 @@ D is deliberately light on code: the pitch is worth as much as the product. Vict
 | P5b | Meter + audit log | `kpi/savings` updates every slot; every decision lands in `broker/exports/decisions.json` | plan + telemetry fixtures |
 | P6 | Intent | Free text → `tasks/proposed` (LLM connector if licensed, else `services/intent_parser.py`); invalid text → `assistant/errors` | request fixture |
 | P7a | HUB Panel | Prices, plans, advice, mode toggles, € counter, confirm + preset buttons, door button | all fixtures |
-| P7b | Web dashboard | Same as P7a with a real price chart and the plans shaded on it, over `ws://localhost:9001/mqtt` | all fixtures |
+| P7b | Web dashboard | Same as P7a with a real price chart and the plans shaded on it, over `ws://localhost:9001/mqtt` (opt-in, see `broker/docker-compose.ws.yml`) | all fixtures |
 | P8 | Rules + reset | Rules as in README §5 (only if the licence allows Rules); one command resets the demo's starting state | everything |
 | P9 | Pitch | Slides, demo script, backup video at H+4:30, Q&A answers, 3 timed rehearsals | demo script |
 
@@ -92,7 +92,7 @@ Developer laptops stay on Community: fine for everything except the LLM connecto
 | `CALL PYTHON` | ✅ ~0.2 ms to sort 96 prices, ~100–250 ms end to end. **Return `json.dumps(...)`**: dicts and ints break at runtime (see `AGENTS.md`) |
 | REST connector with the date in the URL | ✅ `{payload.json.date}` works; REN answers in ~370 ms; 404 arrives as `{"success":false,...}` |
 | REN data shape | ⚠️ **92 values today**, 96 on complete days, 100 on 25/10; tomorrow's prices appear ~13:00 |
-| WebSocket for the dashboard | ✅ `ws://localhost:9001/mqtt` (mapped in `docker-compose.yml`) |
+| WebSocket for the dashboard | ✅ container port 5000, path `/mqtt`; opt-in `docker-compose.ws.yml` → `ws://localhost:9001/mqtt` (cross-site risk with the default password, see the file) |
 | EMAIL to Mailpit | ✅ subject placeholders work |
 | FILE_STORAGE audit log | ✅ after `chmod 777 broker/exports`; use JSON (CSV triple-quotes strings) |
 | LLM connector | ❌ refused on Community; needs the event licence |
@@ -109,7 +109,7 @@ Actions 24 (events and Python count): ~8 Actions (`FetchPrices`, `ParsePrices`, 
 - [x] Contract frozen, fixtures + `replay.py` (data and tooling, not product logic)
 - [x] Spikes on the local broker (above)
 - [x] Task board on GitHub Issues
-- [ ] Everyone: `git pull`, `chmod 777 hackathon/broker/exports`, `docker compose up -d` (new WebSocket port),
+- [ ] Everyone: `git pull`, `chmod 777 hackathon/broker/exports`, `docker compose up -d`,
       `scripts/mcp_token.py`, then `scripts/replay.py --list` works
 - [ ] Assign tracks A, B, C (fill the table above)
 - [ ] Anthropic API key with credit, tested with `curl` (needed by plan B and by the LLM connector); keep it out of git

@@ -1,0 +1,15 @@
+# Opt-in: MQTT over WebSocket for the browser dashboard, at ws://localhost:9001/mqtt
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ws.yml up -d
+#
+# Why opt-in: browsers allow cross-origin WebSockets, so ANY web page open on this laptop can
+# reach a localhost WebSocket. With the default root / coreflux password that page would control
+# the broker (including CALL PYTHON). Before enabling this, change the root password or give the
+# dashboard its own user limited to copilot/# and config/# (in the HUB, by a human), and use
+# that user in the dashboard. Port 1883 is not affected: browsers cannot speak raw MQTT over TCP.
+#
+# Host port 9001, not 5000: macOS AirPlay takes 5000.
+services:
+  broker:
+    ports:
+      - "127.0.0.1:9001:5000"

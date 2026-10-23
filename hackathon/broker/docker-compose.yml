@@ -6,7 +6,7 @@
 #
 # HUB:     http://localhost:3000  (connection: host "broker", port 1883, root / coreflux)
 # Mailpit: http://localhost:8025  (the broker sends to mailpit:1025 inside Docker)
-# WS:      ws://localhost:9001/mqtt  (MQTT over WebSocket, for the browser dashboard)
+# WS:      opt-in, see docker-compose.ws.yml (MQTT over WebSocket for the browser dashboard)
 # Health:  http://localhost:9100/health
 # MCP:     http://localhost:6278/mcp  (AI agents deploy/inspect LoT; bearer token, see ../AI.md)
 #
@@ -23,8 +23,6 @@ services:
     restart: unless-stopped
     ports:
       - "${MQTT_BIND:-127.0.0.1}:1883:1883"   # MQTT (VS Code, paho-mqtt, mosquitto_pub/sub)
-      - "127.0.0.1:9001:5000"   # MQTT over WebSocket for the dashboard: ws://localhost:9001/mqtt
-                                # (host port 9001, not 5000: macOS AirPlay takes 5000)
       - "127.0.0.1:9100:9100"   # health
       - "127.0.0.1:6278:6278"   # MCP server (Claude Code / Cursor); never expose beyond localhost
     volumes:
