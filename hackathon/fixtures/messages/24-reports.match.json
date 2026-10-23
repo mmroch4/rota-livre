@@ -1,0 +1,18 @@
+{
+  "topic": "passolivre/reports/R-0001/match",
+  "retain": false,
+  "note": "decision: new (opens a barrier) | confirm (same kind ≤ 40 m: adds the report to it) | clear (text says it is gone, e.g. 'já não está lá') | review (40–80 m or different kind: operator decides).",
+  "payload": {
+    "report_id": "R-0001",
+    "decision": "new",
+    "barrier_id": "cit-R-0001",
+    "candidates": [
+      {
+        "barrier_id": "city-cmp4912962",
+        "distance_m": 323,
+        "why": "Mesmo tipo, mas a 323 m (limite: 40 m)"
+      }
+    ]
+  },
+  "edge": false
+}

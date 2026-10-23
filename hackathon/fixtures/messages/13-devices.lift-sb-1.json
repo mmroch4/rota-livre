@@ -1,0 +1,13 @@
+{
+  "topic": "passolivre/devices/lift-sb-1/status",
+  "retain": true,
+  "note": "Lift controller (SIMULATED, services/lift_sim.py). LiftIntake: ok=false → opened lift_out; ok=true → cleared.",
+  "payload": {
+    "device_id": "lift-sb-1",
+    "place_id": "lift_sao_bento_metro",
+    "ok": false,
+    "fault": "door_fault",
+    "at": "2026-10-24T10:12:00+01:00"
+  },
+  "edge": false
+}

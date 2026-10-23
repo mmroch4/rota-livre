@@ -1,6 +1,6 @@
-// Rua Viva: citizen-facing report form.
+// Passo Livre: obstacle report form (grows into the phone app, see hackathon/PLAN.md #13, #14).
 // Frontend only for now: reports are kept in localStorage. Later, sendReport()
-// will publish the same JSON to the Coreflux broker on "porto/reports/new".
+// will publish the same JSON to the Coreflux broker on "passolivre/reports/new".
 
 // Rough bounding box of the municipality of Porto (south-west, north-east).
 const PORTO_BOUNDS = L.latLngBounds([41.136, -8.695], [41.188, -8.551]);

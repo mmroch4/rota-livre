@@ -1,0 +1,22 @@
+{
+  "topic": "passolivre/trips/T-0001/request",
+  "retain": false,
+  "note": "From the phone app (SIMULATED traveller), demo trip T-demo-1.",
+  "payload": {
+    "trip_id": "T-0001",
+    "from": {
+      "lat": 41.14562,
+      "lon": -8.61026,
+      "label": "Estação de São Bento"
+    },
+    "to": {
+      "lat": 41.14068,
+      "lon": -8.61303,
+      "label": "Praça da Ribeira"
+    },
+    "profile": "wheelchair",
+    "trigger": "new",
+    "at": "2026-10-24T10:05:00+01:00"
+  },
+  "edge": false
+}

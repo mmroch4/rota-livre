@@ -1,0 +1,67 @@
+{
+  "topic": "passolivre/ors/request",
+  "retain": false,
+  "note": "Router.build_request. Only `block` barriers are avoided (here the Av. Gustavo Eiffel one; the event is a penalty). The Connector POSTs `body` to https://api.openrouteservice.org/v2/directions/wheelchair/geojson with header Authorization = secret ORS_API_KEY. Verify the exact field names against the ORS docs.",
+  "payload": {
+    "trip_id": "T-0001",
+    "version": 1,
+    "body": {
+      "coordinates": [
+        [
+          -8.61026,
+          41.14562
+        ],
+        [
+          -8.61303,
+          41.14068
+        ]
+      ],
+      "options": {
+        "avoid_polygons": {
+          "type": "MultiPolygon",
+          "coordinates": [
+            [
+              [
+                [
+                  -8.610065,
+                  41.140688
+                ],
+                [
+                  -8.609707,
+                  41.140688
+                ],
+                [
+                  -8.609707,
+                  41.140958
+                ],
+                [
+                  -8.610065,
+                  41.140958
+                ],
+                [
+                  -8.610065,
+                  41.140688
+                ]
+              ]
+            ]
+          ]
+        },
+        "profile_params": {
+          "restrictions": {
+            "maximum_incline": 6,
+            "maximum_sloped_kerb": 0.03,
+            "surface_type": "cobblestone:flattened",
+            "smoothness_type": "good"
+          }
+        }
+      },
+      "extra_info": [
+        "steepness",
+        "surface"
+      ],
+      "instructions": false,
+      "language": "pt"
+    }
+  },
+  "edge": false
+}

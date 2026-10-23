@@ -1,0 +1,82 @@
+{
+  "topic": "passolivre/trips/T-0001/route",
+  "retain": true,
+  "note": "Version 2 after the reroute (ILLUSTRATIVE geometry). delta_min compares with what was left of version 1 from the same position (9 min).",
+  "payload": {
+    "trip_id": "T-0001",
+    "version": 2,
+    "profile": "wheelchair",
+    "generated_at": "2026-10-24T10:09:08+01:00",
+    "source": "ors",
+    "from": {
+      "lat": 41.1442,
+      "lon": -8.6115,
+      "label": "Posição atual"
+    },
+    "to": {
+      "lat": 41.14068,
+      "lon": -8.61303,
+      "label": "Praça da Ribeira"
+    },
+    "summary": {
+      "distance_m": 540,
+      "duration_min": 12,
+      "climb_m": 4,
+      "max_steepness_class": 2
+    },
+    "geometry": [
+      [
+        -8.6115,
+        41.1442
+      ],
+      [
+        -8.61205,
+        41.1444
+      ],
+      [
+        -8.6125,
+        41.1438
+      ],
+      [
+        -8.6129,
+        41.1432
+      ],
+      [
+        -8.613,
+        41.142
+      ],
+      [
+        -8.61303,
+        41.14068
+      ]
+    ],
+    "avoided": [
+      {
+        "barrier_id": "city-cmp4912962",
+        "why": "Passeio ocupado na Av. Gustavo Eiffel (Câmara Municipal do Porto, até 12:45)"
+      },
+      {
+        "barrier_id": "cit-R-0001",
+        "why": "Passeio bloqueado por obras na Rua de Mouzinho da Silveira (reportado às 10:09)"
+      }
+    ],
+    "warnings": [
+      {
+        "text": "A Rua das Flores é pedonal, em granito: pode haver esplanadas e mais gente."
+      }
+    ],
+    "explanation": [
+      "Perfil cadeira de rodas: inclinação máxima 6%, lancis até 3 cm, sem escadas.",
+      "Evita a Av. Gustavo Eiffel: passeio ocupado (Câmara Municipal do Porto).",
+      "Evita a Rua de Mouzinho da Silveira: passeio bloqueado por obras (cidadão, 10:09).",
+      "Segue pela Rua das Flores e pela Rua de São João."
+    ],
+    "feasible": true,
+    "changes": {
+      "from_version": 1,
+      "delta_min": 3,
+      "text": "Nova rota: +3 min. O passeio na Rua de Mouzinho da Silveira está bloqueado por obras (reportado às 10:09). Siga pela Rua das Flores e pela Rua de São João."
+    }
+  },
+  "edge": true
+}

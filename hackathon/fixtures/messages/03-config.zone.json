@@ -1,0 +1,54 @@
+{
+  "topic": "config/zone",
+  "retain": true,
+  "note": "Demo trips: check with ORS tonight / at H+1 that they show a visible detour (#3).",
+  "payload": {
+    "name": "Baixa e Ribeira (Porto)",
+    "center": [
+      41.144,
+      -8.6115
+    ],
+    "bbox": [
+      41.139,
+      -8.6175,
+      41.15,
+      -8.605
+    ],
+    "weather_stations": [
+      "Aliados",
+      "Bolhão",
+      "Hospital S.António"
+    ],
+    "demo_trips": [
+      {
+        "trip_id": "T-demo-1",
+        "profile": "wheelchair",
+        "from": {
+          "lat": 41.14562,
+          "lon": -8.61026,
+          "label": "Estação de São Bento"
+        },
+        "to": {
+          "lat": 41.14068,
+          "lon": -8.61303,
+          "label": "Praça da Ribeira"
+        }
+      },
+      {
+        "trip_id": "T-demo-2",
+        "profile": "walker",
+        "from": {
+          "lat": 41.14593,
+          "lon": -8.61191,
+          "label": "Praça da Liberdade"
+        },
+        "to": {
+          "lat": 41.14278,
+          "lon": -8.61132,
+          "label": "Sé do Porto"
+        }
+      }
+    ]
+  },
+  "edge": false
+}

@@ -1,0 +1,12 @@
+{
+  "topic": "passolivre/notifications/email",
+  "retain": false,
+  "note": "The 'city inbox' of the demo is Mailpit (fictional address).",
+  "payload": {
+    "to": "ocorrencias@cidade.example",
+    "subject": "[Passo Livre] Passeio obstruído — Rua de Mouzinho da Silveira",
+    "body": "Passeio bloqueado por obras na Rua de Mouzinho da Silveira; impede a passagem de cadeiras de rodas. (Reportado através do Passo Livre.)\nLocal: 41.14330, -8.61190\nFoto: ph-0001",
+    "report_id": "R-0001"
+  },
+  "edge": false
+}

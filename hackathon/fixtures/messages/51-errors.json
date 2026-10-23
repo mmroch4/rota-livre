@@ -1,0 +1,7 @@
+{
+  "topic": "passolivre/errors",
+  "retain": false,
+  "note": "",
+  "payload": "PlanTrip: ORS answered 403 for trip T-0001 (check the ORS_API_KEY secret)",
+  "edge": false
+}

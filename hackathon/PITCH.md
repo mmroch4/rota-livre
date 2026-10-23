@@ -18,41 +18,43 @@ and wants to know more about the project. Event on **Saturday, 24/10**.
 | 6 | **Maturity** | maturity | 0:40 | What is real vs. simulated, tests, security (Rules), scale, next steps. |
 | 7 | Close | — | 0:10 | The product sentence + team name. |
 
-## Script (Rua Viva, ~5 min)
+## Script (Passo Livre, ~5 min)
 
 | # | Block | Lines / screen |
 |---|-------|----------------|
-| 1 | Hook | *"Five neighbours report the same broken bench. Today that is five tickets, five e-mails, and a crew that still doesn't know if it has the wood to fix it."* `[TODO #17: add one verified number with its source]` |
-| 2 | Problem | The manager gets reports, not jobs: where exactly, what, whose, how urgent, how long, with what material? The daily crew plan is built by memory and rebuilt by phone when a part is missing. And the citizen never hears back. |
-| 3 | Solution | *"Rua Viva turns reports about public space into maintenance plans. It organizes reports, finds likely duplicates and helps the municipality decide what each crew can fix today, with the resources it has."* |
+| 1 | Hook | *"The City Council of Porto has registered 26 586 times that a pavement was occupied. For most of us that is a detour. For someone in a wheelchair, it is the end of the trip, and they only find out when they get there."* (Source: City Council open data, unplanned restrictions, type "Ocupação do passeio".) |
+| 2 | Problem | Porto is steep, paved with granite that slips in the rain, and full of steps. Normal maps give the shortest route, not one you can take. And accessibility changes during the day: works, a lift out of service, a van on the pavement. The information exists (the City Council, IPMA, citizens on ReportaPorto) but it never reaches the person on the way. |
+| 3 | Solution | *"Passo Livre gives people with reduced mobility in Porto a route they can actually take, and changes it while they walk when the street changes."* |
 | 4 | Demo | See the script below. |
-| 5 | Architecture | One diagram (README §3). Message: **every report, from a citizen or a device, is an event in the broker**; matching, triage and planning are Python inside the broker, the LLM only reads the text and the photo, and the manager approves. Only the screens and the simulator are outside. |
-| 6 | Maturity | Real vs. fictional data (labelled), human in the loop, a reason for every decision, replan that never touches started work, tests, audit log, Rules per role. |
-| 7 | Close | *"Rua Viva: from reports to repairs." Team O(1/n).* |
+| 5 | Architecture | One diagram (README §3). Message: **every source is an event in the broker**: City Council alerts and IPMA through REST Connectors, citizens and lifts over MQTT. Python inside the broker decides what each record means for a pedestrian and which trips it affects; the routing engine only computes the path we tell it to; the LLM only reads the citizen's text and photo. Only the screens and the simulator are outside. |
+| 6 | Maturity | Real data (City Council, IPMA, Porto's road network) vs. simulated (lifts, the demo's reports and trips), a reason for every barrier and every route, honest "no accessible route", tests, audit log, Rules per role, works offline with a cache. |
+| 7 | Close | *"Passo Livre: the city changes, your route too." Team O(1/n).* |
 
 ## Demo script (1:40)
 
-Initial state: `ResetDemo` run; config, assets and the day's resources retained; 8 seed reports already turned into
-6 issues; no plan yet; Mailpit empty. Three windows: citizen (phone size), manager, technician (phone size).
+Initial state: `ResetDemo` run; config retained; the city alerts and the weather already polled (real, or the
+recorded snapshot); no active trip; Mailpit empty. Three windows: traveller (phone size), reporter (phone size),
+operator map.
 
-1. **(0:20) Report.** On the citizen view, pick the bench photo, confirm the pin, type *"O banco junto ao parque
-   infantil tem uma tábua partida e um parafuso exposto."* The analysis appears: *street furniture · bench repair ·
-   hazard: exposed screw*, and the manager's card shows **high priority** with the reason *"sharp element next to a
-   children's play area"*. The outcome on the phone: *"Joined 4 other reports of this problem."*
-2. **(0:15) Many reports, few issues.** The streetlight controller reports lamp 07 dead: it joins a citizen's "the
-   street is dark" report. One ambiguous report waits in *Possible duplicates*; the manager attaches it with one click.
-3. **(0:20) Today's plan.** The manager approves the issues and clicks **Plan today**: two crews, numbered routes on
-   the map, durations and materials, and *pending: paving repair, not enough paving stones in stock*.
-4. **(0:30) The key moment.** On the technician view, the electrician marks the first lamp job **blocked: wrong lamp
-   model, need another LED lamp**. Rua Viva recomputes: *"Lamp 11 waits: the last LED lamp in stock goes to lamp 07, at the
-   pedestrian crossing (higher priority). Lamp 07 now starts at 08:42."* The manager approves the new version.
-5. **(0:10) Close the loop.** The technician finishes the bench (after photo + note), the manager closes it, and
-   Mailpit shows **one email per citizen who reported it**.
+1. **(0:20) Plan.** On the traveller's phone, profile **wheelchair**, trip **São Bento → Praça da Ribeira**. The route
+   appears with its reasons: *"Evita ruas com inclinação acima de 6%. Evita o passeio ocupado na Av. Gustavo Eiffel
+   (Câmara Municipal do Porto)."* Tap **Start**: the dot starts moving along the route.
+2. **(0:15) Live barrier map.** The operator map shows the **real** City Council alerts in the zone (coloured by
+   source), the Aliados weather station and the active trip.
+3. **(0:20) Report.** On the reporter's phone: photo of a pavement blocked by works, pin confirmed, *"Passeio bloqueado
+   por obras, não dá para passar com cadeira de rodas."* The analysis appears (*sidewalk blocked*), a new barrier shows
+   up on the operator map, and the ReportaPorto hand-off is ready (the email lands in the city inbox, Mailpit).
+4. **(0:30) The key moment.** That barrier is on the active trip. Without anyone touching the traveller's phone:
+   *"Nova rota: +4 min. O passeio na Rua … está bloqueado por obras (reportado há 1 min)."* The new route is drawn from
+   where the dot is.
+5. **(0:10) Rain.** Publish the rain message (or it is really raining): *"Está a chover: a rota passa a evitar
+   inclinações acima de 3% e calçada irregular."* The route changes again.
 6. **(0:05) Proof.** The HUB shows the Actions, Python scripts and Connectors running in the broker.
 
 **Plan B (in order):**
-- **the LLM fails or is slow:** the keyword classifier answers with `source: "keywords"`, same flow;
-- **no internet:** keyword classifier + map without tiles; everything else is local;
+- **ORS fails or no internet:** cached routes for the demo trips (`source: "cache"`), same flow and same reroute;
+- **FIWARE fails:** the recorded snapshot of city alerts and weather;
+- **the LLM fails or is slow:** the keyword classifier answers with `source: "keywords"`;
 - **a web view fails:** `replay.py` publishes the same messages, MQTT Explorer shows the result;
 - **everything fails:** the demo video recorded at H+4:30.
 
@@ -60,11 +62,12 @@ Initial state: `ResetDemo` run; config, assets and the day's resources retained;
 
 - [ ] A **written script** of the demo: every click and every published message.
 - [ ] A single "happy" path, rehearsed **at least 3 times**, ideally on the presentation machine.
-- [ ] A reproducible initial state (a script or `00-setup.lotnb` that resets the retained config).
-- [ ] Data that triggers the interesting event **on demand** (button, Python script, publish from the HUB),
+- [ ] A reproducible initial state (`ResetDemo` in `00-setup.lotnb`).
+- [ ] Data that triggers the interesting event **on demand** (the report, the rain message, a lift key press),
       instead of waiting for a timer.
-- [ ] **Plan B:** screen-recorded demo video + simulated data if a sensor or external API fails.
-- [ ] No internet? Know what stops working (REST Connectors) and have an alternative.
+- [ ] Demo trips that show a **visible** detour on the map (checked with ORS tonight / H+1).
+- [ ] **Plan B:** screen-recorded demo video + cached routes + recorded source snapshot.
+- [ ] No internet? Know what stops working (the REST Connectors: city, weather, ORS) and switch to the cache.
 - [ ] Large font in the HUB/terminal; notifications off; tabs ready.
 
 ## Jury questions (up to 3 min)
@@ -74,27 +77,30 @@ The extra 3 minutes are an opportunity: questions show interest. Prepare short a
 
 | Likely question | Answer / backup slide |
 |-----------------|-----------------------|
-| Why Coreflux and not a normal web app with a database? | Reports come from people **and** from devices (lighting controllers, sensors). The broker is where both arrive as events; the same pipeline handles any channel, with no extra integration server. Every step is an event, so state, audit and notifications fall out of one stream. |
-| What is real and what is fictional? | Real: the pipeline, the LLM analysis, matching, triage, planning, replanning, approvals, emails, audit. Fictional and labelled: the neighbourhood's assets, reports, crews and stock, and the streetlight controller. |
-| What if the AI gets it wrong? | It only *suggests* the category and the summary. Matching, triage and planning are deterministic rules with written reasons, and the manager approves priorities, plans and closures. Safety decisions are never automatic. |
-| Doesn't the number of reports bias priority toward loud neighbourhoods? | The count is one small, capped signal. Risk, sensitive area, impact on use and waiting time weigh more, and every score shows its reasons. |
-| How do you know two reports are the same problem? | Distance, category, the asset, text similarity and the state of the existing issue. Above a threshold it attaches; in a grey zone it asks the manager; if the issue was closed recently, it opens a *recurrence*. |
-| How good is the plan? | It is a greedy planner with visible assumptions (durations per job type, straight-line travel). Its value is that it is **feasible and explained**, and it can be recomputed in a second when the day changes. A real road network and learned durations come next. |
-| How would it scale? | Categories, job types, assets and crews are configuration. One broker per municipality; parishes add crews and assets. The Python functions are pure and stateless. |
-| What about privacy and security? | Citizens' contacts never reach the crews' view. Rules give each role (citizen, technician, manager) only its own topics, and only broker Actions write state. |
-| Who pays? | The municipality, as a subscription priced by population. It complements existing reporting apps instead of replacing them. |
-| What next? | Integrations with existing reporting apps and asset inventories, failure prediction from asset history, camera detection, photo comparison at closure. |
+| Why not Google Maps, or OpenRouteService directly? | They compute a path on a map that does not know that this pavement is blocked *now*. We use ORS as the engine; what Passo Livre adds is the live barrier map from the City Council, IPMA, citizens and lifts, what each barrier means for each profile, and the reaction during the trip. |
+| Why Coreflux and not a normal web app with a database? | The value is in reacting to events from many sources: polled APIs, citizens, devices. The broker is where they all arrive; Connectors bring the external ones in, Actions and Python react, and state, audit and notifications fall out of one stream, with no extra integration server. |
+| What is real and what is simulated? | Real: City Council alerts and IPMA weather (live, from Porto's urban platform), Porto's road network and routing, the whole pipeline, the reroute, the hand-off email, the audit log. Simulated and labelled: the lift controller and the demo's reports and trips. |
+| How do you know what a City Council alert means for a wheelchair? | A rule table, per alert type and detail: "pavement occupied" blocks, "parking" is ignored, "hole" blocks a wheelchair and is a penalty for a walker. It is configuration, every barrier shows its reason, and we would review it with associations of people with disabilities. |
+| What if the AI gets it wrong? | It only *suggests* the kind of obstacle from the citizen's text and photo. The impact table and the router decide; an ambiguous report goes to review. |
+| What if there is no accessible route? | Passo Livre says so and says why, instead of drawing a route that cannot be taken. |
+| What about ReportaPorto? | We do not replace it: we prepare the report (category, place, description, photo) so the citizen sends it in one step. It has no public API today; an official integration is the next step. |
+| Privacy? | A traveller's position only exists inside their own trip topics; Rules stop other roles from reading them. Reports carry no identity unless the citizen adds a contact for the hand-off. |
+| How would it scale? | Sources, profiles, kinds and rules are configuration. Porto publishes its alerts in FIWARE NGSI, an open European standard: another city that uses it changes a URL and the rule table. The Python functions are pure and stateless. |
+| Who pays? | Free for people. The city or the metro operator pays for the operator map, the live barrier data and the qualified reports it receives. |
+| What next? | Real lift status from the metro operator, official ReportaPorto integration, our own slope model from elevation data, crowd confirmation of barriers, more profiles (visual impairment), voice guidance. |
 
 ## Roles and timeline
 
 No fixed roles: the pitch is built through issues like everything else, **#17** (demo script + deck) and **#18**
-(backup video + rehearsals). Who presents: `TODO` (decide at kickoff; Victor was the plan before tasks became
-free-for-all). The 6-hour plan, checkpoints and how we take tasks are in [`PLAN.md`](PLAN.md).
+(backup video + rehearsals). Who presents: `TODO` (decide at kickoff). The 6-hour plan, checkpoints and how we take
+tasks are in [`PLAN.md`](PLAN.md).
 
 ## Slides
 
-The Vale deck (<https://claude.ai/artifact/3QRZ8JXuDBSsBftHCqjaCK>) is **obsolete**. New deck: `TODO` (#17).
-Suggested 11 slides: cover, hook, problem, the path of one report, demo, architecture, explainability (one plan with
-its reasons), maturity, what it is worth, close, and backup slides (why Coreflux, what if the AI is wrong).
+The Vale deck (<https://claude.ai/artifact/3QRZ8JXuDBSsBftHCqjaCK>) is **obsolete**, and there was never a Rua Viva
+deck. New deck: `TODO` (#17).
+Suggested 11 slides: cover, hook (the 26 586), problem (a photo of a steep Porto street with steps), the path of one
+trip, demo, architecture, explainability (one route with its reasons and one reroute), maturity (real vs. simulated),
+what it is worth, close, and backup slides (why not Google Maps, why Coreflux, the impact table).
 
 Backup video: `TODO` (record at H+4:30).

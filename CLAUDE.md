@@ -36,14 +36,18 @@ Invariants that are easy to break:
 
 ## hackathon/ (Coreflux)
 
+Product: **Passo Livre**, accessible routes for people with reduced mobility in Porto that react to live barriers
+(City Council alerts, IPMA, citizen reports, lifts); topic prefix `passolivre/`. Product, architecture and the MQTT topic
+map are in `hackathon/README.md`, the 6-hour plan in `hackathon/PLAN.md`.
+
 Coreflux MQTT broker + HUB in Docker (`hackathon/broker/`). The logic lives in the broker as LoT
 (Actions, Models, Connectors, Rules, Panels); the source of truth is the `.lotnb` files in
 `hackathon/lot/` (mounted read-only in the broker at `/lot`). LoT rules for the AI are in `hackathon/AGENTS.md`
 (auto-loaded via `hackathon/CLAUDE.md`). **Never write LoT from memory**: use the Coreflux skills in
 `.claude/skills/` (pinned to broker 2.22.0) and the `coreflux-docs` MCP server, check against the live broker with
 the `coreflux-broker` MCP server (`validate_lot`/`validate_lotnb`), and deploy with `/lot-deploy`.
-Setup: `hackathon/AI.md`. The organizers provide an event
+Setup: `hackathon/AI.md`. The team has an unlimited
 licence (`CFLX-...`, in `hackathon/broker/.env`, outside git); without it, the Community edition only allows
-**3 Connectors** and no custom Rules.
+**3 Connectors**, no custom Rules and no `TYPE LLM`, and Passo Livre needs 6 Connectors.
 The pitch (5 min + up to 3 min of questions; problem → demo → architecture → maturity) is in
 `hackathon/PITCH.md`.

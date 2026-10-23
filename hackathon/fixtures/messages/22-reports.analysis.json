@@ -1,0 +1,13 @@
+{
+  "topic": "passolivre/reports/R-0001/analysis",
+  "retain": false,
+  "note": "From the LLM Connector (#19).",
+  "payload": {
+    "report_id": "R-0001",
+    "source": "llm",
+    "kind": "sidewalk_blocked",
+    "summary": "Passeio bloqueado por obras na Rua de Mouzinho da Silveira; impede a passagem de cadeiras de rodas.",
+    "confidence": 0.88
+  },
+  "edge": false
+}

@@ -1,0 +1,17 @@
+{
+  "topic": "passolivre/reports/new",
+  "retain": false,
+  "note": "Model Report from the phone app (SIMULATED citizen): the demo's blocked pavement, on the active trip's route.",
+  "payload": {
+    "report_id": "R-0001",
+    "submitted_at": "2026-10-24T10:09:00+01:00",
+    "text": "Passeio bloqueado por obras na Mouzinho da Silveira, não dá para passar com cadeira de rodas.",
+    "photo_id": "ph-0001",
+    "lat": 41.1433,
+    "lon": -8.6119,
+    "location_confirmed": true,
+    "kind_hint": "sidewalk_blocked",
+    "contact": ""
+  },
+  "edge": false
+}

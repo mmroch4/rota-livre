@@ -1,15 +1,16 @@
-"""Publishes the contract fixtures (hackathon/fixtures/messages/) so each track can work alone.
+"""Publishes the contract fixtures (hackathon/fixtures/messages/) so each piece can be built alone.
 
-Every fixture is one example message of the topic map in hackathon/README.md. The dashboard,
-planner, simulator and Actions can be built against these before the real producer exists.
+Every fixture is one example message of the topic map in hackathon/README.md. The phone app,
+operator map, router, simulator and Actions can be built against these before the real producer exists.
 
     python hackathon/scripts/replay.py --list                    # topic table of every fixture
     python hackathon/scripts/replay.py                           # publish all fixtures once
     python hackathon/scripts/replay.py --only config state       # only files whose name matches
-    python hackathon/scripts/replay.py --only replan --edge      # one edge case: the replanned version 2
+    python hackathon/scripts/replay.py --only reroute --edge     # one edge case: the rerouted version 2
     python hackathon/scripts/replay.py --clear                   # wipe every retained fixture topic
 
-All the data is fictional (a demo neighbourhood in Lordelo do Ouro, Porto).
+City alerts and weather are real records from Porto's urban platform (23/10 snapshot); the trips,
+reports, lifts and routes are fictional demo data in Porto's Baixa and Ribeira.
 """
 
 import argparse
@@ -25,7 +26,7 @@ FIXTURES = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "messages"
 def load_fixtures(only, edge=True):
     """Returns (file stem, message) pairs in file order, filtered by name substrings.
 
-    Edge-case fixtures (e.g. the replanned version 2) share a retained topic with a normal
+    Edge-case fixtures (e.g. the rerouted version 2) share a retained topic with a normal
     fixture, so they are skipped unless asked for; otherwise they would win as the retained value.
     """
     fixtures = []
@@ -65,7 +66,7 @@ def main():
     parser.add_argument("--user", default="root")
     parser.add_argument("--password", default="coreflux")
     parser.add_argument("--only", nargs="+", metavar="WORD", help="only fixtures whose file name contains WORD")
-    parser.add_argument("--edge", action="store_true", help="also publish edge-case fixtures (e.g. the replanned plan)")
+    parser.add_argument("--edge", action="store_true", help="also publish edge-case fixtures (e.g. the rerouted route)")
     parser.add_argument("--list", action="store_true", help="print the fixtures and exit")
     parser.add_argument("--clear", action="store_true", help="publish empty retained messages to every fixture topic")
     args = parser.parse_args()

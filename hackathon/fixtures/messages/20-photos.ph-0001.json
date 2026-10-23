@@ -1,0 +1,7 @@
+{
+  "topic": "passolivre/photos/ph-0001",
+  "retain": true,
+  "note": "Placeholder 2x2 PNG; the demo photo of the blocked pavement goes in dashboard/photos/ (#3).",
+  "payload": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAADklEQVR4nGNgYGBgYGBgAAAABQABXvMqGgAAAABJRU5ErkJggg==",
+  "edge": false
+}

@@ -1,0 +1,16 @@
+{
+  "topic": "passolivre/audit/events",
+  "retain": false,
+  "note": "Connector AuditLog appends it to broker/exports/audit.json.",
+  "payload": {
+    "at": "2026-10-24T10:09:05+01:00",
+    "type": "opened",
+    "source": "citizen",
+    "barrier_id": "cit-R-0001",
+    "data": {
+      "report_id": "R-0001",
+      "kind": "sidewalk_blocked"
+    }
+  },
+  "edge": false
+}

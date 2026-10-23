@@ -1,0 +1,16 @@
+{
+  "topic": "passolivre/state/conditions",
+  "retain": true,
+  "note": "From fixture 12 (simulated rain). Triggers CheckActiveTrips: every active trip is rerouted with `rain`.",
+  "payload": {
+    "rain": {
+      "active": true,
+      "since": "2026-10-24T10:20:00+01:00",
+      "source": "station",
+      "precipitation_mm": 1.4,
+      "station": "Aliados"
+    },
+    "updated_at": "2026-10-24T10:20:00+01:00"
+  },
+  "edge": true
+}

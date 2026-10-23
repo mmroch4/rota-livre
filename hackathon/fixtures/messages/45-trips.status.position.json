@@ -1,0 +1,12 @@
+{
+  "topic": "passolivre/trips/T-0001/status",
+  "retain": false,
+  "note": "The phone app's simulated walk advances along the route geometry and publishes this every few seconds.",
+  "payload": {
+    "status": "position",
+    "at": "2026-10-24T10:09:00+01:00",
+    "lat": 41.1442,
+    "lon": -8.6115
+  },
+  "edge": false
+}

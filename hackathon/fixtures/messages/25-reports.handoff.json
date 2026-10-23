@@ -1,0 +1,18 @@
+{
+  "topic": "passolivre/reports/R-0001/handoff",
+  "retain": false,
+  "note": "Prepared for the citizen to submit on ReportaPorto (no public API; we never submit or scrape). ReportaPorto's own category list is only visible in its form: map our kinds to it at #8.",
+  "payload": {
+    "report_id": "R-0001",
+    "target": "reportaporto",
+    "category": "sidewalk_blocked",
+    "category_label": "Passeio obstruído",
+    "title": "Passeio bloqueado por obras",
+    "description": "Passeio bloqueado por obras na Rua de Mouzinho da Silveira; impede a passagem de cadeiras de rodas. (Reportado através do Passo Livre.)",
+    "lat": 41.1433,
+    "lon": -8.6119,
+    "photo_id": "ph-0001",
+    "url": "https://reportaporto.cm-porto.pt/web/reporta-porto/report-occurrence"
+  },
+  "edge": false
+}

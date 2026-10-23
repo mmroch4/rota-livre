@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Rua Viva: a map pin (where) with a check mark (fixed) -->
+  <!-- Passo Livre: a map pin (where) with a check mark (the way is clear) -->
   <rect width="64" height="64" rx="14" fill="#f5a400"/>
   <path d="M32 9c-9.6 0-17.4 7.6-17.4 17C14.6 38.8 32 55 32 55s17.4-16.2 17.4-29C49.4 16.6 41.6 9 32 9z" fill="#14212f"/>
   <path d="M24.4 26.6l5.4 5.4 10-10.4" fill="none" stroke="#f5a400" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/>

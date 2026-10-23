@@ -1,7 +1,7 @@
 # AGENTS.md: LoT rules for AI assistants (hackathon/)
 
-Coreflux LoT project for **Rua Viva** (citizen reports → maintenance plans). The product, architecture and the
-**MQTT topic map** (the contract between every component) are in [`README.md`](README.md).
+Coreflux LoT project for **Passo Livre** (accessible routes in Porto that react to live barriers). The product,
+architecture and the **MQTT topic map** (the contract between every component) are in [`README.md`](README.md).
 Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 
 ## Sources of truth
@@ -29,9 +29,9 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 
 ## Naming and code standards
 
-- Entities in PascalCase: Actions verb-first (`MatchReport`), Models nouns (`Issue`), Rules by scope
-  (`AllowManagerDecisions`), Connectors by destination (`Mailer`). Variables and model fields in
-  `snake_case`. Topics lowercase, `/`-separated, under `ruaviva/` or `config/` (see the topic map).
+- Entities in PascalCase: Actions verb-first (`PlanTrip`), Models nouns (`Barrier`), Rules by scope
+  (`AllowTravellerTrips`), Connectors by destination or source (`Mailer`, `CityAlerts`). Variables and model fields in
+  `snake_case`. Topics lowercase, `/`-separated, under `passolivre/` or `config/` (see the topic map).
 - Indent 4 spaces per level. Code fences use `lot`. Write the language name as "LoT".
 - Type-cast every numeric value before math or comparisons (`PAYLOAD AS DOUBLE`,
   `GET TOPIC "…" AS DOUBLE`). Booleans and integers are not quoted.
@@ -40,8 +40,9 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
   Action controls publish timing.
 - Small callable Actions with `INPUT`/`OUTPUT` instead of one big Action.
 - LoT for publish/subscribe, conditionals and simple math; Python only for what LoT does badly
-  (the matcher, the issue fold and triage, the planner). The LLM only turns a report's text/photo into JSON
-  and never decides.
+  (`BarrierTools`: impact rules and the barrier fold; `Matcher`; `Router`: routing request, explanation, route
+  diff, affected trips). The routing engine is OpenRouteService behind a REST Connector; we never write our own.
+  The LLM only turns a report's text/photo into JSON and never decides.
 
 ## Broker 2.22.0 quirks (verified live on 23/10; these override the skills)
 
@@ -62,17 +63,19 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 - **EMAIL to Mailpit:** `HOST "mailpit"`, `PORT 1025`, `USE_TLS false`; USERNAME/PASSWORD are required but
   Mailpit accepts anything. USERNAME is the From address.
 - **Community limits** (`curl localhost:9100/license`): 3 Connectors, 24 Actions (Connector events and
-  Python scripts count too), 24 Models, **0 Rules**, 5 Panels, and no `TYPE LLM`.
+  Python scripts count too), 24 Models, **0 Rules**, 5 Panels, and no `TYPE LLM`. The team has an unlimited
+  licence for the presentation laptop; developer laptops may still be on Community, so stub the missing Connectors
+  with `scripts/replay.py`.
 
 ## Boundaries
 
 - **Always:** validate before deploying; keep `lot/` and the broker in sync; update the topic map.
-- **Ask first:** adding or changing Connectors (the Community edition allows only 3), changing
-  Rules, removing any entity, `load_project`/`unload_project` of anything other than `lot`,
+- **Ask first:** adding or changing Connectors (each one hits an external service or the Community limit of 3),
+  changing Rules, removing any entity, `load_project`/`unload_project` of anything other than `lot`,
   installing Python packages in the broker.
 - **Never:**
   - invent syntax;
-  - put licence codes, MCP tokens, passwords or API keys in committed files (use `-setSecret` /
+  - put licence codes, MCP tokens, passwords or API keys (ORS, Anthropic) in committed files (use `-setSecret` /
     `GET SECRET`, and `hackathon/broker/.env`);
   - copy code from the Coreflux training labs (`CorefluxCommunity/weather-station-hackathon`):
     there is plagiarism detection;
