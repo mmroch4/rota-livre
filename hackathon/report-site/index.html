@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-PT">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,111 +17,111 @@
       <img class="brand-mark" src="logo.svg" alt="">
       <div>
         <div class="brand-name">Rua<span>Viva</span></div>
-        <div class="brand-sub">Spot it. Report it. Fixed.</div>
+        <div class="brand-sub">Viu. Reportou. Resolvido.</div>
       </div>
     </div>
-    <div class="topbar-status"><span class="dot"></span> Service online</div>
+    <div class="topbar-status"><span class="dot"></span> Serviço disponível</div>
   </header>
 
   <main class="layout">
     <form id="report-form" class="panel" novalidate>
       <div class="panel-head">
-        <h1>New issue report</h1>
-        <p>Report damage or a hazard in public space. It is routed to the right city team automatically.</p>
+        <h1>Nova ocorrência</h1>
+        <p>Comunique um problema ou perigo no espaço público. A ocorrência é encaminhada automaticamente para a equipa municipal certa.</p>
       </div>
 
       <!-- 1. Photo -->
       <section class="step">
-        <div class="step-label"><span class="step-num">1</span> Photo of the issue</div>
+        <div class="step-label"><span class="step-num">1</span> Fotografia do problema</div>
         <label class="dropzone" id="dropzone">
           <input type="file" id="photo" accept="image/*">
           <div class="dropzone-empty">
             <svg viewBox="0 0 24 24"><path d="M4 7h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
-            <strong>Click to upload or drop a photo</strong>
-            <span>Phone photos include their location automatically</span>
+            <strong>Clique para carregar ou arraste uma fotografia</strong>
+            <span>As fotografias do telemóvel incluem a localização automaticamente</span>
           </div>
-          <img id="photo-preview" alt="Selected photo" hidden>
+          <img id="photo-preview" alt="Fotografia selecionada" hidden>
         </label>
-        <p class="error" id="photo-error" hidden>Add a photo of the issue.</p>
+        <p class="error" id="photo-error" hidden>Adicione uma fotografia do problema.</p>
       </section>
 
       <!-- 2. Category -->
       <section class="step">
-        <div class="step-label"><span class="step-num">2</span> Issue type</div>
+        <div class="step-label"><span class="step-num">2</span> Tipo de problema</div>
         <div class="categories" id="categories">
           <label class="cat"><input type="radio" name="category" value="pothole">
             <svg viewBox="0 0 24 24"><path d="M3 18h18"/><ellipse cx="12" cy="14" rx="6" ry="2.5"/><path d="M8 9l2 2M16 9l-2 2M12 6v3"/></svg>
-            <span>Pothole</span><small>Roads</small></label>
+            <span>Buraco</span><small>Vias públicas</small></label>
           <label class="cat"><input type="radio" name="category" value="sidewalk">
             <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1"/><path d="M9 6v12M15 6v12M3 12h18M11 9l2 3-1 3"/></svg>
-            <span>Sidewalk</span><small>Roads</small></label>
+            <span>Passeio</span><small>Vias públicas</small></label>
           <label class="cat"><input type="radio" name="category" value="streetlight">
             <svg viewBox="0 0 24 24"><path d="M8 21h4M10 21V5a2 2 0 0 1 2-2h4"/><path d="M14 3h4l1 3h-6z"/><path d="M16 9v2M19 8l1 1M13 8l-1 1"/></svg>
-            <span>Streetlight</span><small>Lighting</small></label>
+            <span>Iluminação</span><small>Iluminação pública</small></label>
           <label class="cat"><input type="radio" name="category" value="garbage">
             <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>
-            <span>Garbage</span><small>Waste</small></label>
+            <span>Lixo</span><small>Higiene urbana</small></label>
           <label class="cat"><input type="radio" name="category" value="graffiti">
             <svg viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="13" rx="1.5"/><path d="M10 8V5h4v3M12 2v1M4 6l2 1M20 6l-2 1"/></svg>
-            <span>Graffiti</span><small>Waste</small></label>
+            <span>Grafíti</span><small>Higiene urbana</small></label>
           <label class="cat"><input type="radio" name="category" value="tree">
             <svg viewBox="0 0 24 24"><path d="M12 22v-7"/><path d="M12 15c-4 0-6-2.5-6-5.5S8.5 3 12 3s6 3 6 6.5-2 5.5-6 5.5z"/><path d="M9 22h6"/></svg>
-            <span>Tree / park</span><small>Green spaces</small></label>
+            <span>Árvore / jardim</span><small>Espaços verdes</small></label>
           <label class="cat"><input type="radio" name="category" value="signage">
             <svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>
-            <span>Road sign</span><small>Roads</small></label>
+            <span>Sinalização</span><small>Vias públicas</small></label>
           <label class="cat"><input type="radio" name="category" value="other">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/></svg>
-            <span>Other</span><small>General</small></label>
+            <span>Outro</span><small>Geral</small></label>
         </div>
         <div class="other-type" id="other-type-wrap" hidden>
-          <label for="other-type">What kind of issue is it?</label>
-          <input type="text" id="other-type" maxlength="60" placeholder="e.g. Broken bench, blocked drain, damaged playground">
+          <label for="other-type">Que tipo de problema é?</label>
+          <input type="text" id="other-type" maxlength="60" placeholder="ex.: Banco partido, sarjeta entupida, parque infantil danificado">
         </div>
-        <p class="error" id="category-error" hidden>Choose the type of issue.</p>
+        <p class="error" id="category-error" hidden>Escolha o tipo de problema.</p>
       </section>
 
       <!-- 3. Location -->
       <section class="step">
         <div class="step-label">
-          <span><span class="step-num">3</span> Location</span>
+          <span><span class="step-num">3</span> Localização</span>
           <button type="button" class="btn-ghost" id="use-my-location">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>
-            Use my location
+            Usar a minha localização
           </button>
         </div>
         <div class="address-search">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
           <input type="text" id="address" autocomplete="off"
-                 placeholder="Type an address, e.g. Rua de Santa Catarina 100">
+                 placeholder="Escreva uma morada, ex.: Rua de Santa Catarina 100">
           <ul class="address-results" id="address-results" hidden></ul>
         </div>
         <div class="map-wrap">
           <div id="map"></div>
-          <div class="location-chip" id="location-status">Upload a photo, type an address, or click the map</div>
+          <div class="location-chip" id="location-status">Carregue uma fotografia, escreva uma morada ou clique no mapa</div>
         </div>
       </section>
 
       <!-- 4. Details -->
       <section class="step">
-        <div class="step-label"><span class="step-num">4</span> Details <em>(optional)</em></div>
-        <textarea id="description" rows="3" placeholder="e.g. Deep pothole in the right lane, next to the bus stop"></textarea>
+        <div class="step-label"><span class="step-num">4</span> Detalhes <em>(opcional)</em></div>
+        <textarea id="description" rows="3" placeholder="ex.: Buraco fundo na faixa da direita, junto à paragem de autocarro"></textarea>
       </section>
 
       <div class="submit-row">
-        <div class="routing" id="routing">Select an issue type to see which team receives it</div>
-        <button type="submit" class="btn-primary" id="submit">Submit report</button>
+        <div class="routing" id="routing">Escolha o tipo de problema para ver que equipa o recebe</div>
+        <button type="submit" class="btn-primary" id="submit">Enviar ocorrência</button>
       </div>
     </form>
 
     <aside class="panel side">
       <div class="side-head">
-        <h2>My reports</h2>
+        <h2>As minhas ocorrências</h2>
         <span class="count" id="report-count">0</span>
       </div>
       <div class="empty" id="empty">
         <svg viewBox="0 0 24 24"><path d="M9 5h6M9 3h6v4H9z"/><path d="M7 5H5v16h14V5h-2"/><path d="M9 12h6M9 16h4"/></svg>
-        <p>No reports yet.<br>Your submitted tickets will appear here.</p>
+        <p>Ainda não há ocorrências.<br>As ocorrências que enviar aparecem aqui.</p>
       </div>
       <ul id="report-list"></ul>
     </aside>

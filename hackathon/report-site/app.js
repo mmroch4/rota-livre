@@ -8,17 +8,26 @@ const PORTO_BOUNDS = L.latLngBounds([41.136, -8.695], [41.188, -8.551]);
 const NOMINATIM = "https://nominatim.openstreetmap.org";
 const STORAGE_KEY = "porto-reports";
 
-// Category → label and the city team that receives it.
-const CATEGORIES = {
-  pothole:     { label: "Pothole",          department: "Roads" },
-  sidewalk:    { label: "Broken sidewalk",  department: "Roads" },
-  streetlight: { label: "Streetlight",      department: "Lighting" },
-  garbage:     { label: "Garbage",          department: "Waste" },
-  graffiti:    { label: "Graffiti",         department: "Waste" },
-  tree:        { label: "Tree / park",      department: "Green spaces" },
-  signage:     { label: "Road sign",        department: "Roads" },
-  other:       { label: "Other",            department: "General" },
+// Category → label shown to citizens and the department that receives it.
+// Keys stay in English (they go into the report JSON / MQTT); labels are pt-PT.
+const DEPARTMENTS = {
+  roads:    "Vias públicas",
+  lighting: "Iluminação pública",
+  waste:    "Higiene urbana",
+  green:    "Espaços verdes",
+  general:  "Geral",
 };
+const CATEGORIES = {
+  pothole:     { label: "Buraco na estrada",  department: "roads" },
+  sidewalk:    { label: "Passeio danificado", department: "roads" },
+  streetlight: { label: "Iluminação",         department: "lighting" },
+  garbage:     { label: "Lixo",               department: "waste" },
+  graffiti:    { label: "Grafíti",            department: "waste" },
+  tree:        { label: "Árvore / jardim",    department: "green" },
+  signage:     { label: "Sinalização",        department: "roads" },
+  other:       { label: "Outro",              department: "general" },
+};
+const STATUS_LABELS = { received: "Recebida", assigned: "Atribuída", fixed: "Resolvida" };
 
 const form = document.getElementById("report-form");
 const dropzone = document.getElementById("dropzone");
@@ -80,8 +89,8 @@ function setLocationStatus(text, kind) {
 
 function setLocation(lat, lng, source, address) {
   if (!PORTO_BOUNDS.contains([lat, lng])) {
-    const where = { photo: "This photo was taken", browser: "You are", map: "That point is", address: "That address is" }[source];
-    setLocationStatus(`${where} outside Porto. Only issues in Porto can be reported; click inside the area.`, "warn");
+    const where = { photo: "Esta fotografia foi tirada", browser: "Está", map: "Esse ponto fica", address: "Essa morada fica" }[source];
+    setLocationStatus(`${where} fora do Porto. Só é possível comunicar ocorrências no Porto; clique dentro da área.`, "warn");
     return;
   }
   const loc = { lat, lng, source, address: address || null };
@@ -96,7 +105,7 @@ function setLocation(lat, lng, source, address) {
 
 function showPickedLocation() {
   const { lat, lng, source, address } = pickedLocation;
-  const labels = { photo: "from photo", browser: "your location", map: "set on map", address: "from address" };
+  const labels = { photo: "da fotografia", browser: "a sua localização", map: "marcado no mapa", address: "da morada" };
   const where = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   setLocationStatus(`${where} · ${labels[source]}`, "set");
 }
@@ -119,7 +128,7 @@ function municipalityOf(a) {
 // Fills in the street name for a point picked on the map, by photo or by GPS.
 async function lookUpAddress(loc) {
   try {
-    const res = await fetch(`${NOMINATIM}/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${loc.lat}&lon=${loc.lng}`);
+    const res = await fetch(`${NOMINATIM}/reverse?format=jsonv2&accept-language=pt-PT&addressdetails=1&zoom=18&lat=${loc.lat}&lon=${loc.lng}`);
     const data = await res.json();
     if (pickedLocation !== loc) return;   // user picked another point meanwhile
     const city = municipalityOf(data.address);
@@ -128,7 +137,7 @@ async function lookUpAddress(loc) {
       map.removeLayer(marker);
       marker = null;
       addressInput.value = "";
-      setLocationStatus(`That point is in ${city}, outside Porto. Only issues in Porto can be reported.`, "warn");
+      setLocationStatus(`Esse ponto fica em ${city}, fora do Porto. Só é possível comunicar ocorrências no Porto.`, "warn");
       return;
     }
     loc.address = shortAddress(data.address, data.display_name);
@@ -150,7 +159,7 @@ addressInput.addEventListener("input", () => {
 
 async function searchAddress(q) {
   const box = [PORTO_BOUNDS.getWest(), PORTO_BOUNDS.getNorth(), PORTO_BOUNDS.getEast(), PORTO_BOUNDS.getSouth()].join(",");
-  const url = `${NOMINATIM}/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=pt`
+  const url = `${NOMINATIM}/search?format=jsonv2&accept-language=pt-PT&addressdetails=1&limit=5&countrycodes=pt`
     + `&viewbox=${box}&bounded=1&q=${encodeURIComponent(q)}`;
   try {
     const res = await fetch(url);
@@ -169,7 +178,7 @@ async function searchAddress(q) {
     renderResults();
   } catch (_) {
     searchResults = [];
-    renderResults("Address search is unavailable right now. Click the map instead.");
+    renderResults("A pesquisa de moradas não está disponível. Clique no mapa.");
   }
 }
 
@@ -179,7 +188,7 @@ function renderResults(note) {
   if (!searchResults.length) {
     const li = document.createElement("li");
     li.className = "note";
-    li.textContent = note || "No matching address in Porto.";
+    li.textContent = note || "Nenhuma morada encontrada no Porto.";
     addressResults.appendChild(li);
   }
   searchResults.forEach((r, i) => {
@@ -225,15 +234,15 @@ map.on("click", (e) => setLocation(e.latlng.lat, e.latlng.lng, "map"));
 
 myLocationButton.addEventListener("click", () => {
   if (!navigator.geolocation) {
-    setLocationStatus("Location not available in this browser. Type an address or click the map.", "warn");
+    setLocationStatus("Localização indisponível neste navegador. Escreva uma morada ou clique no mapa.", "warn");
     return;
   }
-  setLocationStatus("Getting your location…");
+  setLocationStatus("A obter a sua localização…");
   navigator.geolocation.getCurrentPosition(
     (pos) => setLocation(pos.coords.latitude, pos.coords.longitude, "browser"),
     (err) => setLocationStatus(err.code === err.PERMISSION_DENIED
-      ? "Location access is blocked in this browser. Allow it, or type an address instead."
-      : "Couldn't get your location. Type an address or click the map.", "warn")
+      ? "O acesso à localização está bloqueado neste navegador. Permita-o ou escreva uma morada."
+      : "Não foi possível obter a sua localização. Escreva uma morada ou clique no mapa.", "warn")
   );
 });
 
@@ -263,7 +272,7 @@ photoInput.addEventListener("change", async () => {
     }
   } catch (_) { /* no EXIF, fall through */ }
   if (!pickedLocation) {
-    setLocationStatus("This photo has no location. Type an address or click the map.", "warn");
+    setLocationStatus("Esta fotografia não tem localização. Escreva uma morada ou clique no mapa.", "warn");
   }
 });
 
@@ -294,7 +303,7 @@ form.addEventListener("change", (e) => {
   otherTypeWrap.hidden = !isOther;
   if (isOther) otherTypeInput.focus();
   const { department } = CATEGORIES[e.target.value];
-  routing.innerHTML = `Will be routed to <strong>${department}</strong>`;
+  routing.innerHTML = `Será encaminhada para <strong>${DEPARTMENTS[department]}</strong>`;
 });
 
 // --- Submit ----------------------------------------------------------------
@@ -306,10 +315,10 @@ form.addEventListener("submit", (e) => {
   const categoryOk = category && (category !== "other" || otherType);
 
   photoError.hidden = !!photoData;
-  categoryError.textContent = category ? "Describe what kind of issue it is." : "Choose the type of issue.";
+  categoryError.textContent = category ? "Indique que tipo de problema é." : "Escolha o tipo de problema.";
   categoryError.hidden = !!categoryOk;
   if (!pickedLocation) {
-    setLocationStatus("A location is required: type an address or click the map.", "warn");
+    setLocationStatus("A localização é obrigatória: escreva uma morada ou clique no mapa.", "warn");
   }
   if (!photoData || !categoryOk || !pickedLocation) return;
 
@@ -333,7 +342,7 @@ form.addEventListener("submit", (e) => {
   submitButton.disabled = false;
 
   resetForm();
-  showToast(`Report ${report.id} sent to ${report.department}`);
+  showToast(`Ocorrência ${report.id} enviada para ${DEPARTMENTS[report.department]}`);
 });
 
 function resetForm() {
@@ -346,8 +355,8 @@ function resetForm() {
   if (marker) { map.removeLayer(marker); marker = null; }
   map.fitBounds(PORTO_BOUNDS);
   addressInput.value = "";
-  setLocationStatus("Upload a photo, type an address, or click the map");
-  routing.textContent = "Select an issue type to see which team receives it";
+  setLocationStatus("Carregue uma fotografia, escreva uma morada ou clique no mapa");
+  routing.textContent = "Escolha o tipo de problema para ver que equipa o recebe";
 }
 
 let toastTimer = null;
@@ -379,7 +388,7 @@ function renderReports() {
   emptyState.hidden = reports.length > 0;
   reportList.innerHTML = "";
   for (const r of reports) {
-    const info = CATEGORIES[r.category] || { label: r.category, department: "General" };
+    const info = CATEGORIES[r.category] || { label: r.category, department: "general" };
     const li = document.createElement("li");
     li.className = "ticket";
     li.innerHTML = `
@@ -387,18 +396,18 @@ function renderReports() {
       <div class="ticket-body">
         <div class="ticket-top">
           <span class="ticket-id"></span>
-          <span class="status status-${r.status}">${r.status}</span>
+          <span class="status status-${r.status}">${STATUS_LABELS[r.status] || r.status}</span>
         </div>
         <div class="ticket-title"></div>
         <div class="ticket-desc"></div>
         <div class="ticket-meta"></div>
       </div>`;
     li.querySelector(".ticket-id").textContent = r.id;
-    const label = r.otherType ? `Other: ${r.otherType}` : info.label;
-    li.querySelector(".ticket-title").textContent = `${label} · ${info.department}`;
-    li.querySelector(".ticket-desc").textContent = r.description || "No description";
+    const label = r.otherType ? `Outro: ${r.otherType}` : info.label;
+    li.querySelector(".ticket-title").textContent = `${label} · ${DEPARTMENTS[info.department] || info.department}`;
+    li.querySelector(".ticket-desc").textContent = r.description || "Sem descrição";
     li.querySelector(".ticket-meta").textContent =
-      [r.address, new Date(r.createdAt).toLocaleString()].filter(Boolean).join(" · ");
+      [r.address, new Date(r.createdAt).toLocaleString("pt-PT")].filter(Boolean).join(" · ");
     reportList.appendChild(li);
   }
 }

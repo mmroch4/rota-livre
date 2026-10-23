@@ -2,6 +2,7 @@
 
 Citizen-facing website for reporting problems in Porto (potholes, broken streetlights, garbage…).
 Plain HTML/CSS/JS, no build step.
+The interface is in European Portuguese (pt-PT); code, comments and JSON keys stay in English.
 
 - Upload a photo; its GPS location is read from the photo's EXIF data when present.
 - Otherwise use the browser's location or click the map.
