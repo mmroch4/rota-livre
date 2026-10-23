@@ -1,0 +1,13 @@
+{
+  "topic": "copilot/devices/cold_room_1/telemetry",
+  "retain": false,
+  "note": "Triggers Guard (temp_c > temp_max_c).",
+  "payload": {
+    "device_id": "cold_room_1",
+    "on": false,
+    "power_kw": 0.0,
+    "temp_c": 6.2,
+    "door_open": true
+  },
+  "edge": true
+}

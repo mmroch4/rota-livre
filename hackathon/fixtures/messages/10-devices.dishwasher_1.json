@@ -1,0 +1,12 @@
+{
+  "topic": "config/devices/dishwasher_1",
+  "retain": true,
+  "note": "Model Device. type: thermal | block | energy.",
+  "payload": {
+    "device_id": "dishwasher_1",
+    "name": "Dishwasher",
+    "type": "block",
+    "power_kw": 6.0
+  },
+  "edge": false
+}

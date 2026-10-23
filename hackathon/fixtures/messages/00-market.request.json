@@ -1,0 +1,9 @@
+{
+  "topic": "copilot/market/request",
+  "retain": false,
+  "note": "FetchPrices -> RenPrices connector. Date in Europe/Lisbon.",
+  "payload": {
+    "date": "2026-10-22"
+  },
+  "edge": false
+}

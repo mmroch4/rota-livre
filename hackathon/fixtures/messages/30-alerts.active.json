@@ -1,0 +1,7 @@
+{
+  "topic": "copilot/alerts/guardrail/cold_room_1/active",
+  "retain": true,
+  "note": "on | off. Guard's own state (one alert per episode).",
+  "payload": "on",
+  "edge": false
+}

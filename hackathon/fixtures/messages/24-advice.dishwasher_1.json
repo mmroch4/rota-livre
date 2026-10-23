@@ -1,0 +1,13 @@
+{
+  "topic": "copilot/advice/dishwasher_1",
+  "retain": false,
+  "note": "Dispatch in advise mode, published when the planned start slot arrives.",
+  "payload": {
+    "device_id": "dishwasher_1",
+    "slot": 57,
+    "time": "14:15",
+    "text": "Start the dishwasher at 14:15 (saves €1.53)",
+    "savings_eur": 1.53
+  },
+  "edge": false
+}

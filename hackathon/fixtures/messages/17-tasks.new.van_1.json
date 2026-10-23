@@ -1,0 +1,16 @@
+{
+  "topic": "copilot/tasks/new",
+  "retain": false,
+  "note": "Model Task (one task per message). Published on owner confirmation or by a preset button. energy: duration derived from energy_kwh / (power_kw * 0.25). block: duration_slots, contiguous. Window is [earliest_slot, deadline_slot).",
+  "payload": {
+    "task_id": "t-van_1-1",
+    "device_id": "van_1",
+    "kind": "energy",
+    "energy_kwh": 30.0,
+    "duration_slots": 0,
+    "contiguous": false,
+    "earliest_slot": 36,
+    "deadline_slot": 68
+  },
+  "edge": false
+}

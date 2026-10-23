@@ -1,0 +1,12 @@
+{
+  "topic": "config/devices/van_1",
+  "retain": true,
+  "note": "Model Device. type: thermal | block | energy.",
+  "payload": {
+    "device_id": "van_1",
+    "name": "Delivery van",
+    "type": "energy",
+    "power_kw": 7.4
+  },
+  "edge": false
+}

@@ -1,0 +1,7 @@
+{
+  "topic": "copilot/clock/slot",
+  "retain": true,
+  "note": "Current quarter-hour index into market/prices. 1 s = 1 slot in sim mode.",
+  "payload": 32,
+  "edge": false
+}

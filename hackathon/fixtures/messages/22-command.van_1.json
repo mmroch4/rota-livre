@@ -1,0 +1,7 @@
+{
+  "topic": "copilot/devices/van_1/command",
+  "retain": true,
+  "note": "on | off. Only Dispatch (auto mode) and Guard publish here.",
+  "payload": "on",
+  "edge": false
+}

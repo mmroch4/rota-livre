@@ -1,0 +1,13 @@
+{
+  "topic": "copilot/devices/cold_room_1/telemetry",
+  "retain": false,
+  "note": "Simulator, every slot. temp_c / door_open only for thermal devices.",
+  "payload": {
+    "device_id": "cold_room_1",
+    "on": false,
+    "power_kw": 0.0,
+    "temp_c": 3.4,
+    "door_open": false
+  },
+  "edge": false
+}

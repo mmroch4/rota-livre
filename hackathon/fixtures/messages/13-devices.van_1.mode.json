@@ -1,0 +1,7 @@
+{
+  "topic": "config/devices/van_1/mode",
+  "retain": true,
+  "note": "advise | auto. Changed by the owner on the dashboard.",
+  "payload": "advise",
+  "edge": false
+}

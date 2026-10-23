@@ -1,0 +1,9 @@
+{
+  "topic": "copilot/assistant/request",
+  "retain": false,
+  "note": "Free text from the owner (Portuguese).",
+  "payload": {
+    "text": "A carrinha chega às 9h e tem de sair às 17h com 30 kWh. A loiça do pequeno-almoço tem de estar lavada antes das 17h."
+  },
+  "edge": false
+}

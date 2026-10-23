@@ -1,0 +1,14 @@
+{
+  "topic": "config/devices/cold_room_1",
+  "retain": true,
+  "note": "Model Device. type: thermal | block | energy.",
+  "payload": {
+    "device_id": "cold_room_1",
+    "name": "Cold room 1",
+    "type": "thermal",
+    "power_kw": 3.0,
+    "temp_min_c": 0.0,
+    "temp_max_c": 5.0
+  },
+  "edge": false
+}

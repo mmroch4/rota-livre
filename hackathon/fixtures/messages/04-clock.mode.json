@@ -1,0 +1,7 @@
+{
+  "topic": "config/clock/mode",
+  "retain": true,
+  "note": "sim | real",
+  "payload": "sim",
+  "edge": false
+}

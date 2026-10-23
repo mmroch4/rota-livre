@@ -40,7 +40,7 @@ schedules it for the cheapest quarter-hours and switches it on by itself, withou
    or `auto` mode (Vale switches the appliance on and off by itself).
 4. **Never puts operations at risk:** the *guardrails* in the broker override the plan (e.g. the cold room
    above 5 °C turns on **now**, whatever the price) and notify the owner by email.
-5. **Shows what it saved:** a counter of € saved versus "turn it on right away", and an audit log (CSV) with each decision and its reason.
+5. **Shows what it saved:** a counter of € saved versus "turn it on right away", and an audit log (a JSON file) with each decision and its reason.
 
 ## 3. Architecture
 
@@ -57,7 +57,7 @@ schedules it for the cheapest quarter-hours and switches it on by itself, withou
  (1 s = 15 min in the demo)             (plan + mode)   └─────► advise mode: copilot/advice ──► dashboard
                                                                                  │
  appliances ──telemetry──► Action Guard (guardrails, alert 1×/episode) ──────────┼──► Connector Mailer (email)
- (Python simulator)        Action Meter (real cost vs. naive)                    └──► Connector DecisionLog (CSV)
+ (Python simulator)        Action Meter (real cost vs. naive)                    └──► Connector DecisionLog (JSON)
                                                                                       web dashboard + HUB Panel
                            Rules: only broker Actions may publish commands to the appliances
 ```
@@ -71,51 +71,65 @@ schedules it for the cheapest quarter-hours and switches it on by itself, withou
   anything on its own: the task is validated by the Model and the plan is deterministic.
 - **Outside the broker:** only the **appliance simulator** (in the real world these would be relays/PLCs) and the **dashboard**.
 
-⚠️ **Verify:** according to the docs, the `TYPE LLM` Connector needs a **Growth/Enterprise** licence. If the
-event licence does not include it, plan B is `services/intent_parser.py` (Claude API via the `anthropic` SDK), which reads
-`copilot/assistant/request` and publishes to `copilot/tasks/new`, with the same topic contract.
+**LLM licence:** verified on 23/10 that the Community broker refuses `TYPE LLM` ("requires a Growth or
+Enterprise license"). If the event licence does not unlock it, plan B is `services/intent_parser.py` (Claude API via the
+`anthropic` SDK), which reads `copilot/assistant/request` and publishes `copilot/tasks/proposed`, with the same contract.
 
 ### MQTT topic map
 
-The contract between every part of the system. **Always update it when you create a topic.**
+The contract between every part of the system, **frozen on 23/10**. Every row has an example message in
+[`fixtures/messages/`](fixtures/messages/), and `scripts/replay.py` publishes them, so each track can be built
+before its producer exists. **Change a row only with the whole team, and update its fixture in the same commit.**
 `<id>` ∈ `cold_room_1`, `dishwasher_1`, `van_1` (the demo appliances).
 
 | Topic | Published by | Read by | Payload | Retained |
 |-------|--------------|---------|---------|:--------:|
-| `copilot/market/request` | Action `FetchPrices` (daily at 13:30 and on startup) | Connector `RenPrices` | `{"date":"2026-10-24"}` | |
-| `copilot/market/raw` | Connector `RenPrices` | Action `ParsePrices` | REN JSON (`series[].data`) | |
-| `copilot/market/prices` | Action `ParsePrices` | `PlanTask`, `Dispatch`, `Meter`, dashboard | `{"date","unit":"EUR/MWh","step_min":15,"prices":[96 values]}` | ✅ |
-| `config/clock/mode` | setup / dashboard | `SimClock` | `sim` \| `real` | ✅ |
-| `copilot/clock/slot` | Action `SimClock` | `Dispatch`, `Meter`, dashboard | `0`–`95` (current quarter-hour) | ✅ |
-| `config/devices/<id>` | `00-setup` | `PlanTask`, dashboard | Model `Device`: `type` (`thermal`\|`block`\|`energy`), `power_kw`, limits | ✅ |
+| `copilot/market/request` | Action `FetchPrices` (on startup and daily at 13:30) | Connector `RenPrices` | `{"date":"2026-10-24"}` (Lisbon date) | |
+| `copilot/market/raw` | Connector `RenPrices` | Action `ParsePrices` | REN JSON verbatim, or `{"success":false,"statusCode":404,...}` | |
+| `copilot/market/prices` | Action `ParsePrices` | `PlanTask`, `Dispatch`, `Meter`, dashboard | `{"date","source":"ren"\|"cache","unit":"EUR/MWh","step_min":15,"times":[...],"prices":[...]}` | ✅ |
+| `config/clock/mode` | setup | `SimClock` | `sim` \| `real` | ✅ |
+| `config/clock/start_slot` | setup | `SimClock` | `32` (08:00) | ✅ |
+| `copilot/clock/control` | dashboard | `SimClock` | `start` \| `pause` \| `reset` | |
+| `copilot/clock/slot` | Action `SimClock` | `Dispatch`, `Meter`, `Guard`, dashboard | index into `prices` (1 s = 1 slot in sim) | ✅ |
+| `config/devices/<id>` | setup | `PlanTask`, `Guard`, dashboard | Model `Device`: `device_id`, `name`, `type` (`thermal`\|`block`\|`energy`), `power_kw`, `temp_min_c`/`temp_max_c` (thermal) | ✅ |
 | `config/devices/<id>/mode` | dashboard (owner) | `Dispatch` | `advise` \| `auto` | ✅ |
-| `copilot/assistant/request` | dashboard | Action `ParseIntent` | `{"text":"..."}` | |
-| `copilot/tasks/new` | `ParseIntent` or form (plan B) | Action `PlanTask` | Model `Task`: `device_id`, `kind`, `energy_kwh`, `duration_slots`, `earliest_slot`, `deadline_slot` | |
-| `copilot/assistant/errors` | `ParseIntent` | dashboard | validation error text | |
-| `copilot/plans/<id>` | Action `PlanTask` | `Dispatch`, dashboard | `{"slots":[...],"cost_eur","naive_cost_eur","savings_eur","reason"}` | ✅ |
+| `copilot/assistant/request` | dashboard | Action `ParseIntent` | `{"text":"..."}` (Portuguese) | |
+| `copilot/tasks/proposed` | `ParseIntent` | dashboard (owner confirms) | `{"request_text","tasks":[Task,...]}` | |
+| `copilot/assistant/errors` | `ParseIntent` | dashboard | text | |
+| `copilot/tasks/new` | dashboard (confirm or preset button) | Action `PlanTask` | Model `Task`: `task_id`, `device_id`, `kind` (`energy`\|`block`), `energy_kwh`, `duration_slots`, `contiguous`, `earliest_slot`, `deadline_slot` (window is `[earliest, deadline)`) | |
+| `copilot/plans/<id>` | Action `PlanTask` | `Dispatch`, `Meter`, dashboard | `{"ok":true,"task_id","device_id","date","slots":[...],"cost_eur","naive_cost_eur","savings_eur","reason"}` or `{"ok":false,"task_id","device_id","error"}` | ✅ |
 | `copilot/devices/<id>/command` | `Dispatch` (`auto` mode), `Guard` | simulator / relay | `on` \| `off` | ✅ |
-| `copilot/advice/<id>` | `Dispatch` (`advise` mode) | dashboard | `"Turn on at 14:15 (saves €1.80)"` | |
-| `copilot/devices/<id>/telemetry` | simulator (`services/device_sim.py`) | `Guard`, `Meter`, dashboard | `{"on":true,"power_kw":3.0,"temp_c":3.4}` | |
-| `copilot/alerts/guardrail` | Action `Guard` (on transition only) | Connector `Mailer`, dashboard | Model `Alert` | |
+| `copilot/advice/<id>` | `Dispatch` (`advise` mode) | dashboard | `{"device_id","slot","time","text","savings_eur"}` | |
+| `copilot/devices/<id>/telemetry` | simulator (`services/device_sim.py`) | `Guard`, `Meter`, dashboard | `{"device_id","on","power_kw"}` + `"temp_c","door_open"` (thermal) | |
+| `copilot/sim/<id>/door` | dashboard (demo only) | simulator | `open` \| `closed` | |
+| `copilot/alerts/guardrail` | Action `Guard` (on transition only) | Connector `Mailer`, dashboard | Model `Alert`: `device_id`, `kind`, `value`, `limit`, `slot`, `time`, `message` | |
 | `copilot/alerts/guardrail/<id>/active` | Action `Guard` | Action `Guard` | `on` \| `off` | ✅ |
-| `copilot/audit/decisions` | `Dispatch`, `Guard` | Connector `DecisionLog` (CSV) | Model `Decision`: `slot`, `device_id`, `action`, `price`, `reason` | |
-| `copilot/kpi/savings` | Action `Meter` | dashboard, Panel | `{"cost_eur","naive_cost_eur","saved_eur"}` | ✅ |
+| `copilot/audit/decisions` | `Dispatch`, `Guard` | Connector `DecisionLog` (JSON file) | Model `Decision`: `slot`, `time`, `device_id`, `action`, `price_eur_mwh`, `reason` (`plan`\|`plan_end`\|`guardrail`\|`advise`) | |
+| `copilot/kpi/savings` | Action `Meter` | dashboard, Panel | `{"cost_eur","naive_cost_eur","saved_eur","energy_kwh"}` | ✅ |
 | `copilot/errors` | any Action | dashboard | text | |
 
-Conventions: topics in English, lowercase, `snake_case`, hierarchy `<domain>/<entity>/<measure>`;
-configuration under `config/...` (retained); errors under `.../errors`.
+Rules of the contract:
+- **`prices` is not always 96 long.** REN's day is Lisbon time, and its last hour belongs to the next day's auction:
+  before ~13:00 today has **92** values (seen live on 23/10), and **25/10 (DST) has 100**. Index by slot, label with
+  `times[slot]`, never assume 96.
+- Money is the **energy component only**: `€ = price_eur_mwh / 1000 × power_kw × 0.25` per slot.
+- `energy` tasks: the planner derives the slots from `energy_kwh / (power_kw × 0.25)`; `block` tasks use
+  `duration_slots`. "Naive" cost = running from `earliest_slot` straight away.
+- The LLM only *proposes* (`tasks/proposed`); nothing is planned until the owner confirms on the dashboard.
+- Topics in English, lowercase, `snake_case`, hierarchy `<domain>/<entity>/<measure>`;
+  configuration under `config/...` (retained); errors under `.../errors`.
 
 ### Components
 
 | Component | Where | Technology |
 |-----------|-------|------------|
-| Automation logic | `lot/` | LoT: Actions, Models, Connectors (`REST_API`, `LLM`, `EMAIL`, `FILE_STORAGE`), Rules, Panel |
+| Automation logic | `lot/` | LoT: Actions, Models, Connectors (`REST_API`, `EMAIL`, `FILE_STORAGE`; `LLM` if the licence allows), Rules, Panel |
 | Optimizer and price parsing | `lot/` (`CALL PYTHON` scripts) + tests in `services/tests/` | Python (standard library only) |
 | Appliance simulator | `services/device_sim.py` | Python + `paho-mqtt` (simple thermal model of the cold room) |
-| Dashboard | `dashboard/` | Our own web app (HTML + MQTT over WebSocket + price chart with the plan overlaid); HUB Panel as the technical view and plan B |
+| Dashboard | `lot/` (Panel) + `dashboard/` | **HUB Panel first** (MVP by H+2); then our own web app (HTML + MQTT over WebSocket + price chart with the plan overlaid) if time allows |
 | Infrastructure | `broker/` | Docker Compose: Coreflux Broker 2.22, HUB 2.12, Mailpit |
 
-⚠️ **Verify:** the broker's WebSocket port for the dashboard. If there isn't one, the alternative is a minimal MQTT → SSE *bridge* in Python.
+WebSocket: verified on 23/10. The broker serves MQTT over WebSocket on container port 5000, path `/mqtt`; the compose file maps it to **`ws://localhost:9001/mqtt`**.
 
 ## 4. Demo
 
@@ -124,7 +138,7 @@ Full script and plan B in [`PITCH.md`](PITCH.md#demo-script-140). Summary:
 2. The owner types a sentence, the LLM turns it into tasks (the JSON appears on screen) and the plans appear over the chart, with the expected savings.
 3. **▶ Simulate the day** (1 s = 15 min): the appliances switch on by themselves in the valleys and the € counter goes up.
 4. **The cold room door is opened:** the temperature goes above 5 °C, the *guardrail* turns the cold room on even at a high price, an
-   email arrives in Mailpit and a line appears in the audit CSV.
+   email arrives in Mailpit and a line with reason `guardrail` appears in the audit log.
 
 ## 5. Maturity and next steps
 
@@ -163,6 +177,7 @@ Prerequisites: **Docker** and **Docker Compose v2** (`docker --version`, `docker
 ```bash
 cd hackathon/broker
 cp .env.example .env          # optional: event licence code
+chmod 777 exports             # the broker (uid 10001) writes the audit log here; git can't store this
 docker compose up -d
 ```
 
@@ -170,6 +185,7 @@ docker compose up -d
 |---------|---------|-------------|
 | Coreflux HUB | <http://localhost:3000> | pre-filled connection: host `broker`, port `1883`, `root` / `coreflux` |
 | MQTT broker (from outside Docker) | `localhost:1883` | `root` / `coreflux` |
+| MQTT over WebSocket (browser dashboard) | `ws://localhost:9001/mqtt` | `root` / `coreflux` |
 | Mailpit (test email inbox) | <http://localhost:8025> | — |
 | Broker health | <http://localhost:9100/health> | — |
 | Broker MCP server (AI agents) | <http://localhost:6278/mcp> (`/health` without a token) | bearer token, see [`AI.md`](AI.md) |
@@ -221,9 +237,8 @@ with the official LoT skills. See [`AI.md`](AI.md) for the one-time setup. Edit 
 3. Run the cells (▷) to deploy to the local broker; commit the `.lotnb` files.
 
 If someone edits directly in the HUB, they must copy the final code into the matching `.lotnb` before committing.
-Suggested layout, one notebook per responsibility:
-`lot/00-setup.lotnb` (variables, secrets, retained config), `lot/10-models.lotnb`, `lot/20-actions.lotnb`,
-`lot/30-connectors.lotnb`, `lot/40-rules.lotnb`, `lot/50-panel.lotnb`.
+Layout: **one notebook per feature, one owner per notebook** (see [`PLAN.md`](PLAN.md#notebooks)), so two
+people never edit the same `.lotnb` (they are JSON and merge badly).
 
 ### Useful tools
 
@@ -238,7 +253,10 @@ Suggested layout, one notebook per responsibility:
 - [`AI.md`](AI.md): AI tooling setup (MCP servers, Coreflux skills, token) and the daily loop.
 - [`AGENTS.md`](AGENTS.md): LoT rules for AI assistants (Claude Code reads it through `CLAUDE.md`).
 - [`LOT_CHEATSHEET.md`](LOT_CHEATSHEET.md): LoT syntax reference (Actions, Models, Connectors, Rules, Panels).
+- [`PLAN.md`](PLAN.md): who builds what, notebooks, timeline, licence decision and spike results.
 - [`PITCH.md`](PITCH.md): presentation structure and demo checklist.
+- [`fixtures/`](fixtures/): one example message per topic (`messages/`) and a week of real REN prices (`ren/`),
+  published by `scripts/replay.py`.
 
 ## References
 

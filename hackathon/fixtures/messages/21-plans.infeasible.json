@@ -1,0 +1,12 @@
+{
+  "topic": "copilot/plans/van_1",
+  "retain": true,
+  "note": "Planner rejection. The dashboard shows error; Dispatch ignores ok=false.",
+  "payload": {
+    "ok": false,
+    "task_id": "t-van_1-2",
+    "device_id": "van_1",
+    "error": "Needs 17 quarter-hours but the window has only 8"
+  },
+  "edge": true
+}

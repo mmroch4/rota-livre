@@ -27,23 +27,23 @@ and wants to know more about the project. Event on **Saturday, 24/10**.
 | 3 | Solution | *"Vale understands what each appliance needs from a single sentence, moves consumption into the price valleys and switches the appliances on by itself, without ever putting the food at risk."* |
 | 4 | Demo | See the script below. |
 | 5 | Architecture | One diagram (README §3). Message: **everything that decides lives in the broker**: REST and LLM Connectors, Python inside the broker, Actions, Rules. Only the appliance simulator and the screen are outside it. |
-| 6 | Maturity | Real vs. simulated, *guardrails* above the plan, the LLM never acts, safe mode without internet, Rules, tests (including the 100-quarter-hour day on 25/10), CSV audit log. |
+| 6 | Maturity | Real vs. simulated, *guardrails* above the plan, the LLM never acts, safe mode without internet, Rules, tests (including the 92- and 100-quarter-hour days), audit log. |
 | 7 | Close | *"Vale: the cheapest energy is the energy used at the right time." Team O(1/n).* |
 
 ## Demo script (1:40)
 
 Initial state: `00-setup.lotnb` run, today's prices already on `copilot/market/prices`, all appliances in `advise`,
-clock stopped at slot 32 (08:00), Mailpit empty, CSV clean.
+clock stopped at slot 32 (08:00), Mailpit empty, audit log clean.
 
 1. **(0:15) Real prices.** The dashboard shows today's curve from REN, with the midday valley clearly visible.
-2. **(0:25) Sentence → tasks.** Type: *"The van arrives at 9:00 and must leave at 17:00 with 30 kWh. The lunch dishes
-   must be washed before 19:00."* The JSON for the 2 tasks appears, and the plans are shaded over the curve:
-   "expected savings: X €".
+2. **(0:25) Sentence → tasks.** Type: *"A carrinha chega às 9h e tem de sair às 17h com 30 kWh. A loiça do pequeno-almoço tem de estar
+   lavada antes das 17h."* The 2 proposed tasks appear as cards; the owner clicks **Confirm** and the plans are
+   shaded over the curve: "expected savings: X €".
 3. **(0:10) Advise → act.** A piece of advice appears in `advise` mode. Switch the van and the dishwasher to `auto`.
 4. **(0:25) ▶ Simulate the day** (1 s = 15 min). The appliances switch on by themselves in the valleys, the cold room pre-cools before the
    18:00 peak and the € saved counter goes up.
 5. **(0:20) Surprise.** Click "door open" on the cold room: the temperature goes above 5 °C and `Guard` turns the cold room on **even at a high price**.
-   The email arrives in Mailpit ("Cold room 1 out of range") and a line with reason `guardrail` appears in the CSV.
+   The email arrives in Mailpit ("Cold room 1 out of range") and a line with reason `guardrail` appears in the audit log.
 6. **(0:05) Proof.** The HUB shows the Actions and Connectors running in the broker.
 
 **Plan B (in order):**
@@ -75,43 +75,14 @@ The extra 3 minutes are an opportunity: questions show interest. Prepare short a
 | How would it scale to N users/devices? | Appliances are configuration (`config/devices/<id>`), not code. One broker per shop, linked to a central broker, for chains. The planner is pure and stateless. |
 | What about security (who can publish/change config)? | Rules: only Actions publish commands to the appliances, the dashboard only sends requests and changes the mode, and each appliance only publishes its own telemetry. The LLM never acts: the task is validated by a Model before it is scheduled. |
 | What if the LLM gets it wrong? | The LLM only produces a task *proposal*. The Model validates it, the owner sees and confirms it, and the *guardrail* always protects operations. In the worst case the schedule is suboptimal, but never dangerous. |
-| How much does it really save? | Only the energy component changes (not grid fees, contracted power or taxes). In the demo we show € saved on that component, with real prices. The honest claim is: "shifts X kWh/day from the peak to the valley". |
+| How much does it really save? | Only the energy component changes (not grid fees, contracted power or taxes). Real prices of 22/10: charging the van (30 kWh) and one dishwasher cycle right away costs **€3.12**; in the valley **€0.03**. That is about **€3/day, ~€90/month for two appliances**, before the cold room. On 22/10 the 11:00–16:00 valley was ~€1/MWh and most other hours ~€200/MWh. |
 | How much does it cost to deploy? Who would pay? | The business owner pays a subscription per establishment, plus cheap relays or integration with the existing controller. The sales pitch is the bill simulator (how much they would save on the indexed tariff). |
 | What would you do next with more time? | Modbus integration with the refrigeration controllers, forecasting tomorrow's price before 13:00, optimizing contracted power and solar self-consumption, and the residential profile (electric car). |
 
-## Roles on the day
+## Owner, roles, timeline
 
-No fixed roles in the team. Decide **by lunchtime** who presents each block and who
-"drives" the demo while someone else talks.
-
-Suggested split of work (4 parallel tracks, with the README topic map as the contract):
-**A**: broker/LoT (Connectors, `ParsePrices`, `SimClock`, `Dispatch`, `Guard`, Rules) ·
-**B**: planner Python + tests · **C**: web dashboard · **D**: LLM (`ParseIntent`), appliance simulator
-and, from H+3, the slides.
-
-## 6-hour plan
-
-| Milestone | Goal (verifiable) |
-|-----------|-------------------|
-| **H+0:30** | Broker and licence active. ⚠️ Verified: licence tier (LLM Connector?), `CALL PYTHON`, REST Connector with the date in the endpoint, WebSocket port. Plan B decisions made **here**, not later. |
-| **H+1** | Real prices reach `copilot/market/prices` (retained). The planner passes its tests. The dashboard draws the curve. The simulator publishes telemetry. |
-| **H+2** | **End-to-end MVP without the LLM:** a task from a form → plan → `SimClock` → `Dispatch` → the appliance switches on in the valley. From here on there is always a demo. |
-| **H+3** | The LLM turns text into a `Task` (or plan B in Python). `Guard` + email + CSV working. Lunch; decide who presents what. |
-| **H+4** | Rules, `Meter` (€ counter), HUB Panel, dashboard polish. **H+4:30: feature freeze and record the backup video.** |
-| **H+4:30 → H+6** | **1h30 for the pitch only:** slides, 3 timed rehearsals on the presentation machine, jury questions, reset the initial state. Bug fixes only. |
-
-## Day-before prep (no product code)
-
-The rules don't explicitly forbid prior work, but the event brief is only handed out on the day, and there is plagiarism detection.
-So the day before we only do **environment, research and decisions**:
-- `docker compose pull` and a test `up`. Have the licence at hand. Install the LoT Notebooks extension.
-- Create an Anthropic API key (with credit) and test it with `curl`. It stays outside git.
-- Read the docs: [LLM Connector](https://docs.coreflux.org/latest/lot-language/routes/ai-routes.md),
-  [Python integration](https://docs.coreflux.org/latest/lot-language/actions/python-integration.md), Rules, Panels and the
-  REST Connector (how to put the payload's date into the endpoint).
-- Save last week's REN prices as JSON (data, for the no-internet plan B and for the slide charts).
-- Slide skeleton: hook, problem with the numbers, architecture diagram.
-- Agree who takes each track (A–D) and get some sleep.
+**Victor owns the pitch** (demo script, slides, rehearsals, presents). Tracks, the 6-hour plan, checkpoints
+and tonight's prep are in [`PLAN.md`](PLAN.md); the task board is GitHub Issues.
 
 ## Slides
 
