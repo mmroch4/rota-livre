@@ -113,7 +113,8 @@ Actions 24 (events and Python count): ~8 Actions (`FetchPrices`, `ParsePrices`, 
       `scripts/mcp_token.py`, then `scripts/replay.py --list` works
 - [ ] Assign tracks A, B, C (fill the table above)
 - [ ] Anthropic API key with credit, tested with `curl` (needed by plan B and by the LLM connector); keep it out of git
-- [ ] Victor: slide skeleton (hook, problem with the REN numbers, architecture), first draft of the demo script
+- [x] Slide skeleton: 12 slides with speaker notes, link in PITCH.md (Victor: review and own it)
+- [ ] Victor: first draft of the click-by-click demo script
 - [ ] Track C: read the `lot-panels` skill; Track B: the `python-scripts` skill and the
       [Python integration](https://docs.coreflux.org/latest/lot-language/actions/python-integration.md) page
 - [ ] Sleep

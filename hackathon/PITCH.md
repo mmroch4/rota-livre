@@ -22,7 +22,7 @@ and wants to know more about the project. Event on **Saturday, 24/10**.
 
 | # | Block | Lines / screen |
 |---|-------|----------------|
-| 1 | Hook | *"Yesterday, in Portugal, the same kWh cost 1000 times more at 19:00 than at midday."* Real REN chart for 22/10. |
+| 1 | Hook | *"On Thursday, in Portugal, the same kWh cost 1000 times more at 08:00 than at 14:15."* (€286.76 vs €0.28/MWh, real REN data of 22/10; not "yesterday": 23/10 was only 340×.) |
 | 2 | Problem | A restaurant on an indexed tariff: cold room, dishwasher, electric van. This week's cheapest hour was at 12:00, 13:00, 11:00, 11:00, **01:00**, 14:00, 14:00... A timer can't keep up with that, and nobody checks OMIE every day at 13:00. |
 | 3 | Solution | *"Vale understands what each appliance needs from a single sentence, moves consumption into the price valleys and switches the appliances on by itself, without ever putting the food at risk."* |
 | 4 | Demo | See the script below. |
@@ -86,4 +86,9 @@ and tonight's prep are in [`PLAN.md`](PLAN.md); the task board is GitHub Issues.
 
 ## Slides
 
-`TODO`: link to the slides (Google Slides/Canva) and to the backup video.
+Deck (Claude Slides, owner Victor; ask Miguel to share it): <https://claude.ai/artifact/3QRZ8JXuDBSsBftHCqjaCK>.
+12 slides: cover, hook (real 22/10 curve), problem, the moving valley, solution, demo, architecture, maturity,
+what it is worth, close, and 2 backup slides (why Coreflux, what if the LLM is wrong). Speaker notes on every slide.
+`[bracketed]` text must be filled in on the day (LLM connector, Rules, cold-room savings).
+
+Backup video: `TODO` (record at H+4:30).
