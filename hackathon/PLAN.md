@@ -23,7 +23,7 @@ piece below (#1 setup, #2 licence decision, #3–#19 the pieces), labelled by tr
 |-------|-------|-------------------|---------------------------|
 | **A: pipeline** (LoT) | _TBD_ | P1 Issue store → P3a Intake → P3b LLM → P6 Field updates → P7 Notify + audit → P10 Rules | `10-intake`, `30-issues`, `50-field`, `60-notify`, `70-rules`, `services/report_analyzer.py` (plan B) |
 | **B: brains** (Python + its Actions) | _TBD_ | P2 IssueTools → P4 Planner → P5 Matcher → P8 Replan with explanations | `20-match`, `35-issue-tools`, `40-planner`, `services/tests/` |
-| **C: faces** (web) | _TBD_ | P9a Manager dashboard → P9b Technician list → P9c Citizen form | `dashboard/` |
+| **C: faces** (web) | _TBD_ | P9a Manager dashboard → P9b Technician list → P9c Citizen form | `dashboard/`, `report-site/` |
 | **D: story** | **Victor** | P0 Demo world (config, assets, photos) → P12a Demo script + deck → P11 Streetlight simulator → P12b Video + rehearsals (pitch owner from H+0) | `00-setup`, `services/streetlight_sim.py`, `dashboard/photos/`, slides |
 
 D is deliberately light on code: the pitch is worth as much as the product. Victor writes the demo script first

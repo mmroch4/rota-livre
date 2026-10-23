@@ -190,7 +190,7 @@ Rules of the contract:
 | Matcher, IssueTools, Planner | `lot/` (`CALL PYTHON` scripts) + tests in `services/tests/` | Python (standard library only) |
 | Report analyzer, plan B | `services/report_analyzer.py` | Python + `paho-mqtt` + `anthropic` (only if the LLM connector is not licensed) |
 | Streetlight simulator | `services/streetlight_sim.py` | Python + `paho-mqtt` |
-| Three interfaces | `dashboard/` (`citizen.html`, `manager.html`, `technician.html`) | Plain HTML + JS, MQTT over WebSocket (`mqtt.js`), Leaflet map; no build step |
+| Three interfaces | `report-site/` (citizen form, started by Ben on 23/10), `dashboard/` (`manager.html`, `technician.html`) | Plain HTML + JS, MQTT over WebSocket (`mqtt.js`), Leaflet map; no build step |
 | Infrastructure | `broker/` | Docker Compose: Coreflux Broker 2.22, HUB 2.12, Mailpit |
 
 WebSocket: verified on 23/10. The broker serves MQTT over WebSocket on container port 5000, path `/mqtt`; it is **opt-in** via `broker/docker-compose.ws.yml` → `ws://localhost:9001/mqtt`. Read that file's warning first: any web page on the laptop can reach a localhost WebSocket, so change the root password (or use limited users per role) before enabling it.
