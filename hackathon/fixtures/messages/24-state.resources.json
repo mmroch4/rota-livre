@@ -1,0 +1,58 @@
+{
+  "topic": "zelar/state/resources",
+  "retain": true,
+  "note": "Fictional demo data (Lordelo do Ouro, Porto). 10 paving stones (20 needed) leaves the paving job pending.",
+  "payload": {
+    "date": "2026-10-24",
+    "depot": {
+      "name": "Municipal depot (fictional)",
+      "lat": 41.15,
+      "lon": -8.64
+    },
+    "crews": {
+      "furniture_crew": {
+        "name": "Street furniture crew",
+        "members": [
+          "Technician A",
+          "Technician B"
+        ],
+        "skills": [
+          "carpentry",
+          "paving"
+        ],
+        "shift": [
+          "08:00",
+          "16:00"
+        ],
+        "vehicle": "van",
+        "available": true,
+        "stock": {
+          "wood_plank": 3,
+          "bolt_kit": 4,
+          "paving_stone": 10,
+          "sand_bag": 2
+        }
+      },
+      "lighting_crew": {
+        "name": "Lighting crew",
+        "members": [
+          "Electrician A",
+          "Electrician B"
+        ],
+        "skills": [
+          "electrical"
+        ],
+        "shift": [
+          "08:00",
+          "16:00"
+        ],
+        "vehicle": "bucket_truck",
+        "available": true,
+        "stock": {
+          "led_lamp": 2
+        }
+      }
+    }
+  },
+  "edge": false
+}

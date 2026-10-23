@@ -1,6 +1,6 @@
 # AGENTS.md: LoT rules for AI assistants (hackathon/)
 
-Coreflux LoT project for **Vale** (energy copilot for SMEs). The product, architecture and the
+Coreflux LoT project for **ZelAR** (citizen reports → maintenance plans). The product, architecture and the
 **MQTT topic map** (the contract between every component) are in [`README.md`](README.md).
 Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 
@@ -29,9 +29,9 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 
 ## Naming and code standards
 
-- Entities in PascalCase: Actions verb-first (`ParsePrices`), Models nouns (`Task`), Rules by scope
-  (`AllowDispatchCommands`), Connectors by destination (`RenPrices`). Variables and model fields in
-  `snake_case`. Topics lowercase, `/`-separated, under `copilot/` or `config/` (see the topic map).
+- Entities in PascalCase: Actions verb-first (`MatchReport`), Models nouns (`Issue`), Rules by scope
+  (`AllowManagerDecisions`), Connectors by destination (`Mailer`). Variables and model fields in
+  `snake_case`. Topics lowercase, `/`-separated, under `zelar/` or `config/` (see the topic map).
 - Indent 4 spaces per level. Code fences use `lot`. Write the language name as "LoT".
 - Type-cast every numeric value before math or comparisons (`PAYLOAD AS DOUBLE`,
   `GET TOPIC "…" AS DOUBLE`). Booleans and integers are not quoted.
@@ -40,7 +40,8 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
   Action controls publish timing.
 - Small callable Actions with `INPUT`/`OUTPUT` instead of one big Action.
 - LoT for publish/subscribe, conditionals and simple math; Python only for what LoT does badly
-  (sorting 96 prices, the planner). The LLM only translates text to JSON and never decides.
+  (the matcher, the issue fold and triage, the planner). The LLM only turns a report's text/photo into JSON
+  and never decides.
 
 ## Broker 2.22.0 quirks (verified live on 23/10; these override the skills)
 

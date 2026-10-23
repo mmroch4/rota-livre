@@ -1,0 +1,17 @@
+{
+  "topic": "zelar/reports/new",
+  "retain": false,
+  "note": "Published by SensorIntake; location comes from config/assets.",
+  "payload": {
+    "report_id": "R-0007",
+    "channel": "sensor",
+    "submitted_at": "2026-10-23T20:29:01+01:00",
+    "text": "Lamp failure reported by controller slc-07.",
+    "photo_id": null,
+    "lat": 41.15362,
+    "lon": -8.64401,
+    "location_confirmed": true,
+    "contact": null
+  },
+  "edge": false
+}

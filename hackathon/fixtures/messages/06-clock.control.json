@@ -1,7 +1,0 @@
-{
-  "topic": "copilot/clock/control",
-  "retain": false,
-  "note": "start | pause | reset. Published by the dashboard; read by SimClock.",
-  "payload": "start",
-  "edge": false
-}

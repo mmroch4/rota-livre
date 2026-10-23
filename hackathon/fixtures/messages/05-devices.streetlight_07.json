@@ -1,0 +1,13 @@
+{
+  "topic": "zelar/devices/streetlight_07/status",
+  "retain": true,
+  "note": "Streetlight controller (simulated). SensorIntake turns lamp_ok=false into a report.",
+  "payload": {
+    "device_id": "slc-07",
+    "asset_id": "streetlight_07",
+    "lamp_ok": false,
+    "fault": "lamp_failure",
+    "at": "2026-10-23T20:29:00+01:00"
+  },
+  "edge": false
+}

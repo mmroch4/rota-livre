@@ -1,0 +1,11 @@
+{
+  "topic": "zelar/jobs/2026-10-24-I-001/status",
+  "retain": false,
+  "note": "",
+  "payload": {
+    "status": "started",
+    "at": "2026-10-24T08:08:00+01:00",
+    "by": "furniture_crew"
+  },
+  "edge": false
+}

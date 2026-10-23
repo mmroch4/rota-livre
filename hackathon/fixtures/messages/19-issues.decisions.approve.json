@@ -1,0 +1,14 @@
+{
+  "topic": "zelar/issues/decisions",
+  "retain": false,
+  "note": "decision: approve | reject | close | reopen. priority/crew_id override the suggestion.",
+  "payload": {
+    "issue_id": "I-001",
+    "decision": "approve",
+    "by": "manager",
+    "note": "",
+    "priority": null,
+    "crew_id": null
+  },
+  "edge": false
+}

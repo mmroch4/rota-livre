@@ -18,38 +18,42 @@ and wants to know more about the project. Event on **Saturday, 24/10**.
 | 6 | **Maturity** | maturity | 0:40 | What is real vs. simulated, tests, security (Rules), scale, next steps. |
 | 7 | Close | — | 0:10 | The product sentence + team name. |
 
-## Script (Vale, ~5 min)
+## Script (ZelAR, ~5 min)
 
 | # | Block | Lines / screen |
 |---|-------|----------------|
-| 1 | Hook | *"On Thursday, in Portugal, the same kWh cost 1000 times more at 08:00 than at 14:15."* (€286.76 vs €0.28/MWh, real REN data of 22/10; not "yesterday": 23/10 was only 340×.) |
-| 2 | Problem | A restaurant on an indexed tariff: cold room, dishwasher, electric van. This week's cheapest hour was at 12:00, 13:00, 11:00, 11:00, **01:00**, 14:00, 14:00... A timer can't keep up with that, and nobody checks OMIE every day at 13:00. |
-| 3 | Solution | *"Vale understands what each appliance needs from a single sentence, moves consumption into the price valleys and switches the appliances on by itself, without ever putting the food at risk."* |
+| 1 | Hook | *"Five neighbours report the same broken bench. Today that is five tickets, five e-mails, and a crew that still doesn't know if it has the wood to fix it."* `[TODO Victor: add one verified number with its source]` |
+| 2 | Problem | The manager gets reports, not jobs: where exactly, what, whose, how urgent, how long, with what material? The daily crew plan is built by memory and rebuilt by phone when a part is missing. And the citizen never hears back. |
+| 3 | Solution | *"ZelAR turns reports about public space into maintenance plans. It organizes reports, finds likely duplicates and helps the municipality decide what each crew can fix today, with the resources it has."* |
 | 4 | Demo | See the script below. |
-| 5 | Architecture | One diagram (README §3). Message: **everything that decides lives in the broker**: REST and LLM Connectors, Python inside the broker, Actions, Rules. Only the appliance simulator and the screen are outside it. |
-| 6 | Maturity | Real vs. simulated, *guardrails* above the plan, the LLM never acts, safe mode without internet, Rules, tests (including the 92- and 100-quarter-hour days), audit log. |
-| 7 | Close | *"Vale: the cheapest energy is the energy used at the right time." Team O(1/n).* |
+| 5 | Architecture | One diagram (README §3). Message: **every report, from a citizen or a device, is an event in the broker**; matching, triage and planning are Python inside the broker, the LLM only reads the text and the photo, and the manager approves. Only the screens and the simulator are outside. |
+| 6 | Maturity | Real vs. fictional data (labelled), human in the loop, a reason for every decision, replan that never touches started work, tests, audit log, Rules per role. |
+| 7 | Close | *"ZelAR: from reports to repairs." Team O(1/n).* |
 
 ## Demo script (1:40)
 
-Initial state: `00-setup.lotnb` run, today's prices already on `copilot/market/prices`, all appliances in `advise`,
-clock stopped at slot 32 (08:00), Mailpit empty, audit log clean.
+Initial state: `ResetDemo` run; config, assets and the day's resources retained; 8 seed reports already turned into
+6 issues; no plan yet; Mailpit empty. Three windows: citizen (phone size), manager, technician (phone size).
 
-1. **(0:15) Real prices.** The dashboard shows today's curve from REN, with the midday valley clearly visible.
-2. **(0:25) Sentence → tasks.** Type: *"A carrinha chega às 9h e tem de sair às 17h com 30 kWh. A loiça do pequeno-almoço tem de estar
-   lavada antes das 17h."* The 2 proposed tasks appear as cards; the owner clicks **Confirm** and the plans are
-   shaded over the curve: "expected savings: X €".
-3. **(0:10) Advise → act.** A piece of advice appears in `advise` mode. Switch the van and the dishwasher to `auto`.
-4. **(0:25) ▶ Simulate the day** (1 s = 15 min). The appliances switch on by themselves in the valleys, the cold room pre-cools before the
-   18:00 peak and the € saved counter goes up.
-5. **(0:20) Surprise.** Click "door open" on the cold room: the temperature goes above 5 °C and `Guard` turns the cold room on **even at a high price**.
-   The email arrives in Mailpit ("Cold room 1 out of range") and a line with reason `guardrail` appears in the audit log.
-6. **(0:05) Proof.** The HUB shows the Actions and Connectors running in the broker.
+1. **(0:20) Report.** On the citizen view, pick the bench photo, confirm the pin, type *"O banco junto ao parque
+   infantil tem uma tábua partida e um parafuso exposto."* The analysis appears: *street furniture · bench repair ·
+   hazard: exposed screw*, and the manager's card shows **high priority** with the reason *"sharp element next to a
+   children's play area"*. The outcome on the phone: *"Joined 4 other reports of this problem."*
+2. **(0:15) Many reports, few issues.** The streetlight controller reports lamp 07 dead: it joins a citizen's "the
+   street is dark" report. One ambiguous report waits in *Possible duplicates*; the manager attaches it with one click.
+3. **(0:20) Today's plan.** The manager approves the issues and clicks **Plan today**: two crews, numbered routes on
+   the map, durations and materials, and *pending: paving repair, not enough paving stones in stock*.
+4. **(0:30) The key moment.** On the technician view, the electrician marks the first lamp job **blocked: wrong lamp
+   model, need another LED lamp**. ZelAR recomputes: *"Lamp 07 moved to tomorrow: no LED lamp in stock. Fence inspection
+   added to the furniture crew: it fits after the bench."* The manager approves the new version.
+5. **(0:10) Close the loop.** The technician finishes the bench (after photo + note), the manager closes it, and
+   Mailpit shows **one email per citizen who reported it**.
+6. **(0:05) Proof.** The HUB shows the Actions, Python scripts and Connectors running in the broker.
 
 **Plan B (in order):**
-- **the LLM fails or is slow:** buttons with preset tasks that publish the same `copilot/tasks/new`;
-- **no internet:** 22/10 prices cached (file + retained) and the LLM replaced by the presets;
-- **the dashboard fails:** the HUB Panel and MQTT Explorer;
+- **the LLM fails or is slow:** the keyword classifier answers with `source: "keywords"`, same flow;
+- **no internet:** keyword classifier + map without tiles; everything else is local;
+- **a web view fails:** `replay.py` publishes the same messages, MQTT Explorer shows the result;
 - **everything fails:** the demo video recorded at H+4:30.
 
 ## Demo checklist
@@ -70,14 +74,16 @@ The extra 3 minutes are an opportunity: questions show interest. Prepare short a
 
 | Likely question | Answer / backup slide |
 |-----------------|-----------------------|
-| Why Coreflux and not a normal script/server? | The broker is already where the appliance data flows. Putting the decision there (Actions, `CALL PYTHON`, `CALL LLM`) removes an intermediate server, a point of failure and latency, and the decision keeps working close to the appliance, even with the cloud down. |
-| What is real and what is simulated? | Real: REN prices, the LLM, scheduling, dispatch, *guardrails*, emails and auditing. Simulated: the appliances and the accelerated clock. Going live only needs a relay/PLC subscribing to the same `.../command`. |
-| How would it scale to N users/devices? | Appliances are configuration (`config/devices/<id>`), not code. One broker per shop, linked to a central broker, for chains. The planner is pure and stateless. |
-| What about security (who can publish/change config)? | Rules: only Actions publish commands to the appliances, the dashboard only sends requests and changes the mode, and each appliance only publishes its own telemetry. The LLM never acts: the task is validated by a Model before it is scheduled. |
-| What if the LLM gets it wrong? | The LLM only produces a task *proposal*. The Model validates it, the owner sees and confirms it, and the *guardrail* always protects operations. In the worst case the schedule is suboptimal, but never dangerous. |
-| How much does it really save? | Only the energy component changes (not grid fees, contracted power or taxes). Real prices of 22/10: charging the van (30 kWh) and one dishwasher cycle right away costs **€3.12**; in the valley **€0.03**. That is about **€3/day, ~€90/month for two appliances**, before the cold room. On 22/10 the 11:00–16:00 valley was ~€1/MWh and most other hours ~€200/MWh. |
-| How much does it cost to deploy? Who would pay? | The business owner pays a subscription per establishment, plus cheap relays or integration with the existing controller. The sales pitch is the bill simulator (how much they would save on the indexed tariff). |
-| What would you do next with more time? | Modbus integration with the refrigeration controllers, forecasting tomorrow's price before 13:00, optimizing contracted power and solar self-consumption, and the residential profile (electric car). |
+| Why Coreflux and not a normal web app with a database? | Reports come from people **and** from devices (lighting controllers, sensors). The broker is where both arrive as events; the same pipeline handles any channel, with no extra integration server. Every step is an event, so state, audit and notifications fall out of one stream. |
+| What is real and what is fictional? | Real: the pipeline, the LLM analysis, matching, triage, planning, replanning, approvals, emails, audit. Fictional and labelled: the neighbourhood's assets, reports, crews and stock, and the streetlight controller. |
+| What if the AI gets it wrong? | It only *suggests* the category and the summary. Matching, triage and planning are deterministic rules with written reasons, and the manager approves priorities, plans and closures. Safety decisions are never automatic. |
+| Doesn't the number of reports bias priority toward loud neighbourhoods? | The count is one small, capped signal. Risk, sensitive area, impact on use and waiting time weigh more, and every score shows its reasons. |
+| How do you know two reports are the same problem? | Distance, category, the asset, text similarity and the state of the existing issue. Above a threshold it attaches; in a grey zone it asks the manager; if the issue was closed recently, it opens a *recurrence*. |
+| How good is the plan? | It is a greedy planner with visible assumptions (durations per job type, straight-line travel). Its value is that it is **feasible and explained**, and it can be recomputed in a second when the day changes. A real road network and learned durations come next. |
+| How would it scale? | Categories, job types, assets and crews are configuration. One broker per municipality; parishes add crews and assets. The Python functions are pure and stateless. |
+| What about privacy and security? | Citizens' contacts never reach the crews' view. Rules give each role (citizen, technician, manager) only its own topics, and only broker Actions write state. |
+| Who pays? | The municipality, as a subscription priced by population. It complements existing reporting apps instead of replacing them. |
+| What next? | Integrations with existing reporting apps and asset inventories, failure prediction from asset history, camera detection, photo comparison at closure. |
 
 ## Owner, roles, timeline
 
@@ -86,9 +92,8 @@ and tonight's prep are in [`PLAN.md`](PLAN.md); the task board is GitHub Issues.
 
 ## Slides
 
-Deck (Claude Slides, owner Victor; ask Miguel to share it): <https://claude.ai/artifact/3QRZ8JXuDBSsBftHCqjaCK>.
-12 slides: cover, hook (real 22/10 curve), problem, the moving valley, solution, demo, architecture, maturity,
-what it is worth, close, and 2 backup slides (why Coreflux, what if the LLM is wrong). Speaker notes on every slide.
-`[bracketed]` text must be filled in on the day (LLM connector, Rules, cold-room savings).
+The Vale deck (<https://claude.ai/artifact/3QRZ8JXuDBSsBftHCqjaCK>) is **obsolete**. New deck: `TODO` (owner Victor).
+Suggested 11 slides: cover, hook, problem, the path of one report, demo, architecture, explainability (one plan with
+its reasons), maturity, what it is worth, close, and backup slides (why Coreflux, what if the AI is wrong).
 
 Backup video: `TODO` (record at H+4:30).

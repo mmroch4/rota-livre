@@ -1,0 +1,17 @@
+{
+  "topic": "zelar/resources/events",
+  "retain": false,
+  "note": "type: crew_available | member_absent | stock_set | stock_used.",
+  "payload": {
+    "type": "stock_used",
+    "crew_id": "lighting_crew",
+    "data": {
+      "item": "led_lamp",
+      "qty": 1,
+      "why": "Wrong model, unusable"
+    },
+    "at": "2026-10-24T08:30:00+01:00",
+    "by": "lighting_crew"
+  },
+  "edge": false
+}

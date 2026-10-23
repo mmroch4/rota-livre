@@ -1,0 +1,7 @@
+{
+  "topic": "zelar/photos/p-0011",
+  "retain": true,
+  "note": "Placeholder 2x2 PNG; real demo photos are in dashboard/photos/.",
+  "payload": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAADklEQVR4nGNoAAMGCAUAKg4GARWeQtcAAAAASUVORK5CYII=",
+  "edge": false
+}

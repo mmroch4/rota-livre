@@ -1,7 +1,0 @@
-{
-  "topic": "copilot/devices/cold_room_1/command",
-  "retain": true,
-  "note": "",
-  "payload": "on",
-  "edge": false
-}

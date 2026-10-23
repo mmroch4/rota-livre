@@ -1,0 +1,34 @@
+{
+  "topic": "zelar/issues/events",
+  "retain": false,
+  "note": "Published by MatchReport. IssueTools.apply also triages on created and report_attached.",
+  "payload": {
+    "issue_id": "I-001",
+    "type": "created",
+    "at": "2026-10-23T18:12:00+01:00",
+    "by": "zelar",
+    "data": {
+      "report": {
+        "report_id": "R-0001",
+        "channel": "citizen",
+        "text": "Banco partido junto ao parque infantil A, com um parafuso de fora.",
+        "photo_id": "p-0001",
+        "lat": 41.15319,
+        "lon": -8.6441,
+        "contact": "citizen01@example.org"
+      },
+      "analysis": {
+        "category": "street_furniture",
+        "job_type": "bench_repair",
+        "asset_type": "bench",
+        "summary": "Bench 03 next to Playground A: one plank broken, a screw is exposed.",
+        "hazards": [
+          "exposed screw"
+        ]
+      },
+      "asset_id": "bench_03",
+      "recurrence_of": null
+    }
+  },
+  "edge": false
+}

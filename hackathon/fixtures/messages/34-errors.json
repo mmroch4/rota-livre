@@ -1,7 +1,0 @@
-{
-  "topic": "copilot/errors",
-  "retain": false,
-  "note": "Plain text from any Action.",
-  "payload": "ParsePrices: REN returned 404 for 2026-10-24, using cache",
-  "edge": false
-}

@@ -1,0 +1,7 @@
+{
+  "topic": "zelar/errors",
+  "retain": false,
+  "note": "",
+  "payload": "MatchReport: report R-0015 has no confirmed location",
+  "edge": false
+}
