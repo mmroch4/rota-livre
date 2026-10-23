@@ -1,0 +1,42 @@
+{
+  "enabledMcpjsonServers": ["coreflux-docs", "coreflux-broker"],
+  "permissions": {
+    "allow": [
+      "mcp__coreflux-docs",
+      "mcp__coreflux-broker__get_broker_info",
+      "mcp__coreflux-broker__get_available_commands",
+      "mcp__coreflux-broker__diagnose",
+      "mcp__coreflux-broker__explore_topics",
+      "mcp__coreflux-broker__validate_lot",
+      "mcp__coreflux-broker__validate_lotnb",
+      "mcp__coreflux-broker__list_entities",
+      "mcp__coreflux-broker__list_routes",
+      "mcp__coreflux-broker__list_agents",
+      "mcp__coreflux-broker__list_things",
+      "mcp__coreflux-broker__list_panels",
+      "mcp__coreflux-broker__list_projects",
+      "mcp__coreflux-broker__list_action_tools",
+      "mcp__coreflux-broker__list_route_templates",
+      "mcp__coreflux-broker__get_route_template",
+      "mcp__coreflux-broker__get_panel_code",
+      "mcp__coreflux-broker__get_pending_status",
+      "mcp__coreflux-broker__connection_status",
+      "mcp__coreflux-broker__check_route_connection",
+      "mcp__coreflux-broker__check_action_usage",
+      "mcp__coreflux-broker__action_trace",
+      "Bash(hackathon/.venv/bin/python -m pytest:*)"
+    ],
+    "deny": [
+      "mcp__coreflux-broker__remove_all_actions",
+      "mcp__coreflux-broker__remove_all_models",
+      "mcp__coreflux-broker__remove_all_routes",
+      "mcp__coreflux-broker__remove_all_project_rules",
+      "mcp__coreflux-broker__remove_all_python_scripts",
+      "mcp__coreflux-broker__remove_all_themes",
+      "mcp__coreflux-broker__add_user",
+      "mcp__coreflux-broker__remove_user",
+      "mcp__coreflux-broker__change_user_settings",
+      "mcp__coreflux-broker__decrypt_audit"
+    ]
+  }
+}
