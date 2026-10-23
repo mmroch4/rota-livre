@@ -1,73 +1,73 @@
 # O(1/n) — SciTeCh '26
 
-Repositório de código e desenvolvimento da equipa **O(1/n)** no
+Code and development repository of team **O(1/n)** at
 [SciTeCh '26](https://scitech.bestporto.org/index.html) (Science and Technology Challenge),
-organizado pelo BEST Porto na FCUP, a **24 e 25 de outubro de 2026**.
+organized by BEST Porto at FCUP on **24 and 25 October 2026**.
 
-| Equipa |
-|--------|
+| Team |
+|------|
 | Miguel |
 | Victor |
 | Ben    |
 | Pedro  |
 
-## As duas modalidades
+## The two challenges
 
-O SciTeCh tem duas provas, cada uma num dia, com **6 horas de trabalho** seguidas de avaliação.
-Cada pasta deste repo corresponde a uma modalidade:
+SciTeCh has two events, one per day, each with **6 hours of work** followed by judging.
+Each folder in this repo maps to one challenge:
 
-| Dia | Pasta | Modalidade | O que é | Estado |
-|-----|-------|------------|---------|--------|
-| **Sáb. 24/10** | [`hackathon/`](hackathon/) | **Hackathon** | Solução de automação para um **problema real escolhido por nós**, construída sobre a plataforma **Coreflux** (broker MQTT + LoT). Avaliada por um pitch de 5 min com demo (até 8 min com perguntas do júri). | Tema aberto: ideia em brainstorming, setup do broker pronto. |
-| **Dom. 25/10** | [`team-design/`](team-design/) | **Team Design** | Protótipo físico funcional com materiais simples e de baixo custo, que responde ao guião revelado no dia. | Esqueleto de treino (Arduino Uno + ponte H + servo), pronto a adaptar. |
+| Day | Folder | Challenge | What it is | Status |
+|-----|--------|-----------|------------|--------|
+| **Sat 24/10** | [`hackathon/`](hackathon/) | **Hackathon** | An automation solution for a **real problem we choose**, built on the **Coreflux** platform (MQTT broker + LoT). Judged on a 5-min pitch with a demo (up to 8 min with jury questions). | Idea chosen ("Vale"), broker setup ready. |
+| **Sun 25/10** | [`team-design/`](team-design/) | **Team Design** | A working physical prototype made from simple, low-cost materials, answering the brief revealed on the day. | Practice skeleton (Arduino Uno + H-bridge + servo), ready to adapt. |
 
-## Estrutura do repositório
+## Repository layout
 
 ```text
 scitech-2026/
-├── README.md           # este ficheiro
-├── CLAUDE.md           # contexto e convenções para agentes de IA
-├── regulamento.pdf     # regulamento oficial do SciTeCh '26
-├── team-design/        # firmware PlatformIO (Arduino Uno) + simulação Wokwi
-└── hackathon/          # solução Coreflux: broker, código LoT, serviços, dashboard e pitch
+├── README.md           # this file
+├── CLAUDE.md           # context and conventions for AI agents
+├── regulamento.pdf     # official SciTeCh '26 rules (Portuguese)
+├── team-design/        # PlatformIO firmware (Arduino Uno) + Wokwi simulation
+└── hackathon/          # Coreflux solution: broker, LoT code, services, dashboard and pitch
 ```
 
-## Começar
+## Getting started
 
-Pré-requisitos comuns (Linux ou macOS): `git`, `python3`, **Docker + Docker Compose v2** (hackathon)
-e VS Code (recomendado).
+Common prerequisites (Linux or macOS): `git`, `python3`, **Docker + Docker Compose v2** (hackathon)
+and VS Code (recommended).
 
 ```bash
 git clone git@github.com:mmroch4/scitech-2026.git
 cd scitech-2026
 ```
 
-Depois seguir o README da modalidade:
+Then follow the challenge's README:
 - **Team Design:** [`team-design/README.md`](team-design/README.md)
 - **Hackathon:** [`hackathon/README.md`](hackathon/README.md)
 
-## Como trabalhamos
+## How we work
 
-- **Documentação em português (PT-PT); código em inglês.** Identificadores, nomes de ficheiros,
-  mensagens Serial/MQTT e tópicos ficam em inglês. Os comentários explicativos podem ficar em PT-PT.
-- **Git trunk-based:** todos fazem push diretamente para `main`, com commits pequenos e frequentes.
-  Antes de cada push: `git pull --rebase`. No dia da prova não há PRs (não há tempo).
-- **Nunca fazer commit de segredos** (token Wokwi, código de licença Coreflux, chaves de API).
-  Ficam em `.env`, que está no `.gitignore`.
+- **Everything in English:** code, identifiers, file names, Serial/MQTT messages, topics, comments
+  and documentation.
+- **Trunk-based git:** everyone pushes straight to `main`, with small, frequent commits.
+  Before every push: `git pull --rebase`. On competition day there are no PRs (no time).
+- **Never commit secrets** (Wokwi token, Coreflux licence code, API keys).
+  They live in `.env`, which is in `.gitignore`.
 
-## Regras do regulamento que afetam o código
+## Rules that affect the code
 
-Resumo do [`regulamento.pdf`](regulamento.pdf), apenas os pontos que influenciam o trabalho técnico:
+Summary of [`regulamento.pdf`](regulamento.pdf), only the points that affect the technical work:
 
-- **Team Design (Art. 5.º):** só se podem usar **os materiais e ferramentas fornecidos pela organização**,
-  à exceção dos computadores. As ferramentas não podem fazer parte do protótipo. Os componentes eletrónicos
-  ficam com a organização no fim. Os critérios de teste só são revelados no guião, no início da prova.
-- **Hackathon (Art. 1.º, 6.º):** a avaliação é feita por uma **apresentação** que cobre:
-  1. a exposição do **problema**;
-  2. a **demonstração** da solução;
-  3. a **arquitetura** desenvolvida;
-  4. a **maturidade** da solução.
+- **Team Design (Art. 5):** only **the materials and tools provided by the organizers** may be used,
+  except for computers. Tools may not be part of the prototype. Electronic components
+  stay with the organizers at the end. The test criteria are only revealed in the brief, at the start of the event.
+- **Hackathon (Art. 1, 6):** judging is based on a **presentation** that covers:
+  1. the **problem** statement;
+  2. a **demonstration** of the solution;
+  3. the **architecture** built;
+  4. the **maturity** of the solution.
 
-  As soluções passam por **software de deteção de plágio**: não copiar código dos labs da formação
-  Coreflux; escrever o nosso.
-- **Creditação (Art. 13.º):** 1,5 ECTS exige participar nas **duas** modalidades com nota ≥ 10.
+  Solutions go through **plagiarism-detection software**: do not copy code from the Coreflux
+  training labs; write our own.
+- **Credits (Art. 13):** 1.5 ECTS requires taking part in **both** challenges with a grade ≥ 10.

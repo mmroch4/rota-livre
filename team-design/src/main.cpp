@@ -21,7 +21,7 @@ void applyMode(Mode next) {
   writeMotor(PIN_ENB, PIN_IN3, PIN_IN4, out.motorB);
   servo.write(out.servoAngle);
 
-  // Formato fixo KEY=value: fácil de ler por humanos, testes Wokwi e LLMs
+  // Fixed KEY=value format: easy to read for humans, Wokwi tests and LLMs
   Serial.print(F("MODE="));
   Serial.print(modeName(next));
   Serial.print(F(" A="));

@@ -1,19 +1,19 @@
-# Ambiente local Coreflux da equipa O(1/n): broker + HUB + Mailpit (caixa de email de teste).
+# Team O(1/n)'s local Coreflux environment: broker + HUB + Mailpit (test email inbox).
 #
-#   docker compose up -d       arranca tudo
-#   docker compose down        pára (os dados do broker ficam no volume broker-data)
-#   docker compose down -v     pára e APAGA o broker (inclui a licença ativada!)
+#   docker compose up -d       starts everything
+#   docker compose down        stops (broker data stays in the broker-data volume)
+#   docker compose down -v     stops and WIPES the broker (including the activated licence!)
 #
-# HUB:     http://localhost:3000  (ligação: host "broker", porta 1883, root / coreflux)
-# Mailpit: http://localhost:8025  (o broker envia para mailpit:1025 dentro do Docker)
-# Saúde:   http://localhost:9100/health
+# HUB:     http://localhost:3000  (connection: host "broker", port 1883, root / coreflux)
+# Mailpit: http://localhost:8025  (the broker sends to mailpit:1025 inside Docker)
+# Health:  http://localhost:9100/health
 #
-# Segurança: na rede da FCUP há outras equipas. Por omissão todas as portas ficam só em
-# 127.0.0.1. Para um dispositivo (Arduino/ESP32) ou portátil de um colega ligar ao MQTT,
-# definir MQTT_BIND=0.0.0.0 em .env e mudar a password de root antes (ver README).
+# Security: other teams share the FCUP network. By default every port is bound to
+# 127.0.0.1 only. For a device (Arduino/ESP32) or a teammate's laptop to reach MQTT,
+# set MQTT_BIND=0.0.0.0 in .env and change the root password first (see README).
 #
-# Licença do evento: pôr COREFLUX_ACTIVATION_CODE=CFLX-... em hackathon/broker/.env
-# antes do primeiro `up`, ou usar -activateLicense no Command Console do HUB.
+# Event licence: put COREFLUX_ACTIVATION_CODE=CFLX-... in hackathon/broker/.env
+# before the first `up`, or use -activateLicense in the HUB Command Console.
 services:
   broker:
     image: ${BROKER_IMAGE:-coreflux/coreflux-mqtt-broker:2.22.0}
@@ -24,8 +24,8 @@ services:
       - "127.0.0.1:9100:9100"   # health
     volumes:
       - broker-data:/etc/project
-      - ./templates:/templates:ro   # templates HTML para Connectors EMAIL
-      - ./exports:/data/exports     # ficheiros escritos por Connectors FILE_STORAGE
+      - ./templates:/templates:ro   # HTML templates for EMAIL Connectors
+      - ./exports:/data/exports     # files written by FILE_STORAGE Connectors
     environment:
       - COREFLUX_ACTIVATION_CODE=${COREFLUX_ACTIVATION_CODE:-}
 
@@ -36,7 +36,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      # O HUB corre dentro do Docker: chega ao broker pelo nome do serviço, não por localhost
+      # The HUB runs inside Docker: it reaches the broker by service name, not localhost
       - HUB_DEFAULT_CONNECTION_NAME=O(1/n)
       - HUB_DEFAULT_CONNECTION_HOST=broker
       - HUB_DEFAULT_CONNECTION_PROTOCOL=mqtt

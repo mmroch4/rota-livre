@@ -4,7 +4,7 @@
   "editor": "wokwi",
   "parts": [
     { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
-    { "type": "wokwi-pushbutton", "id": "btn1", "top": 260, "left": 10, "attrs": { "color": "green", "label": "MODO" } },
+    { "type": "wokwi-pushbutton", "id": "btn1", "top": 260, "left": 10, "attrs": { "color": "green", "label": "MODE" } },
     { "type": "wokwi-servo", "id": "servo1", "top": -150, "left": 60, "attrs": {} },
 
     { "type": "wokwi-led", "id": "led_ena", "top": -110, "left": 330, "attrs": { "color": "yellow", "label": "ENA" } },

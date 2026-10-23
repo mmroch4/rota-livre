@@ -54,7 +54,7 @@ bool Debounce::update(bool pressedReading, uint32_t nowMs) {
 
   if (nowMs - changedAt_ >= intervalMs_ && stableState_ != lastReading_) {
     stableState_ = lastReading_;
-    return stableState_;  // só conta a transição para "premido"
+    return stableState_;  // only the transition to "pressed" counts
   }
   return false;
 }

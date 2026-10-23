@@ -1,19 +1,19 @@
-# Cheatsheet LoT (Language of Things)
+# LoT (Language of Things) cheatsheet
 
-Referência rápida da sintaxe usada na formação Coreflux (Broker 2.22). Os exemplos são **genéricos**:
-servem para lembrar a sintaxe, não para copiar (há deteção de plágio). Documentação completa:
+Quick reference for the syntax used in the Coreflux training (Broker 2.22). The examples are **generic**:
+they are here to remind us of the syntax, not to be copied (there is plagiarism detection). Full documentation:
 <https://docs.coreflux.org/latest/lot-language/introduction>.
 
-| Bloco | Para quê | Comando do broker |
-|-------|----------|-------------------|
-| `DEFINE ACTION` | Lógica: "quando X, faz Y" | `-addAction` |
-| `DEFINE MODEL` | Esquema de um payload JSON estruturado | `-addModel` |
-| `DEFINE CONNECTOR` | Ponte para fora (REST, ficheiro, email, BD, PLC) | `-addConnector` |
-| `DEFINE RULE` | Controlo de acesso a tópicos (precisa de licença) | `-addRule` / `-removeRule` |
-| `DEFINE PANEL` | Dashboard ao vivo no HUB | `-addPanel` |
-| `DEFINE THING` | Agrupa tudo num template reutilizável | — |
+| Block | What for | Broker command |
+|-------|----------|----------------|
+| `DEFINE ACTION` | Logic: "when X, do Y" | `-addAction` |
+| `DEFINE MODEL` | Schema of a structured JSON payload | `-addModel` |
+| `DEFINE CONNECTOR` | Bridge to the outside (REST, file, email, DB, PLC) | `-addConnector` |
+| `DEFINE RULE` | Topic access control (needs a licence) | `-addRule` / `-removeRule` |
+| `DEFINE PANEL` | Live dashboard in the HUB | `-addPanel` |
+| `DEFINE THING` | Groups everything into a reusable template | — |
 
-Voltar a fazer deploy de um bloco com o mesmo nome **substitui-o**.
+Re-deploying a block with the same name **replaces it**.
 
 ## Actions
 
@@ -23,7 +23,7 @@ ON EVERY 10 SECONDS DO
     PUBLISH TOPIC "demo/status" WITH "alive"
 ```
 
-Gatilhos: `ON EVERY <n> SECONDS|MINUTES DO`, `ON TOPIC "a/b" DO`.
+Triggers: `ON EVERY <n> SECONDS|MINUTES DO`, `ON TOPIC "a/b" DO`.
 
 ```lot
 DEFINE ACTION CheckLevel
@@ -40,19 +40,19 @@ ON TOPIC "demo/sensor/level" DO
             PUBLISH TOPIC "demo/alerts/level_ok" WITH "ok"
 ```
 
-| Construção | Exemplo |
-|------------|---------|
-| Variável local | `SET "x" WITH 3` · usar com `{x}` |
-| Aritmética | `SET "f" WITH (({c} * 9.0 / 5.0) + 32.0)` |
-| Campo JSON do payload | `GET JSON "a.b.c" IN PAYLOAD AS DOUBLE` (ou `AS STRING`) |
-| Payload inteiro | `PAYLOAD` |
-| Último valor de um tópico | `GET TOPIC "config/x"` · `GET TOPIC "config/x" AS DOUBLE` |
-| Vazio / nulo | `IF {x} == EMPTY OR {x} == "null" THEN` |
-| Condições | `IF ... THEN` / `ELSE`, `==`, `!=`, `>`, `<`, `AND`, `OR`; os blocos são definidos **pela indentação (4 espaços)** |
+| Construct | Example |
+|-----------|---------|
+| Local variable | `SET "x" WITH 3` · use as `{x}` |
+| Arithmetic | `SET "f" WITH (({c} * 9.0 / 5.0) + 32.0)` |
+| JSON field of the payload | `GET JSON "a.b.c" IN PAYLOAD AS DOUBLE` (or `AS STRING`) |
+| Whole payload | `PAYLOAD` |
+| Last value of a topic | `GET TOPIC "config/x"` · `GET TOPIC "config/x" AS DOUBLE` |
+| Empty / null | `IF {x} == EMPTY OR {x} == "null" THEN` |
+| Conditions | `IF ... THEN` / `ELSE`, `==`, `!=`, `>`, `<`, `AND`, `OR`; blocks are defined **by indentation (4 spaces)** |
 | Timestamp | `TIMESTAMP "UTC"` |
 
-**Padrão "alerta só uma vez por episódio":** guardar o estado num tópico (`.../active` = `on`/`off`),
-lê-lo com `GET TOPIC` e só publicar o alerta na transição `off → on`.
+**"Alert only once per episode" pattern:** keep the state in a topic (`.../active` = `on`/`off`),
+read it with `GET TOPIC` and only publish the alert on the `off → on` transition.
 
 ## Models
 
@@ -63,7 +63,7 @@ DEFINE MODEL Reading COLLAPSED
     ADD STRING "timestamp"
 ```
 
-`COLLAPSED` = só publica quando uma Action o envia explicitamente:
+`COLLAPSED` = only published when an Action sends it explicitly:
 
 ```lot
     PUBLISH MODEL Reading TO "demo/sensor/reading" WITH
@@ -74,9 +74,9 @@ DEFINE MODEL Reading COLLAPSED
 
 ## Connectors
 
-⚠️ A **Community Edition só permite 3 Connectors.**
+⚠️ **Community Edition only allows 3 Connectors.**
 
-**REST API** (pedido disparado por uma mensagem num tópico, resposta publicada noutro):
+**REST API** (request triggered by a message on one topic, response published on another):
 
 ```lot
 DEFINE CONNECTOR SomeApi WITH TYPE REST_API
@@ -91,7 +91,7 @@ DEFINE CONNECTOR SomeApi WITH TYPE REST_API
         WITH ENDPOINT "/v1/data?id={env.SOME_ID}"
 ```
 
-**Ficheiro CSV** (pasta montada em `broker/exports/` → `/data/exports`):
+**CSV file** (folder mounted at `broker/exports/` → `/data/exports`):
 
 ```lot
 DEFINE CONNECTOR History WITH TYPE FILE_STORAGE
@@ -105,7 +105,7 @@ DEFINE CONNECTOR History WITH TYPE FILE_STORAGE
         WITH QUERY "CLEAN:{table: history, data: {value.json}}"
 ```
 
-**Email** (Mailpit local na porta 1025; template em `broker/templates/` → `/templates`):
+**Email** (local Mailpit on port 1025; template in `broker/templates/` → `/templates`):
 
 ```lot
 DEFINE CONNECTOR Mailer WITH TYPE EMAIL
@@ -122,9 +122,9 @@ DEFINE CONNECTOR Mailer WITH TYPE EMAIL
         WITH TEMPLATE_PATH "/templates/alert.html"
 ```
 
-Um Connector `FILE_STORAGE` com ponto vermelho no HUB é **normal** (não mantém um socket aberto).
+A `FILE_STORAGE` Connector with a red dot in the HUB is **normal** (it does not keep a socket open).
 
-## Panels (dashboard no HUB)
+## Panels (dashboard in the HUB)
 
 ```lot
 DEFINE PANEL Overview
@@ -146,22 +146,22 @@ DEFINE PANEL Overview
         BIND CONTENT TO TOPIC "demo/alerts/level_active"
 ```
 
-Tipos vistos: `gauge`, `value` (`SET DECIMALS n`), `text` (`BIND CONTENT`).
-Se todos os cartões mostram o mesmo número, falta o `WITH JSON_PATH`.
+Types seen: `gauge`, `value` (`SET DECIMALS n`), `text` (`BIND CONTENT`).
+If every card shows the same number, the `WITH JSON_PATH` is missing.
 
-## Comandos do broker (HUB → `root` → Command Console)
+## Broker commands (HUB → `root` → Command Console)
 
 ```text
--setEnv NAME=value            # variável (sem espaços à volta do =)
--setSecret NAME=value         # segredo (não usar // no valor: inicia um comentário)
+-setEnv NAME=value            # variable (no spaces around the =)
+-setSecret NAME=value         # secret (do not use // in the value: it starts a comment)
 -listEnv  /  -listSecrets
 -activateLicense CFLX-...
 -removeConnector <Name>  /  -removeRule <Name>
 ```
 
-Também se podem publicar como MQTT em `$SYS/Coreflux/Command` (resposta em `$SYS/Coreflux/Command/Output`).
+They can also be published over MQTT to `$SYS/Coreflux/Command` (response on `$SYS/Coreflux/Command/Output`).
 
-## Publicar a partir de Python
+## Publishing from Python
 
 ```python
 import json
@@ -174,4 +174,4 @@ client.publish("demo/sensor/level", json.dumps({"value": 42.0}))
 client.disconnect()
 ```
 
-O broker rejeita dois clientes com o mesmo `client_id`: usar um id diferente por processo.
+The broker rejects two clients with the same `client_id`: use a different id per process.

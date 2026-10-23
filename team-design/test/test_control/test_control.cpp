@@ -64,17 +64,17 @@ void test_h_bridge_clamps_speed() {
 void test_debounce_ignores_noise() {
   Debounce d(30);
   TEST_ASSERT_FALSE(d.update(true, 0));
-  TEST_ASSERT_FALSE(d.update(false, 5));   // ressalto
+  TEST_ASSERT_FALSE(d.update(false, 5));   // bounce
   TEST_ASSERT_FALSE(d.update(true, 10));
-  TEST_ASSERT_FALSE(d.update(true, 30));   // só 20 ms estável
-  TEST_ASSERT_TRUE(d.update(true, 40));    // 30 ms estável -> pressão
-  TEST_ASSERT_FALSE(d.update(true, 100));  // manter premido não repete
+  TEST_ASSERT_FALSE(d.update(true, 30));   // only 20 ms stable
+  TEST_ASSERT_TRUE(d.update(true, 40));    // 30 ms stable -> press
+  TEST_ASSERT_FALSE(d.update(true, 100));  // holding it down does not repeat
 }
 
 void test_debounce_counts_each_press_once() {
   Debounce d(30);
   int presses = 0;
-  // duas pressões de 100 ms separadas por 100 ms solto
+  // two 100 ms presses separated by 100 ms released
   for (uint32_t t = 0; t < 400; t += 5) {
     bool pressed = (t < 100) || (t >= 200 && t < 300);
     if (d.update(pressed, t)) presses++;

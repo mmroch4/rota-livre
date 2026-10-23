@@ -1,237 +1,237 @@
-# Hackathon — solução Coreflux
+# Hackathon — Coreflux solution
 
-> **Estado:** ideia escolhida (23/10): **Copiloto energético com LLM para PMEs**. A estrutura segue os
-> 4 pontos em que o júri avalia (Regulamento, Art. 1.º, 3): **problema → demo → arquitetura → maturidade**.
-> O que está marcado com ⚠️ **verificar** tem de ser confirmado na primeira hora da prova.
+> **Status:** idea chosen (23/10): **LLM energy copilot for SMEs**. The structure follows the
+> 4 points the jury judges on (Rules, Art. 1, 3): **problem → demo → architecture → maturity**.
+> Anything marked ⚠️ **verify** must be confirmed in the first hour of the event.
 
-**Nome do produto:** **Vale**: encontra os *vales* da curva de preço da eletricidade e põe lá o consumo.
-**Uma frase:** Para pequenos negócios com tarifa indexada, que pagam a eletricidade a um preço que muda
-de 15 em 15 minutos, o **Vale** percebe o que cada equipamento tem de fazer (a partir de uma frase em português),
-planeia-o para os quartos de hora mais baratos e liga-o sozinho, sem nunca pôr em causa a operação.
+**Product name:** **Vale** (Portuguese for "valley"): it finds the *valleys* in the electricity price curve and puts consumption there.
+**One sentence:** For small businesses on an indexed tariff, who pay for electricity at a price that changes
+every 15 minutes, **Vale** understands what each appliance needs to do (from a sentence in Portuguese),
+schedules it for the cheapest quarter-hours and switches it on by itself, without ever putting operations at risk.
 
 ---
 
-## 1. O problema
+## 1. The problem
 
-- **Quem:** pequenos negócios (restaurantes, minimercados, padarias) com **tarifa indexada ao OMIE**, com
-  equipamentos cujo consumo pode mudar de hora sem prejudicar a operação: câmaras frigoríficas (inércia
-  térmica), máquinas de lavar loiça industriais, termoacumuladores e carrinhas elétricas de entregas.
-- **A dor, em números reais** (REN DataHub, preço do mercado diário em Portugal):
-  - **22/10/2026:** entre **0,28 €/MWh** e **286,76 €/MWh** no mesmo dia, cerca de **1000×**. A média
-    horária foi de cerca de 1 €/MWh às 12h–15h e de cerca de 245 €/MWh às 18h–19h.
-  - **A hora mais barata muda todos os dias:** de 15 a 23/10 foi às 12h, 13h, 11h, 11h, **1h**, 14h, 14h, 14h.
-    A intuição das tarifas bi-horárias ("o vazio é de noite") já não corresponde ao mercado: com o solar,
-    o vale é muitas vezes ao meio-dia, e a noite pode ser das horas mais caras.
-- **Como se resolve hoje:** não se resolve, ou com temporizadores fixos. O dono não vai consultar o OMIE
-  todos os dias às 13h (quando sai o preço de amanhã) para reprogramar 4 equipamentos.
-- **Porque é automação:** é preciso **integrar** os preços com os equipamentos, **otimizar** a agenda
-  e **agir** a cada 15 minutos, respeitando restrições como a temperatura dos alimentos ou a hora de saída da carrinha.
-- **Honestidade:** o Vale só mexe na componente de **energia** da fatura. As redes, a potência e os impostos não mudam.
-  Os números de poupança apresentados referem-se sempre a essa componente.
+- **Who:** small businesses (restaurants, mini-markets, bakeries) on an **OMIE-indexed tariff**, with
+  appliances whose consumption can move in time without hurting operations: cold rooms (thermal
+  inertia), industrial dishwashers, water heaters and electric delivery vans.
+- **The pain, in real numbers** (REN DataHub, day-ahead market price in Portugal):
+  - **22/10/2026:** between **€0.28/MWh** and **€286.76/MWh** on the same day, about **1000×**. The hourly
+    average was about €1/MWh at 12:00–15:00 and about €245/MWh at 18:00–19:00.
+  - **The cheapest hour changes every day:** from 15 to 23/10 it was at 12:00, 13:00, 11:00, 11:00, **01:00**, 14:00, 14:00, 14:00.
+    The intuition behind two-period tariffs ("off-peak is at night") no longer matches the market: with solar,
+    the valley is often at midday, and the night can be among the most expensive hours.
+- **How it is solved today:** it isn't, or with fixed timers. The owner is not going to check OMIE
+  every day at 13:00 (when tomorrow's price comes out) to reprogram 4 appliances.
+- **Why it is automation:** it needs to **integrate** prices with the appliances, **optimize** the schedule
+  and **act** every 15 minutes, while respecting constraints such as food temperature or the van's departure time.
+- **Honesty:** Vale only touches the **energy** component of the bill. Grid fees, contracted power and taxes do not change.
+  The savings figures we present always refer to that component.
 
-## 2. A solução
+## 2. The solution
 
-1. **Diz o que precisa, em português:** *"A carrinha chega às 9h e tem de sair às 17h com 30 kWh; a câmara 1
-   tem de ficar entre 0 e 5 °C."* Um LLM converte isto numa **tarefa estruturada**, que é validada
-   (Model `Task`) e mostrada ao dono para confirmar.
-2. **O Vale vai buscar os preços** de hoje e de amanhã à REN (todos os dias depois das 13h) e **planeia** cada tarefa
-   nos quartos de hora mais baratos dentro das restrições.
-3. **Aconselha ou age:** cada equipamento está em modo `advise` ("ligue a máquina às 14h15, poupa 1,80 €")
-   ou `auto` (o Vale liga e desliga o equipamento sozinho).
-4. **Nunca põe a operação em risco:** os *guardrails* no broker sobrepõem-se ao plano (ex.: a câmara
-   acima de 5 °C liga **já**, custe o que custar) e avisam o dono por email.
-5. **Mostra o que poupou:** contador de € poupados face a "ligar logo", e um registo de auditoria (CSV) com cada decisão e a sua razão.
+1. **Say what you need, in plain language:** *"The van arrives at 9:00 and must leave at 17:00 with 30 kWh; cold room 1
+   must stay between 0 and 5 °C."* An LLM turns this into a **structured task**, which is validated
+   (Model `Task`) and shown to the owner to confirm.
+2. **Vale fetches** today's and tomorrow's **prices** from REN (every day after 13:00) and **schedules** each task
+   in the cheapest quarter-hours within the constraints.
+3. **Advise or act:** each appliance is in `advise` mode ("run the machine at 14:15, saves €1.80")
+   or `auto` mode (Vale switches the appliance on and off by itself).
+4. **Never puts operations at risk:** the *guardrails* in the broker override the plan (e.g. the cold room
+   above 5 °C turns on **now**, whatever the price) and notify the owner by email.
+5. **Shows what it saved:** a counter of € saved versus "turn it on right away", and an audit log (CSV) with each decision and its reason.
 
-## 3. Arquitetura
+## 3. Architecture
 
 ```text
- [fontes]                         [Coreflux Broker: a lógica vive aqui]                [saídas]
+ [sources]                        [Coreflux Broker: the logic lives here]              [outputs]
 
  REN DataHub ◄──REST_API──── Connector RenPrices ──► Action ParsePrices ──────┐
- (preços 15 min)                                     (CALL PYTHON PriceTools) │
+ (15-min prices)                                     (CALL PYTHON PriceTools) │
                                                                               ▼
- dashboard ──"texto livre"──► Action ParseIntent ──► Model Task ──► Action PlanTask ──► copilot/plans/<id>
-                              (CALL LLM Assistant)    (validação)   (CALL PYTHON Planner)        │
+ dashboard ──"free text"────► Action ParseIntent ──► Model Task ──► Action PlanTask ──► copilot/plans/<id>
+                              (CALL LLM Assistant)    (validation)  (CALL PYTHON Planner)        │
                                                                                                  ▼
- Action SimClock ──copilot/clock/slot──► Action Dispatch ─────► modo auto:   .../command ──► equipamentos
- (1 s = 15 min na demo)                 (plano + modo)  └─────► modo advise: copilot/advice ──► dashboard
+ Action SimClock ──copilot/clock/slot──► Action Dispatch ─────► auto mode:   .../command ──► appliances
+ (1 s = 15 min in the demo)             (plan + mode)   └─────► advise mode: copilot/advice ──► dashboard
                                                                                  │
- equipamentos ──telemetria──► Action Guard (guardrails, alerta 1×/episódio) ─────┼──► Connector Mailer (email)
- (simulador Python)           Action Meter (custo real vs. ingénuo)              └──► Connector DecisionLog (CSV)
-                                                                                      dashboard web + Panel HUB
-                              Rules: só as Actions do broker podem publicar comandos para os equipamentos
+ appliances ──telemetry──► Action Guard (guardrails, alert 1×/episode) ──────────┼──► Connector Mailer (email)
+ (Python simulator)        Action Meter (real cost vs. naive)                    └──► Connector DecisionLog (CSV)
+                                                                                      web dashboard + HUB Panel
+                           Rules: only broker Actions may publish commands to the appliances
 ```
 
-**Divisão de responsabilidades:**
-- **Broker (LoT):** ingestão de preços, relógio, estado, despacho, *guardrails*, contabilidade, alertas,
-  auditoria e segurança.
-- **Python dentro do broker (`CALL PYTHON`):** o que o LoT não faz bem, como ordenar 96 preços e escolher os
-  N quartos de hora mais baratos antes de um prazo. As funções são **puras e sem estado** (objetivo: abaixo de 100 ms) e testáveis com `pytest` fora do broker.
-- **LLM dentro do broker (`CALL LLM`, `PROVIDER "anthropic"`):** só traduz texto em JSON. **Nunca decide**
-  nada sozinho: a tarefa é validada pelo Model e o plano é determinístico.
-- **Fora do broker:** só o **simulador de equipamentos** (no mundo real seriam relés/PLC) e o **dashboard**.
+**Split of responsibilities:**
+- **Broker (LoT):** price ingestion, clock, state, dispatch, *guardrails*, accounting, alerts,
+  auditing and security.
+- **Python inside the broker (`CALL PYTHON`):** what LoT does not do well, such as sorting 96 prices and picking the
+  N cheapest quarter-hours before a deadline. The functions are **pure and stateless** (target: under 100 ms) and testable with `pytest` outside the broker.
+- **LLM inside the broker (`CALL LLM`, `PROVIDER "anthropic"`):** only translates text into JSON. It **never decides**
+  anything on its own: the task is validated by the Model and the plan is deterministic.
+- **Outside the broker:** only the **appliance simulator** (in the real world these would be relays/PLCs) and the **dashboard**.
 
-⚠️ **Verificar:** o Connector `TYPE LLM` precisa de licença **Growth/Enterprise** segundo a documentação. Se a
-licença do evento não o incluir, o plano B é `services/intent_parser.py` (Claude API via `anthropic` SDK), que lê
-`copilot/assistant/request` e publica em `copilot/tasks/new`, com o mesmo contrato de tópicos.
+⚠️ **Verify:** according to the docs, the `TYPE LLM` Connector needs a **Growth/Enterprise** licence. If the
+event licence does not include it, plan B is `services/intent_parser.py` (Claude API via the `anthropic` SDK), which reads
+`copilot/assistant/request` and publishes to `copilot/tasks/new`, with the same topic contract.
 
-### Mapa de tópicos MQTT
+### MQTT topic map
 
-O contrato entre todas as partes do sistema. **Atualizar sempre que se cria um tópico.**
-`<id>` ∈ `cold_room_1`, `dishwasher_1`, `van_1` (os equipamentos da demo).
+The contract between every part of the system. **Always update it when you create a topic.**
+`<id>` ∈ `cold_room_1`, `dishwasher_1`, `van_1` (the demo appliances).
 
-| Tópico | Publicado por | Lido por | Payload | Retained |
-|--------|---------------|----------|---------|:--------:|
-| `copilot/market/request` | Action `FetchPrices` (diária às 13:30 e no arranque) | Connector `RenPrices` | `{"date":"2026-10-24"}` | |
-| `copilot/market/raw` | Connector `RenPrices` | Action `ParsePrices` | JSON da REN (`series[].data`) | |
-| `copilot/market/prices` | Action `ParsePrices` | `PlanTask`, `Dispatch`, `Meter`, dashboard | `{"date","unit":"EUR/MWh","step_min":15,"prices":[96 valores]}` | ✅ |
+| Topic | Published by | Read by | Payload | Retained |
+|-------|--------------|---------|---------|:--------:|
+| `copilot/market/request` | Action `FetchPrices` (daily at 13:30 and on startup) | Connector `RenPrices` | `{"date":"2026-10-24"}` | |
+| `copilot/market/raw` | Connector `RenPrices` | Action `ParsePrices` | REN JSON (`series[].data`) | |
+| `copilot/market/prices` | Action `ParsePrices` | `PlanTask`, `Dispatch`, `Meter`, dashboard | `{"date","unit":"EUR/MWh","step_min":15,"prices":[96 values]}` | ✅ |
 | `config/clock/mode` | setup / dashboard | `SimClock` | `sim` \| `real` | ✅ |
-| `copilot/clock/slot` | Action `SimClock` | `Dispatch`, `Meter`, dashboard | `0`–`95` (quarto de hora atual) | ✅ |
-| `config/devices/<id>` | `00-setup` | `PlanTask`, dashboard | Model `Device`: `type` (`thermal`\|`block`\|`energy`), `power_kw`, limites | ✅ |
-| `config/devices/<id>/mode` | dashboard (dono) | `Dispatch` | `advise` \| `auto` | ✅ |
+| `copilot/clock/slot` | Action `SimClock` | `Dispatch`, `Meter`, dashboard | `0`–`95` (current quarter-hour) | ✅ |
+| `config/devices/<id>` | `00-setup` | `PlanTask`, dashboard | Model `Device`: `type` (`thermal`\|`block`\|`energy`), `power_kw`, limits | ✅ |
+| `config/devices/<id>/mode` | dashboard (owner) | `Dispatch` | `advise` \| `auto` | ✅ |
 | `copilot/assistant/request` | dashboard | Action `ParseIntent` | `{"text":"..."}` | |
-| `copilot/tasks/new` | `ParseIntent` ou formulário (plano B) | Action `PlanTask` | Model `Task`: `device_id`, `kind`, `energy_kwh`, `duration_slots`, `earliest_slot`, `deadline_slot` | |
-| `copilot/assistant/errors` | `ParseIntent` | dashboard | texto do erro de validação | |
+| `copilot/tasks/new` | `ParseIntent` or form (plan B) | Action `PlanTask` | Model `Task`: `device_id`, `kind`, `energy_kwh`, `duration_slots`, `earliest_slot`, `deadline_slot` | |
+| `copilot/assistant/errors` | `ParseIntent` | dashboard | validation error text | |
 | `copilot/plans/<id>` | Action `PlanTask` | `Dispatch`, dashboard | `{"slots":[...],"cost_eur","naive_cost_eur","savings_eur","reason"}` | ✅ |
-| `copilot/devices/<id>/command` | `Dispatch` (modo `auto`), `Guard` | simulador / relé | `on` \| `off` | ✅ |
-| `copilot/advice/<id>` | `Dispatch` (modo `advise`) | dashboard | `"Ligue às 14:15 (poupa 1,80 €)"` | |
-| `copilot/devices/<id>/telemetry` | simulador (`services/device_sim.py`) | `Guard`, `Meter`, dashboard | `{"on":true,"power_kw":3.0,"temp_c":3.4}` | |
-| `copilot/alerts/guardrail` | Action `Guard` (só na transição) | Connector `Mailer`, dashboard | Model `Alert` | |
+| `copilot/devices/<id>/command` | `Dispatch` (`auto` mode), `Guard` | simulator / relay | `on` \| `off` | ✅ |
+| `copilot/advice/<id>` | `Dispatch` (`advise` mode) | dashboard | `"Turn on at 14:15 (saves €1.80)"` | |
+| `copilot/devices/<id>/telemetry` | simulator (`services/device_sim.py`) | `Guard`, `Meter`, dashboard | `{"on":true,"power_kw":3.0,"temp_c":3.4}` | |
+| `copilot/alerts/guardrail` | Action `Guard` (on transition only) | Connector `Mailer`, dashboard | Model `Alert` | |
 | `copilot/alerts/guardrail/<id>/active` | Action `Guard` | Action `Guard` | `on` \| `off` | ✅ |
 | `copilot/audit/decisions` | `Dispatch`, `Guard` | Connector `DecisionLog` (CSV) | Model `Decision`: `slot`, `device_id`, `action`, `price`, `reason` | |
 | `copilot/kpi/savings` | Action `Meter` | dashboard, Panel | `{"cost_eur","naive_cost_eur","saved_eur"}` | ✅ |
-| `copilot/errors` | qualquer Action | dashboard | texto | |
+| `copilot/errors` | any Action | dashboard | text | |
 
-Convenções: tópicos em inglês, minúsculas, `snake_case`, hierarquia `<domínio>/<entidade>/<medida>`;
-configuração em `config/...` (retained); erros em `.../errors`.
+Conventions: topics in English, lowercase, `snake_case`, hierarchy `<domain>/<entity>/<measure>`;
+configuration under `config/...` (retained); errors under `.../errors`.
 
-### Componentes
+### Components
 
-| Componente | Onde | Tecnologia |
-|------------|------|------------|
-| Lógica de automação | `lot/` | LoT: Actions, Models, Connectors (`REST_API`, `LLM`, `EMAIL`, `FILE_STORAGE`), Rules, Panel |
-| Otimizador e parsing de preços | `lot/` (scripts `CALL PYTHON`) + testes em `services/tests/` | Python (só biblioteca padrão) |
-| Simulador de equipamentos | `services/device_sim.py` | Python + `paho-mqtt` (modelo térmico simples da câmara frigorífica) |
-| Dashboard | `dashboard/` | Web app própria (HTML + MQTT por WebSocket + gráfico de preços com o plano sobreposto); Panel no HUB como vista técnica e plano B |
-| Infraestrutura | `broker/` | Docker Compose: Coreflux Broker 2.22, HUB 2.12, Mailpit |
+| Component | Where | Technology |
+|-----------|-------|------------|
+| Automation logic | `lot/` | LoT: Actions, Models, Connectors (`REST_API`, `LLM`, `EMAIL`, `FILE_STORAGE`), Rules, Panel |
+| Optimizer and price parsing | `lot/` (`CALL PYTHON` scripts) + tests in `services/tests/` | Python (standard library only) |
+| Appliance simulator | `services/device_sim.py` | Python + `paho-mqtt` (simple thermal model of the cold room) |
+| Dashboard | `dashboard/` | Our own web app (HTML + MQTT over WebSocket + price chart with the plan overlaid); HUB Panel as the technical view and plan B |
+| Infrastructure | `broker/` | Docker Compose: Coreflux Broker 2.22, HUB 2.12, Mailpit |
 
-⚠️ **Verificar:** a porta WebSocket do broker para o dashboard. Se não existir, a alternativa é uma *bridge* mínima MQTT → SSE em Python.
+⚠️ **Verify:** the broker's WebSocket port for the dashboard. If there isn't one, the alternative is a minimal MQTT → SSE *bridge* in Python.
 
 ## 4. Demo
 
-Guião completo e plano B em [`PITCH.md`](PITCH.md#guião-da-demo-140). Resumo:
-1. O gráfico dos **preços reais de hoje** (REN) mostra o vale ao meio-dia.
-2. O dono escreve uma frase, o LLM transforma-a em tarefas (o JSON aparece no ecrã) e os planos aparecem sobre o gráfico, com a poupança prevista.
-3. **▶ Simular o dia** (1 s = 15 min): os equipamentos ligam-se sozinhos nos vales e o contador de € sobe.
-4. **Abre-se a porta da câmara:** a temperatura passa os 5 °C, o *guardrail* liga a câmara mesmo com preço alto, chega um
-   email ao Mailpit e aparece uma linha no CSV de auditoria.
+Full script and plan B in [`PITCH.md`](PITCH.md#demo-script-140). Summary:
+1. The chart of **today's real prices** (REN) shows the midday valley.
+2. The owner types a sentence, the LLM turns it into tasks (the JSON appears on screen) and the plans appear over the chart, with the expected savings.
+3. **▶ Simulate the day** (1 s = 15 min): the appliances switch on by themselves in the valleys and the € counter goes up.
+4. **The cold room door is opened:** the temperature goes above 5 °C, the *guardrail* turns the cold room on even at a high price, an
+   email arrives in Mailpit and a line appears in the audit CSV.
 
-## 5. Maturidade e próximos passos
+## 5. Maturity and next steps
 
-- **De ponta a ponta e real:** os preços (API pública da REN, sem chave), o LLM, o planeamento, o despacho, os *guardrails*, os emails
-  e a auditoria correm no broker.
-- **Simulado:** os equipamentos (simulador Python com modelo térmico) e o relógio acelerado. Ligar a hardware
-  real é trocar o simulador por um relé/PLC a subscrever o **mesmo** tópico `.../command`.
-- **Fiabilidade:**
-  - os preços ficam retained e em cache: sem internet, o Vale usa o último plano conhecido;
-  - sem preços nenhuns, cai para um modo seguro (comportamento normal do equipamento);
-  - o LLM nunca atua diretamente;
-  - os *guardrails* têm prioridade sobre o plano;
-  - o alerta é enviado só uma vez por episódio.
-- **Segurança (Rules):**
-  - só as Actions do broker publicam em `copilot/devices/+/command`;
-  - o utilizador do dashboard só pode publicar pedidos e mudar o modo;
-  - cada equipamento só publica a sua própria telemetria.
-- **Testes:** o otimizador tem testes `pytest`, incluindo casos-limite: o prazo impossível, os preços em falta e o dia de **100** quartos de hora
-  na mudança de hora (25/10!).
-- **Escala:** os equipamentos são configuração (`config/devices/<id>`), e um novo tipo é uma nova estratégia no planner.
-  Para várias lojas, um broker por loja, ligados a um broker central.
-- **Modelo de negócio:** subscrição por estabelecimento. O Vale começa com um **simulador de fatura** ("na indexada,
-  com os seus equipamentos, pouparia X €/mês"), que é também a ferramenta comercial.
-- **Com mais tempo:**
-  - perfil residencial (o mesmo motor para a família com carro elétrico);
-  - previsão do preço antes das 13h;
-  - otimizar a **potência contratada** e o autoconsumo solar;
-  - integração Modbus com os controladores de frio.
+- **End to end and real:** prices (REN public API, no key), the LLM, scheduling, dispatch, *guardrails*, emails
+  and auditing all run in the broker.
+- **Simulated:** the appliances (Python simulator with a thermal model) and the accelerated clock. Connecting to real
+  hardware means swapping the simulator for a relay/PLC subscribing to the **same** `.../command` topic.
+- **Reliability:**
+  - prices are retained and cached: with no internet, Vale uses the last known plan;
+  - with no prices at all, it falls back to a safe mode (the appliance's normal behaviour);
+  - the LLM never acts directly;
+  - the *guardrails* take priority over the plan;
+  - the alert is sent only once per episode.
+- **Security (Rules):**
+  - only broker Actions publish to `copilot/devices/+/command`;
+  - the dashboard user can only publish requests and change the mode;
+  - each appliance only publishes its own telemetry.
+- **Tests:** the optimizer has `pytest` tests, including edge cases: an impossible deadline, missing prices and the **100**-quarter-hour day
+  at the clock change (25/10!).
+- **Scale:** appliances are configuration (`config/devices/<id>`), and a new type is a new strategy in the planner.
+  For multiple shops, one broker per shop, linked to a central broker.
+- **Business model:** a subscription per establishment. Vale starts with a **bill simulator** ("on the indexed tariff,
+  with your appliances, you would save X €/month"), which is also the sales tool.
+- **With more time:**
+  - a residential profile (the same engine for a family with an electric car);
+  - price forecasting before 13:00;
+  - optimizing **contracted power** and solar self-consumption;
+  - Modbus integration with the refrigeration controllers.
 
 ---
 
-## Setup do ambiente (Linux / macOS)
+## Environment setup (Linux / macOS)
 
-Pré-requisitos: **Docker** e **Docker Compose v2** (`docker --version`, `docker compose version`).
+Prerequisites: **Docker** and **Docker Compose v2** (`docker --version`, `docker compose version`).
 
 ```bash
 cd hackathon/broker
-cp .env.example .env          # opcional: código de licença do evento
+cp .env.example .env          # optional: event licence code
 docker compose up -d
 ```
 
-| Serviço | Endereço | Credenciais |
-|---------|----------|-------------|
-| Coreflux HUB | <http://localhost:3000> | ligação pré-preenchida: host `broker`, porta `1883`, `root` / `coreflux` |
-| Broker MQTT (de fora do Docker) | `localhost:1883` | `root` / `coreflux` |
-| Mailpit (caixa de email de teste) | <http://localhost:8025> | — |
-| Saúde do broker | <http://localhost:9100/health> | — |
+| Service | Address | Credentials |
+|---------|---------|-------------|
+| Coreflux HUB | <http://localhost:3000> | pre-filled connection: host `broker`, port `1883`, `root` / `coreflux` |
+| MQTT broker (from outside Docker) | `localhost:1883` | `root` / `coreflux` |
+| Mailpit (test email inbox) | <http://localhost:8025> | — |
+| Broker health | <http://localhost:9100/health> | — |
 
-- `docker compose down` pára e mantém os dados; `docker compose down -v` **apaga tudo, incluindo a licença**.
-- O HUB liga-se a `broker` (nome do serviço Docker), não a `localhost`.
-- Porta ocupada? Mudar o número da porta do host em `docker-compose.yml` (ex.: `"127.0.0.1:3001:3000"`).
+- `docker compose down` stops and keeps the data; `docker compose down -v` **wipes everything, including the licence**.
+- The HUB connects to `broker` (the Docker service name), not `localhost`.
+- Port taken? Change the host port number in `docker-compose.yml` (e.g. `"127.0.0.1:3001:3000"`).
 
-### Segurança na rede do evento
+### Security on the event network
 
-Na FCUP estamos na mesma rede que as outras equipas, e a password por omissão (`root` / `coreflux`)
-é igual para todas. Por isso **todas as portas ficam só em `127.0.0.1`** (apenas a própria máquina).
-Para um Arduino/ESP32 ou o portátil de um colega publicar no nosso broker:
+At FCUP we are on the same network as the other teams, and the default password (`root` / `coreflux`)
+is the same for everyone. That is why **every port is bound to `127.0.0.1` only** (this machine only).
+For an Arduino/ESP32 or a teammate's laptop to publish to our broker:
 
-1. **Primeiro** mudar a password de `root` (ou criar um utilizador próprio para os dispositivos)
-   no HUB: ver a [documentação do broker](https://docs.coreflux.org/latest/mqtt-broker/overview).
-2. Depois pôr `MQTT_BIND=0.0.0.0` em `broker/.env` e fazer `docker compose up -d`.
+1. **First** change the `root` password (or create a dedicated user for the devices)
+   in the HUB: see the [broker documentation](https://docs.coreflux.org/latest/mqtt-broker/overview).
+2. Then set `MQTT_BIND=0.0.0.0` in `broker/.env` and run `docker compose up -d`.
 
-O HUB, o Mailpit e o endpoint de saúde ficam sempre só em localhost.
+The HUB, Mailpit and the health endpoint always stay on localhost only.
 
-### Licença do evento
+### Event licence
 
-A organização dá-nos um **código de licença** (`CFLX-...`). Sem ele, o broker corre em
-**Community Edition**, que só permite **3 Connectors** e **nenhuma `DEFINE RULE` personalizada**.
-Com a licença, temos mais Connectors e podemos usar Rules, que contam como argumento de
-**maturidade/segurança** no pitch.
+The organizers give us a **licence code** (`CFLX-...`). Without it, the broker runs as
+**Community Edition**, which only allows **3 Connectors** and **no custom `DEFINE RULE`**.
+With the licence we get more Connectors and can use Rules, which count as a
+**maturity/security** argument in the pitch.
 
-Ativar de uma de duas formas:
-- pôr `COREFLUX_ACTIVATION_CODE=CFLX-...` em `broker/.env` (fora do git) **antes** do primeiro `docker compose up`;
-- HUB → `root` → Broker Settings → License, ou `-activateLicense CFLX-...` no Command Console.
+Activate it in one of two ways:
+- put `COREFLUX_ACTIVATION_CODE=CFLX-...` in `broker/.env` (outside git) **before** the first `docker compose up`;
+- HUB → `root` → Broker Settings → License, or `-activateLicense CFLX-...` in the Command Console.
 
-Cada ativação gasta um *seat*, por isso evitar `docker compose down -v` depois de ativar.
-Confirmar o tier no badge ao lado de `root` ou em <http://localhost:9100/license>.
+Each activation uses up a *seat*, so avoid `docker compose down -v` after activating.
+Check the tier in the badge next to `root` or at <http://localhost:9100/license>.
 
-### Fluxo de trabalho com código LoT
+### LoT code workflow
 
-A **fonte de verdade é o git**: os ficheiros `.lotnb` em `lot/`.
+The **source of truth is git**: the `.lotnb` files in `lot/`.
 
-1. Instalar a extensão VS Code **LoT Notebooks**
-   ([VSCodeLotNotebook](https://github.com/CorefluxCommunity/VSCodeLotNotebook/releases/tag/v1.0.0), ficheiro `.vsix`):
+1. Install the **LoT Notebooks** VS Code extension
+   ([VSCodeLotNotebook](https://github.com/CorefluxCommunity/VSCodeLotNotebook/releases/tag/v1.0.0), `.vsix` file):
    `code --install-extension vscode-lot-notebooks-1.0.0.vsix`
-2. Abrir um `.lotnb` de `lot/` e ligar a `localhost:1883` (`root` / `coreflux`).
-3. Correr as células (▷) para fazer deploy para o broker local; commit dos `.lotnb`.
+2. Open a `.lotnb` from `lot/` and connect to `localhost:1883` (`root` / `coreflux`).
+3. Run the cells (▷) to deploy to the local broker; commit the `.lotnb` files.
 
-Se alguém editar diretamente no HUB, deve copiar o código final para o `.lotnb` correspondente antes do commit.
-Organização sugerida, um notebook por responsabilidade:
-`lot/00-setup.lotnb` (variáveis, segredos, config retained), `lot/10-models.lotnb`, `lot/20-actions.lotnb`,
+If someone edits directly in the HUB, they must copy the final code into the matching `.lotnb` before committing.
+Suggested layout, one notebook per responsibility:
+`lot/00-setup.lotnb` (variables, secrets, retained config), `lot/10-models.lotnb`, `lot/20-actions.lotnb`,
 `lot/30-connectors.lotnb`, `lot/40-rules.lotnb`, `lot/50-panel.lotnb`.
 
-### Ferramentas úteis
+### Useful tools
 
-- **MQTT Explorer** ou `mosquitto_sub -h localhost -u root -P coreflux -t '#' -v` para ver todos os tópicos.
-- **Python:** `pip install paho-mqtt` para serviços e simuladores em `services/`.
-- Variáveis e segredos no broker: `-setEnv NOME=valor`, `-setSecret NOME=valor` (sem espaços à volta do `=`),
-  e depois `{env.NOME}` ou `GET ENV "NOME"` / `GET SECRET "NOME"` no LoT.
+- **MQTT Explorer** or `mosquitto_sub -h localhost -u root -P coreflux -t '#' -v` to see every topic.
+- **Python:** `pip install paho-mqtt` for services and simulators in `services/`.
+- Broker variables and secrets: `-setEnv NAME=value`, `-setSecret NAME=value` (no spaces around the `=`),
+  then `{env.NAME}` or `GET ENV "NAME"` / `GET SECRET "NAME"` in LoT.
 
-## Documentos desta pasta
+## Documents in this folder
 
-- [`LOT_CHEATSHEET.md`](LOT_CHEATSHEET.md): sintaxe LoT de referência (Actions, Models, Connectors, Rules, Panels).
-- [`PITCH.md`](PITCH.md): estrutura da apresentação e checklist da demo.
+- [`LOT_CHEATSHEET.md`](LOT_CHEATSHEET.md): LoT syntax reference (Actions, Models, Connectors, Rules, Panels).
+- [`PITCH.md`](PITCH.md): presentation structure and demo checklist.
 
-## Referências
+## References
 
-- Documentação Coreflux: <https://docs.coreflux.org>
-- Repo da formação (só como referência, **não copiar**: há deteção de plágio):
+- Coreflux documentation: <https://docs.coreflux.org>
+- Training repo (reference only, **do not copy**: there is plagiarism detection):
   <https://github.com/CorefluxCommunity/weather-station-hackathon>

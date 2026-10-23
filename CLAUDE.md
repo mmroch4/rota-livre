@@ -1,46 +1,45 @@
 # CLAUDE.md
 
-Repositório da equipa O(1/n) (Miguel, Victor, Ben, Pedro) no SciTeCh '26 (BEST Porto, FCUP,
-24–25 out 2026). Duas modalidades, cada uma com 6 h de trabalho: `hackathon/` (Coreflux,
-**sábado 24**) e `team-design/` (Arduino, **domingo 25**). Ver `README.md` e `regulamento.pdf`.
+Repository of team O(1/n) (Miguel, Victor, Ben, Pedro) at SciTeCh '26 (BEST Porto, FCUP,
+24–25 Oct 2026). Two challenges, each with 6 h of work: `hackathon/` (Coreflux,
+**Saturday 24**) and `team-design/` (Arduino, **Sunday 25**). See `README.md` and `regulamento.pdf`.
 
-## Convenções (obrigatórias)
+## Conventions (mandatory)
 
-- **Código em inglês**: identificadores, nomes de ficheiros/pastas, mensagens Serial, tópicos MQTT,
-  nomes de Actions/Models/Connectors LoT.
-- **Documentação em PT-PT** (READMEs, este ficheiro). Os comentários no código podem ficar em PT-PT.
-- Git trunk-based: commits pequenos diretamente em `main`; `git pull --rebase` antes de push.
-- Nunca fazer commit de segredos (`.env` está no `.gitignore`).
-- Hackathon: as soluções passam por deteção de plágio. Não copiar os labs da formação Coreflux
-  (`CorefluxCommunity/weather-station-hackathon`); usá-los só como referência de sintaxe.
+- **Everything in English**: code (identifiers, file/folder names, Serial messages, MQTT topics,
+  names of LoT Actions/Models/Connectors), code comments and documentation (READMEs, this file).
+- Trunk-based git: small commits straight to `main`; `git pull --rebase` before pushing.
+- Never commit secrets (`.env` is in `.gitignore`).
+- Hackathon: solutions go through plagiarism detection. Do not copy the Coreflux training labs
+  (`CorefluxCommunity/weather-station-hackathon`); use them only as a syntax reference.
 
 ## team-design/ (PlatformIO, Arduino Uno)
 
 ```bash
 cd team-design && source .venv/bin/activate
-pio test -e native     # testes Unity da lógica pura no PC — correr depois de qualquer alteração
-pio run -e uno         # compilar
-pio run -e uno -t upload && pio device monitor   # placa real, Serial a 9600
-wokwi-cli --scenario test/wokwi/mode_cycle.yaml --timeout 10000   # precisa de WOKWI_CLI_TOKEN
+pio test -e native     # Unity tests of the pure logic on the PC — run after any change
+pio run -e uno         # build
+pio run -e uno -t upload && pio device monitor   # real board, Serial at 9600
+wokwi-cli --scenario test/wokwi/mode_cycle.yaml --timeout 10000   # needs WOKWI_CLI_TOKEN
 ```
 
-Arquitetura: **lógica pura** em `lib/Control/` (sem `Arduino.h`, testável com `-e native`) vs.
-**camada de hardware** em `src/main.cpp` (pinos, Servo, Serial). A nova lógica vai para `lib/` com testes
-em `test/test_control/`; o `main.cpp` deve ficar fino.
+Architecture: **pure logic** in `lib/Control/` (no `Arduino.h`, testable with `-e native`) vs.
+**hardware layer** in `src/main.cpp` (pins, Servo, Serial). New logic goes into `lib/` with tests
+in `test/test_control/`; `main.cpp` should stay thin.
 
-Invariantes que é fácil partir:
-- `include/pins.h`, `diagram.json` (Wokwi) e a montagem real têm de coincidir.
-- O Servo usa o Timer1 → **não há PWM nos pinos 9/10**; o PWM dos motores está em 5/6.
-- A saída Serial `KEY=value` (ex.: `MODE=FORWARD A=200 B=200 SERVO=90`) é verificada à letra por
-  `test/wokwi/mode_cycle.yaml`. Se mudar o formato, atualizar o cenário.
-- O Wokwi não tem L298N/motores DC: no `diagram.json` os sinais da ponte H são LEDs.
+Invariants that are easy to break:
+- `include/pins.h`, `diagram.json` (Wokwi) and the real wiring must match.
+- Servo uses Timer1 → **no PWM on pins 9/10**; motor PWM is on 5/6.
+- The `KEY=value` Serial output (e.g. `MODE=FORWARD A=200 B=200 SERVO=90`) is checked verbatim by
+  `test/wokwi/mode_cycle.yaml`. If you change the format, update the scenario.
+- Wokwi has no L298N/DC motors: in `diagram.json` the H-bridge signals are LEDs.
 
 ## hackathon/ (Coreflux)
 
-Broker MQTT Coreflux + HUB em Docker (`hackathon/broker/`). A lógica vive no broker em LoT
-(Actions, Models, Connectors, Rules, Panels); a fonte de verdade são os ficheiros `.lotnb` em
-`hackathon/lot/`. Sintaxe de referência: `hackathon/LOT_CHEATSHEET.md`. A organização dá uma licença do
-evento (`CFLX-...`, em `hackathon/broker/.env`, fora do git); sem ela, a edição Community só permite
-**3 Connectors** e nenhuma Rule personalizada.
-O pitch (5 min + até 3 min de perguntas; problema → demo → arquitetura → maturidade) está em
+Coreflux MQTT broker + HUB in Docker (`hackathon/broker/`). The logic lives in the broker as LoT
+(Actions, Models, Connectors, Rules, Panels); the source of truth is the `.lotnb` files in
+`hackathon/lot/`. Syntax reference: `hackathon/LOT_CHEATSHEET.md`. The organizers provide an event
+licence (`CFLX-...`, in `hackathon/broker/.env`, outside git); without it, the Community edition only allows
+**3 Connectors** and no custom Rules.
+The pitch (5 min + up to 3 min of questions; problem → demo → architecture → maturity) is in
 `hackathon/PITCH.md`.

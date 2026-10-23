@@ -1,21 +1,21 @@
 #pragma once
 
-// Lógica pura do robô, sem dependências do Arduino, para poder ser testada no PC
-// com `pio test -e native`.
+// Pure robot logic, with no Arduino dependencies, so it can be tested on the PC
+// with `pio test -e native`.
 
 #include <stdint.h>
 
 enum class Mode : uint8_t { Stopped, Forward, Backward, Rotate };
 
-// Estado desejado das saídas para um modo.
-// Velocidades de -255 (trás, máximo) a 255 (frente, máximo); servo em graus 0..180.
+// Desired output state for a mode.
+// Speeds from -255 (full backward) to 255 (full forward); servo in degrees 0..180.
 struct Outputs {
   int16_t motorA;
   int16_t motorB;
   uint8_t servoAngle;
 };
 
-// Sinais de um canal da ponte H (IN1/IN2 definem o sentido, pwm a velocidade).
+// Signals of one H-bridge channel (IN1/IN2 set the direction, pwm the speed).
 struct HBridgeChannel {
   bool in1;
   bool in2;
@@ -26,11 +26,11 @@ Mode nextMode(Mode mode);
 Outputs outputsFor(Mode mode);
 const char* modeName(Mode mode);
 
-// Converte uma velocidade com sinal nos sinais da ponte H. Velocidade 0 trava em roda livre.
+// Converts a signed speed into H-bridge signals. Speed 0 coasts (free-wheel).
 HBridgeChannel hBridgeChannel(int16_t speed);
 
-// Debounce de um botão ativo em LOW. update() devolve true uma única vez por
-// cada pressão, quando a leitura se mantém estável durante `intervalMs`.
+// Debounce for an active-LOW button. update() returns true exactly once per
+// press, when the reading stays stable for `intervalMs`.
 class Debounce {
  public:
   explicit Debounce(uint32_t intervalMs = 30) : intervalMs_(intervalMs) {}

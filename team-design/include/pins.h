@@ -1,22 +1,22 @@
 #pragma once
 
-// Mapa de pinos do Arduino Uno. Tem de bater certo com diagram.json e com a montagem real.
+// Arduino Uno pin map. Must match diagram.json and the real wiring.
 //
-// Nota: a biblioteca Servo usa o Timer1 e desativa o analogWrite nos pinos 9 e 10,
-// por isso o PWM dos motores (ENA/ENB) fica nos pinos 5 e 6 (Timer0).
+// Note: the Servo library uses Timer1 and disables analogWrite on pins 9 and 10,
+// so the motor PWM (ENA/ENB) lives on pins 5 and 6 (Timer0).
 
-// Botão: liga ao GND, usa o pull-up interno (premido = LOW)
+// Button: wired to GND, uses the internal pull-up (pressed = LOW)
 constexpr uint8_t PIN_BUTTON = 2;
 
-// Servo 180º (sinal)
+// 180° servo (signal)
 constexpr uint8_t PIN_SERVO = 9;
 
-// Ponte H (L298N) — motor A (esquerdo)
+// H-bridge (L298N) — motor A (left)
 constexpr uint8_t PIN_ENA = 5;  // PWM
 constexpr uint8_t PIN_IN1 = 7;
 constexpr uint8_t PIN_IN2 = 8;
 
-// Ponte H (L298N) — motor B (direito)
+// H-bridge (L298N) — motor B (right)
 constexpr uint8_t PIN_ENB = 6;  // PWM
 constexpr uint8_t PIN_IN3 = 10;
 constexpr uint8_t PIN_IN4 = 11;
