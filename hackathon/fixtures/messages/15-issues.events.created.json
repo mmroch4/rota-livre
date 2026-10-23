@@ -1,12 +1,12 @@
 {
-  "topic": "zelar/issues/events",
+  "topic": "ruaviva/issues/events",
   "retain": false,
   "note": "Published by MatchReport. IssueTools.apply also triages on created and report_attached.",
   "payload": {
     "issue_id": "I-001",
     "type": "created",
     "at": "2026-10-23T18:12:00+01:00",
-    "by": "zelar",
+    "by": "ruaviva",
     "data": {
       "report": {
         "report_id": "R-0001",

@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/issues/decisions",
+  "topic": "ruaviva/issues/decisions",
   "retain": false,
   "note": "decision: approve | reject | close | reopen. priority/crew_id override the suggestion.",
   "payload": {

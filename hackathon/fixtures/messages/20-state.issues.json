@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/state/issues",
+  "topic": "ruaviva/state/issues",
   "retain": true,
   "note": "Fictional demo data (Lordelo do Ouro, Porto). The issue store after the seed reports, before the manager approves (I-000 closed, I-006 out of scope).",
   "payload": {
@@ -40,7 +40,7 @@
         {
           "at": "2026-10-09T10:00:00+01:00",
           "type": "created",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Created from report R-0000."
         }
       ]
@@ -90,25 +90,25 @@
         {
           "at": "2026-10-23T18:12:00+01:00",
           "type": "created",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Created from report R-0001."
         },
         {
           "at": "2026-10-23T19:40:00+01:00",
           "type": "report_attached",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Report R-0002 attached (4 m away, same asset, similar text)."
         },
         {
           "at": "2026-10-23T21:05:00+01:00",
           "type": "report_attached",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Report R-0004 attached (7 m away, same asset)."
         },
         {
           "at": "2026-10-24T07:30:00+01:00",
           "type": "report_attached",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Report R-0006 attached (2 m away, same asset)."
         }
       ]
@@ -149,7 +149,7 @@
         {
           "at": "2026-10-23T20:31:00+01:00",
           "type": "created",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Created from report R-0003."
         }
       ]
@@ -187,7 +187,7 @@
         {
           "at": "2026-10-23T22:10:00+01:00",
           "type": "created",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Created from report R-0005."
         }
       ]
@@ -229,7 +229,7 @@
         {
           "at": "2026-10-22T09:15:00+01:00",
           "type": "created",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Created from report R-0008."
         }
       ]
@@ -268,7 +268,7 @@
         {
           "at": "2026-10-22T17:45:00+01:00",
           "type": "created",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Created from report R-0009."
         }
       ]
@@ -304,7 +304,7 @@
         {
           "at": "2026-10-23T11:02:00+01:00",
           "type": "created",
-          "by": "zelar",
+          "by": "ruaviva",
           "text": "Created from report R-0010."
         }
       ]

@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/errors",
+  "topic": "ruaviva/errors",
   "retain": false,
   "note": "",
   "payload": "MatchReport: report R-0015 has no confirmed location",

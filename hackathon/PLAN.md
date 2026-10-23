@@ -1,6 +1,6 @@
-# Development plan: ZelAR (Sat 24/10, 6 h)
+# Development plan: Rua Viva (Sat 24/10, 6 h)
 
-How four people build [ZelAR](README.md) in parallel. **Product and contract:** [`README.md`](README.md) (the topic
+How four people build [Rua Viva](README.md) in parallel. **Product and contract:** [`README.md`](README.md) (the topic
 map is drafted; freeze it at kickoff). **Pitch:** [`PITCH.md`](PITCH.md). **Task board:** GitHub Issues, one per
 piece below (#1 setup, #2 licence decision, #3–#19 the pieces), labelled by track and milestoned by checkpoint.
 
@@ -34,8 +34,8 @@ world (which bench, which playground, which crew is short) **is** the story, so 
 
 | # | Issue | Piece | Done when (verifiable) | Needs only |
 |---|-------|-------|------------------------|------------|
-| P0 | #3 | Demo world | `00-setup` publishes `config/categories`, `config/job_types`, `config/assets`, the day's `zelar/state/resources` and ~8 seed reports; 6 demo photos in `dashboard/photos/`; `ResetDemo` restores it | — |
-| P1 | #4 | Issue store | `ApplyIssueEvent` folds every `zelar/issues/events` message into retained `zelar/state/issues` and `zelar/kpi` via `IssueTools.apply`; `HandleDecision` turns manager decisions into events | P2 (stub first) |
+| P0 | #3 | Demo world | `00-setup` publishes `config/categories`, `config/job_types`, `config/assets`, the day's `ruaviva/state/resources` and ~8 seed reports; 6 demo photos in `dashboard/photos/`; `ResetDemo` restores it | — |
+| P1 | #4 | Issue store | `ApplyIssueEvent` folds every `ruaviva/issues/events` message into retained `ruaviva/state/issues` and `ruaviva/kpi` via `IssueTools.apply`; `HandleDecision` turns manager decisions into events | P2 (stub first) |
 | P2 | #5 | IssueTools | `pytest` green: fold of every event type, history, triage (crew, priority score, **reasons**, out of scope), close check, KPIs | config fixtures |
 | P3a | #6 | Intake | `reports/new` → `analysis` (`Matcher.classify` keywords) → `MatchReport` → `created` event; `SensorIntake` turns a lamp fault into a report | P5 (stub: always `new`) |
 | P3b | #19 | LLM analysis | `AnalyzeReport` uses the LLM connector if licensed, else the plan B service; falls back to keywords | request fixture |
@@ -60,7 +60,7 @@ Every argument is a JSON **string** and every function returns `json.dumps(...)`
 |----------|-----------|---------|
 | `IssueTools.apply` | `index, event, categories, assets` | `{"index": {...}, "kpi": {...}, "audit": {...}, "notify": [{"to","subject","body","issue_id"}], "error": null}` |
 | `Matcher.classify` | `report, categories` | an `analysis` payload with `source: "keywords"` |
-| `Matcher.match` | `report, analysis, index, assets` (+ `answer` or manager `decision`, may be `""`) | the `match` payload, plus `event` (to publish on `zelar/issues/events`) or `question` or `review` |
+| `Matcher.match` | `report, analysis, index, assets` (+ `answer` or manager `decision`, may be `""`) | the `match` payload, plus `event` (to publish on `ruaviva/issues/events`) or `question` or `review` |
 | `Planner.build` | `request, index, resources, job_types, previous_plan` (`""` if none) | the Plan, with `changes` vs. `previous_plan` |
 | `Planner.apply_resource_event` | `resources, event` | the new `resources` document |
 
@@ -133,7 +133,7 @@ Actions 24 (Connector events and Python scripts count): ~11 Actions (`AnalyzeRep
 - [ ] Everyone: `git pull`, `chmod 777 hackathon/broker/exports`, `docker compose up -d`,
       `scripts/mcp_token.py`, then `scripts/replay.py --list` works
 - [ ] Assign tracks A, B, C (fill the table above)
-- [x] Task board rewritten for ZelAR: issues #1–#19
+- [x] Task board rewritten for Rua Viva: issues #1–#19
 - [ ] Anthropic API key with credit, tested with `curl` (plan B analyzer and LLM connector); keep it out of git
 - [ ] Victor: new slide deck (the Vale deck is obsolete), first draft of the click-by-click demo script, demo photos
 - [ ] Track C: Leaflet + mqtt.js over `ws://localhost:9001/mqtt`; Track B: the `python-scripts` skill and the

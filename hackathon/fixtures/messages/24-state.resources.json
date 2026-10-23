@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/state/resources",
+  "topic": "ruaviva/state/resources",
   "retain": true,
   "note": "Fictional demo data (Lordelo do Ouro, Porto). 10 paving stones (20 needed) leaves the paving job pending.",
   "payload": {

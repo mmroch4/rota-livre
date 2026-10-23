@@ -18,7 +18,7 @@ Each folder in this repo maps to one challenge:
 
 | Day | Folder | Challenge | What it is | Status |
 |-----|--------|-----------|------------|--------|
-| **Sat 24/10** | [`hackathon/`](hackathon/) | **Hackathon** | An automation solution for a **real problem we choose**, built on the **Coreflux** platform (MQTT broker + LoT). Judged on a 5-min pitch with a demo (up to 8 min with jury questions). | Idea: **ZelAR** (citizen reports → daily maintenance plans; changed from "Vale" on 23/10), contract drafted, broker setup ready. |
+| **Sat 24/10** | [`hackathon/`](hackathon/) | **Hackathon** | An automation solution for a **real problem we choose**, built on the **Coreflux** platform (MQTT broker + LoT). Judged on a 5-min pitch with a demo (up to 8 min with jury questions). | Idea: **Rua Viva** (citizen reports → daily maintenance plans; changed from "Vale" on 23/10), contract drafted, broker setup ready. |
 | **Sun 25/10** | [`team-design/`](team-design/) | **Team Design** | A working physical prototype made from simple, low-cost materials, answering the brief revealed on the day. | Practice skeleton (Arduino Uno + H-bridge + servo), ready to adapt. |
 
 ## Repository layout

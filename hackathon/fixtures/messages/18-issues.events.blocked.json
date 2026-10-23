@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/issues/events",
+  "topic": "ruaviva/issues/events",
   "retain": false,
   "note": "From HandleJobStatus.",
   "payload": {

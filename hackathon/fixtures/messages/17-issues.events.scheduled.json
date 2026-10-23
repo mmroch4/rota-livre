@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/issues/events",
+  "topic": "ruaviva/issues/events",
   "retain": false,
   "note": "Batch event from ApprovePlan; the job details are in the approved plan.",
   "payload": {

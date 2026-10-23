@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/reports/new",
+  "topic": "ruaviva/reports/new",
   "retain": false,
   "note": "Published by SensorIntake; location comes from config/assets.",
   "payload": {

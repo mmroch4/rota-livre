@@ -18,17 +18,17 @@ and wants to know more about the project. Event on **Saturday, 24/10**.
 | 6 | **Maturity** | maturity | 0:40 | What is real vs. simulated, tests, security (Rules), scale, next steps. |
 | 7 | Close | — | 0:10 | The product sentence + team name. |
 
-## Script (ZelAR, ~5 min)
+## Script (Rua Viva, ~5 min)
 
 | # | Block | Lines / screen |
 |---|-------|----------------|
 | 1 | Hook | *"Five neighbours report the same broken bench. Today that is five tickets, five e-mails, and a crew that still doesn't know if it has the wood to fix it."* `[TODO Victor: add one verified number with its source]` |
 | 2 | Problem | The manager gets reports, not jobs: where exactly, what, whose, how urgent, how long, with what material? The daily crew plan is built by memory and rebuilt by phone when a part is missing. And the citizen never hears back. |
-| 3 | Solution | *"ZelAR turns reports about public space into maintenance plans. It organizes reports, finds likely duplicates and helps the municipality decide what each crew can fix today, with the resources it has."* |
+| 3 | Solution | *"Rua Viva turns reports about public space into maintenance plans. It organizes reports, finds likely duplicates and helps the municipality decide what each crew can fix today, with the resources it has."* |
 | 4 | Demo | See the script below. |
 | 5 | Architecture | One diagram (README §3). Message: **every report, from a citizen or a device, is an event in the broker**; matching, triage and planning are Python inside the broker, the LLM only reads the text and the photo, and the manager approves. Only the screens and the simulator are outside. |
 | 6 | Maturity | Real vs. fictional data (labelled), human in the loop, a reason for every decision, replan that never touches started work, tests, audit log, Rules per role. |
-| 7 | Close | *"ZelAR: from reports to repairs." Team O(1/n).* |
+| 7 | Close | *"Rua Viva: from reports to repairs." Team O(1/n).* |
 
 ## Demo script (1:40)
 
@@ -44,8 +44,8 @@ Initial state: `ResetDemo` run; config, assets and the day's resources retained;
 3. **(0:20) Today's plan.** The manager approves the issues and clicks **Plan today**: two crews, numbered routes on
    the map, durations and materials, and *pending: paving repair, not enough paving stones in stock*.
 4. **(0:30) The key moment.** On the technician view, the electrician marks the first lamp job **blocked: wrong lamp
-   model, need another LED lamp**. ZelAR recomputes: *"Lamp 07 moved to tomorrow: no LED lamp in stock. Fence inspection
-   added to the furniture crew: it fits after the bench."* The manager approves the new version.
+   model, need another LED lamp**. Rua Viva recomputes: *"Lamp 11 waits: the last LED lamp in stock goes to lamp 07, at the
+   pedestrian crossing (higher priority). Lamp 07 now starts at 08:42."* The manager approves the new version.
 5. **(0:10) Close the loop.** The technician finishes the bench (after photo + note), the manager closes it, and
    Mailpit shows **one email per citizen who reported it**.
 6. **(0:05) Proof.** The HUB shows the Actions, Python scripts and Connectors running in the broker.

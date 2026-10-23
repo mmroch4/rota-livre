@@ -1,12 +1,12 @@
 {
-  "topic": "zelar/notifications/email",
+  "topic": "ruaviva/notifications/email",
   "retain": false,
   "note": "One message per linked citizen; Connector Mailer sends it to Mailpit.",
   "payload": {
     "to": "citizen01@example.org",
     "issue_id": "I-001",
     "subject": "Fixed: Broken bench plank with exposed screw",
-    "body": "Hello! The problem you reported (bench 03, next to Playground A) was fixed on 24/10 by the street furniture crew. You and 4 other people reported it. Thank you for looking after your street. — ZelAR (demo)"
+    "body": "Hello! The problem you reported (bench 03, next to Playground A) was fixed on 24/10 by the street furniture crew. You and 4 other people reported it. Thank you for looking after your street. — Rua Viva (demo)"
   },
   "edge": false
 }

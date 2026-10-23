@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/reports/R-0011/match",
+  "topic": "ruaviva/reports/R-0011/match",
   "retain": false,
   "note": "decision: new | attach | review | recurrence | needs_info.",
   "payload": {

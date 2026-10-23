@@ -1,6 +1,6 @@
 # AGENTS.md: LoT rules for AI assistants (hackathon/)
 
-Coreflux LoT project for **ZelAR** (citizen reports → maintenance plans). The product, architecture and the
+Coreflux LoT project for **Rua Viva** (citizen reports → maintenance plans). The product, architecture and the
 **MQTT topic map** (the contract between every component) are in [`README.md`](README.md).
 Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 
@@ -31,7 +31,7 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 
 - Entities in PascalCase: Actions verb-first (`MatchReport`), Models nouns (`Issue`), Rules by scope
   (`AllowManagerDecisions`), Connectors by destination (`Mailer`). Variables and model fields in
-  `snake_case`. Topics lowercase, `/`-separated, under `zelar/` or `config/` (see the topic map).
+  `snake_case`. Topics lowercase, `/`-separated, under `ruaviva/` or `config/` (see the topic map).
 - Indent 4 spaces per level. Code fences use `lot`. Write the language name as "LoT".
 - Type-cast every numeric value before math or comparisons (`PAYLOAD AS DOUBLE`,
   `GET TOPIC "…" AS DOUBLE`). Booleans and integers are not quoted.

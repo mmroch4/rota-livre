@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/reports/R-0012/analysis",
+  "topic": "ruaviva/reports/R-0012/analysis",
   "retain": false,
   "note": "Matcher.classify fallback (no LLM, no internet).",
   "payload": {

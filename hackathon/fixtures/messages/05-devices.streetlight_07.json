@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/devices/streetlight_07/status",
+  "topic": "ruaviva/devices/streetlight_07/status",
   "retain": true,
   "note": "Streetlight controller (simulated). SensorIntake turns lamp_ok=false into a report.",
   "payload": {

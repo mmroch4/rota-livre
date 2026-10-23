@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/kpi",
+  "topic": "ruaviva/kpi",
   "retain": true,
   "note": "Computed by IssueTools.apply from the store.",
   "payload": {

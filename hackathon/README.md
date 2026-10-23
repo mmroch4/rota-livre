@@ -1,11 +1,11 @@
 # Hackathon — Coreflux solution
 
 > **Status:** idea changed on 23/10 (evening) from *Vale* (energy copilot, see git history up to `8245603`) to
-> **ZelAR**. The structure follows the 4 points the jury judges on (Rules, Art. 1, 3):
+> **Rua Viva**. The structure follows the 4 points the jury judges on (Rules, Art. 1, 3):
 > **problem → demo → architecture → maturity**. Anything marked ⚠️ **verify** must be confirmed in the first hour.
 
-**Product name:** **ZelAR** (from Portuguese *zelar*, "to look after").
-**One sentence:** *ZelAR turns reports about public space into maintenance plans. It organizes reports, finds
+**Product name:** **Rua Viva** (Portuguese for "living street"): a street whose problems are seen, planned and fixed.
+**One sentence:** *Rua Viva turns reports about public space into maintenance plans. It organizes reports, finds
 likely duplicates and helps the municipality decide what each crew can fix today with the resources it has.*
 
 ---
@@ -29,30 +29,30 @@ likely duplicates and helps the municipality decide what each crew can fix today
 
 ## 2. The solution
 
-The path of one problem through ZelAR:
+The path of one problem through Rua Viva:
 
 1. **Report.** A citizen takes a photo, **confirms the location** on a map (a photo alone does not say where it was
    taken) and adds a short description: *"O banco junto ao parque infantil tem uma tábua partida e um parafuso exposto."*
-   ZelAR suggests the category and writes a structured description. If essential information is missing, it asks one
+   Rua Viva suggests the category and writes a structured description. If essential information is missing, it asks one
    concrete question: *"Which of the two playgrounds on this street?"*
    Devices are a second channel: a smart streetlight controller that reports a lamp failure enters the same pipeline.
-2. **Already reported?** ZelAR compares the report with open issues by **distance, category, asset and text**
+2. **Already reported?** Rua Viva compares the report with open issues by **distance, category, asset and text**
    (and photo, with the LLM, when available). A likely match is attached to the existing issue; ambiguous cases go to the
    manager. Five people follow **one intervention**, and the five reports stay as evidence. A problem that comes back
    after being fixed is flagged as a possible **recurrence**.
 3. **Ready for analysis.** Each issue has a card: photos, location, description, category, linked reports, history and
-   status. ZelAR suggests the responsible crew from configured rules (or says it is **outside municipal competence**)
+   status. Rua Viva suggests the responsible crew from configured rules (or says it is **outside municipal competence**)
    and a priority from explicit criteria (risk, sensitive area, impact on use, waiting time), always with the reason:
    *"Priority review suggested: a sharp element was reported next to a children's play area."*
    The number of reports is one extra signal, never the only one. The manager approves.
 4. **Daily plan (the core).** The manager states the resources of the day: crews, shifts, skills, materials, vehicles.
-   ZelAR proposes who does what, in which order, with duration, materials and route, and explains **why each job was
+   Rua Viva proposes who does what, in which order, with duration, materials and route, and explains **why each job was
    included or left pending**: *"Not scheduled: needs an LED lamp and there is none in stock."* The manager edits and
    approves the plan.
 5. **Field work.** On a phone, each technician sees their jobs (location, photos, instructions) and marks them
    **started**, **done**, **blocked** (with the reason) or **needs another crew/material**. When a job overruns or a
-   part is missing, ZelAR **recomputes the rest of the plan and explains the changes**; the manager approves them.
-6. **Close and inform.** The technician adds an after photo and a note. ZelAR checks that everything needed to close
+   part is missing, Rua Viva **recomputes the rest of the plan and explains the changes**; the manager approves them.
+6. **Close and inform.** The technician adds an after photo and a note. Rua Viva checks that everything needed to close
    is there (a photo does not prove the repair is safe, so a human approves the closure). Then **every citizen linked to
    the issue** gets an update, and the history stays with the asset for future interventions.
 
@@ -84,18 +84,18 @@ such**), three categories, two crews, three interfaces (citizen form, manager da
 ```text
  [channels]                         [Coreflux Broker: the logic lives here]                     [outputs]
 
- citizen form ──reports/new──► AnalyzeReport ──analysis──► MatchReport ───────► zelar/issues/events
+ citizen form ──reports/new──► AnalyzeReport ──analysis──► MatchReport ───────► ruaviva/issues/events
  (photo + pin + text)          (CALL LLM; plan B           (CALL PYTHON           (created, report_attached)
                                 service; keyword            Matcher: dedup,       or review/... → manager
  streetlight controller         fallback offline)           recurrence, asset     or question  → citizen
  (simulator) ──status──► SensorIntake ──reports/new──►       question)                  │
                                                                                          ▼
- manager ──issues/decisions──► HandleDecision ──events──► ApplyIssueEvent ──► zelar/state/issues (every card)
-                                                         (CALL PYTHON IssueTools:  zelar/kpi ──► dashboard
+ manager ──issues/decisions──► HandleDecision ──events──► ApplyIssueEvent ──► ruaviva/state/issues (every card)
+                                                         (CALL PYTHON IssueTools:  ruaviva/kpi ──► dashboard
                                                           fold, triage, KPIs)      AuditLog (JSON file)
                                                                  │                 Notify ──► Mailer ──► citizens
                                                                  ▼                 (on closed / out of scope)
- manager ──plan/request, resources/events──► UpdateResources ──► zelar/state/resources
+ manager ──plan/request, resources/events──► UpdateResources ──► ruaviva/state/resources
                                              BuildPlan (CALL PYTHON Planner) ──► plans/<date>/proposed ──► manager
                                              ApprovePlan ──► plans/<date>/approved ──► technician list
  technician ──jobs/<id>/status──► HandleJobStatus ──► issue events + resource events + replan request
@@ -118,15 +118,15 @@ such**), three categories, two crews, three interfaces (citizen form, manager da
 
 **LLM licence:** the Community broker refuses `TYPE LLM` (verified 23/10). If the event licence does not unlock it,
 plan B is `services/report_analyzer.py` (Claude API via the `anthropic` SDK, can also read the photo), which reads
-`zelar/reports/new` and publishes `zelar/reports/<id>/analysis` with the same contract. With no internet at all, a
+`ruaviva/reports/new` and publishes `ruaviva/reports/<id>/analysis` with the same contract. With no internet at all, a
 keyword classifier (`Matcher.classify`) gives a lower-quality analysis so the demo never stops.
 
 **Photos:** the browser downscales to ≤ 800 px JPEG (≤ 150 KB) and publishes it once, retained, on
-`zelar/photos/<photo_id>`. Every other message refers to the `photo_id`. The demo photos are fixtures.
+`ruaviva/photos/<photo_id>`. Every other message refers to the `photo_id`. The demo photos are fixtures.
 
 ### MQTT topic map
 
-The contract between every part of the system, **drafted on 23/10 for ZelAR: review it together at kickoff, then
+The contract between every part of the system, **drafted on 23/10 for Rua Viva: review it together at kickoff, then
 freeze it**. Every row has an example message in [`fixtures/messages/`](fixtures/messages/), and
 `scripts/replay.py` publishes them, so each track can be built before its producer exists. **Change a row only with
 the whole team, and update its fixture in the same commit.**
@@ -136,29 +136,29 @@ the whole team, and update its fixture in the same commit.**
 | `config/categories` | setup | `IssueTools`, `Matcher`, dashboard | `{categories: {<category>: {name, crew_id, job_types, keywords, hazard_words}}, out_of_scope: [{keywords, entity}], sensitive_tags, priority_weights, priority_thresholds}` | ✅ |
 | `config/job_types` | setup | `Planner`, dashboard | `{<job_type>: {category, name, duration_min, skills, materials: {item: qty}, vehicle, instructions}}` | ✅ |
 | `config/assets` | setup | `Matcher`, `IssueTools`, dashboard | `[{asset_id, type, name, lat, lon, tags}]` (tags: `playground`, `school`, `crossing`) | ✅ |
-| `zelar/photos/<photo_id>` | citizen form, technician | dashboard, plan B analyzer | `data:image/jpeg;base64,...` | ✅ |
-| `zelar/reports/new` | citizen form, `SensorIntake` | `AnalyzeReport` | Model `Report`: `report_id`, `channel` (`citizen`\|`sensor`), `submitted_at`, `text`, `photo_id`, `lat`, `lon`, `location_confirmed`, `contact` | |
-| `zelar/reports/<report_id>/analysis` | `AnalyzeReport` (LLM / plan B / keywords) | `MatchReport`, citizen form | `{report_id, source, category, job_type, asset_type, summary, hazards: [...], confidence}` | |
-| `zelar/reports/<report_id>/question` | `MatchReport` | citizen form | `{report_id, question, options: [{asset_id, label}]}` | |
-| `zelar/reports/<report_id>/answer` | citizen form | `MatchReport` | `{report_id, asset_id}` | |
-| `zelar/reports/<report_id>/match` | `MatchReport` | citizen form, dashboard | `{report_id, decision` (`new`\|`attach`\|`review`\|`recurrence`\|`needs_info`), `issue_id, asset_id, candidates: [{issue_id, score, distance_m, why}]}` | |
-| `zelar/review/duplicates/<report_id>` | `MatchReport` | dashboard (manager) | `{report_id, analysis, candidates}`; cleared after the decision | ✅ |
-| `zelar/review/duplicates/<report_id>/decision` | dashboard (manager) | `MatchReport` | `{issue_id}` to attach, or `{issue_id: null}` for a new issue | |
-| `zelar/issues/events` | `MatchReport`, `HandleDecision`, `HandleJobStatus`, `ApprovePlan` | `ApplyIssueEvent` | `{issue_id` (or `issue_ids` for plan events), `type, at, by, data}`, `type` ∈ `created`, `report_attached`, `approved`, `rejected`, `out_of_scope`, `scheduled`, `unscheduled`, `started`, `blocked`, `work_done`, `closed`, `reopened` | |
-| `zelar/issues/decisions` | dashboard (manager) | `HandleDecision` | `{issue_id, decision` (`approve`\|`reject`\|`close`\|`reopen`), `by, note, priority?, crew_id?}` | |
-| `zelar/state/issues` | `ApplyIssueEvent` | `BuildPlan`, `MatchReport`, dashboard, technician | `{<issue_id>: Issue}`: **the** issue store, rebuilt by folding every event | ✅ |
-| `zelar/kpi` | `ApplyIssueEvent` | dashboard | `{new_to_review, possible_duplicates, approved_unscheduled, in_progress, blocked, closed_today, reports_merged, avg_triage_min, avg_resolution_h, block_reasons: {...}}` | ✅ |
-| `zelar/resources/events` | dashboard (manager), `HandleJobStatus` | `UpdateResources` | `{type` (`crew_available`\|`member_absent`\|`stock_set`\|`stock_used`), `crew_id, data, at, by}` | |
-| `zelar/state/resources` | `UpdateResources` | `BuildPlan`, dashboard | `{date, depot: {name, lat, lon}, crews: {<crew_id>: {name, members, skills, shift: ["08:00","16:00"], vehicle, available, stock: {item: qty}}}}` | ✅ |
-| `zelar/plan/request` | dashboard (manager), `UpdateResources`, `HandleJobStatus` | `BuildPlan` | `{date, now: "HH:MM", trigger` (`daily`\|`replan`), `reason}` | |
-| `zelar/plans/<date>/proposed` | `BuildPlan` | dashboard (manager) | Plan (see below) with `status: "proposed"` and `changes` vs. the approved version | ✅ |
-| `zelar/plans/<date>/decision` | dashboard (manager) | `ApprovePlan` | `{version, decision` (`approve`\|`discard`), `by, edits?: [{issue_id, crew_id?, drop?}]}` | |
-| `zelar/plans/<date>/approved` | `ApprovePlan` | `HandleJobStatus`, dashboard, technician list (filters its crew) | Plan with `status: "approved"` | ✅ |
-| `zelar/jobs/<job_id>/status` | technician list | `HandleJobStatus` | `{status` (`started`\|`done`\|`blocked`\|`needs`), `at, by, reason?, need?: {material?, qty?, crew?}, note?, photo_id?}` | |
-| `zelar/devices/<device_id>/status` | streetlight simulator | `SensorIntake` | `{device_id, asset_id, lamp_ok, fault?, at}` | ✅ |
-| `zelar/notifications/email` | `Notify` | Connector `Mailer` | `{to, subject, body, issue_id}` (one message per recipient) | |
-| `zelar/audit/events` | `ApplyIssueEvent`, `ApprovePlan` | Connector `AuditLog` (JSON file) | `{at, issue_id?, type, by, data}` | |
-| `zelar/errors` | any Action | dashboard | text | |
+| `ruaviva/photos/<photo_id>` | citizen form, technician | dashboard, plan B analyzer | `data:image/jpeg;base64,...` | ✅ |
+| `ruaviva/reports/new` | citizen form, `SensorIntake` | `AnalyzeReport` | Model `Report`: `report_id`, `channel` (`citizen`\|`sensor`), `submitted_at`, `text`, `photo_id`, `lat`, `lon`, `location_confirmed`, `contact` | |
+| `ruaviva/reports/<report_id>/analysis` | `AnalyzeReport` (LLM / plan B / keywords) | `MatchReport`, citizen form | `{report_id, source, category, job_type, asset_type, summary, hazards: [...], confidence}` | |
+| `ruaviva/reports/<report_id>/question` | `MatchReport` | citizen form | `{report_id, question, options: [{asset_id, label}]}` | |
+| `ruaviva/reports/<report_id>/answer` | citizen form | `MatchReport` | `{report_id, asset_id}` | |
+| `ruaviva/reports/<report_id>/match` | `MatchReport` | citizen form, dashboard | `{report_id, decision` (`new`\|`attach`\|`review`\|`recurrence`\|`needs_info`), `issue_id, asset_id, candidates: [{issue_id, score, distance_m, why}]}` | |
+| `ruaviva/review/duplicates/<report_id>` | `MatchReport` | dashboard (manager) | `{report_id, analysis, candidates}`; cleared after the decision | ✅ |
+| `ruaviva/review/duplicates/<report_id>/decision` | dashboard (manager) | `MatchReport` | `{issue_id}` to attach, or `{issue_id: null}` for a new issue | |
+| `ruaviva/issues/events` | `MatchReport`, `HandleDecision`, `HandleJobStatus`, `ApprovePlan` | `ApplyIssueEvent` | `{issue_id` (or `issue_ids` for plan events), `type, at, by, data}`, `type` ∈ `created`, `report_attached`, `approved`, `rejected`, `out_of_scope`, `scheduled`, `unscheduled`, `started`, `blocked`, `work_done`, `closed`, `reopened` | |
+| `ruaviva/issues/decisions` | dashboard (manager) | `HandleDecision` | `{issue_id, decision` (`approve`\|`reject`\|`close`\|`reopen`), `by, note, priority?, crew_id?}` | |
+| `ruaviva/state/issues` | `ApplyIssueEvent` | `BuildPlan`, `MatchReport`, dashboard, technician | `{<issue_id>: Issue}`: **the** issue store, rebuilt by folding every event | ✅ |
+| `ruaviva/kpi` | `ApplyIssueEvent` | dashboard | `{new_to_review, possible_duplicates, approved_unscheduled, in_progress, blocked, closed_today, reports_merged, avg_triage_min, avg_resolution_h, block_reasons: {...}}` | ✅ |
+| `ruaviva/resources/events` | dashboard (manager), `HandleJobStatus` | `UpdateResources` | `{type` (`crew_available`\|`member_absent`\|`stock_set`\|`stock_used`), `crew_id, data, at, by}` | |
+| `ruaviva/state/resources` | `UpdateResources` | `BuildPlan`, dashboard | `{date, depot: {name, lat, lon}, crews: {<crew_id>: {name, members, skills, shift: ["08:00","16:00"], vehicle, available, stock: {item: qty}}}}` | ✅ |
+| `ruaviva/plan/request` | dashboard (manager), `UpdateResources`, `HandleJobStatus` | `BuildPlan` | `{date, now: "HH:MM", trigger` (`daily`\|`replan`), `reason}` | |
+| `ruaviva/plans/<date>/proposed` | `BuildPlan` | dashboard (manager) | Plan (see below) with `status: "proposed"` and `changes` vs. the approved version | ✅ |
+| `ruaviva/plans/<date>/decision` | dashboard (manager) | `ApprovePlan` | `{version, decision` (`approve`\|`discard`), `by, edits?: [{issue_id, crew_id?, drop?}]}` | |
+| `ruaviva/plans/<date>/approved` | `ApprovePlan` | `HandleJobStatus`, dashboard, technician list (filters its crew) | Plan with `status: "approved"` | ✅ |
+| `ruaviva/jobs/<job_id>/status` | technician list | `HandleJobStatus` | `{status` (`started`\|`done`\|`blocked`\|`needs`), `at, by, reason?, need?: {material?, qty?, crew?}, note?, photo_id?}` | |
+| `ruaviva/devices/<device_id>/status` | streetlight simulator | `SensorIntake` | `{device_id, asset_id, lamp_ok, fault?, at}` | ✅ |
+| `ruaviva/notifications/email` | `Notify` | Connector `Mailer` | `{to, subject, body, issue_id}` (one message per recipient) | |
+| `ruaviva/audit/events` | `ApplyIssueEvent`, `ApprovePlan` | Connector `AuditLog` (JSON file) | `{at, issue_id?, type, by, data}` | |
+| `ruaviva/errors` | any Action | dashboard | text | |
 
 **Model `Issue`:** `issue_id`, `title`, `summary`, `category`, `job_type`, `asset_id`, `lat`, `lon`, `photo_ids`,
 `report_ids`, `reporters` (contacts, never shown to crews), `status` (`new` → `approved` → `scheduled` →
@@ -173,14 +173,14 @@ duration_min, travel_min, materials, instructions, photo_ids, why}` (no citizen 
 
 Rules of the contract:
 - `job_id` = `<date>-<issue_id>`, so a job keeps its id across replans.
-- One store per kind (`zelar/state/issues`, `zelar/state/resources`, one plan per date), each with **a single writer
+- One store per kind (`ruaviva/state/issues`, `ruaviva/state/resources`, one plan per date), each with **a single writer
   Action**. LoT has no easy loop over JSON lists, so we publish whole documents instead of one topic per item.
 - The planner never schedules a job whose skills, materials or vehicle the crew does not have, and always says why.
   Travel = straight-line distance × 1.3 at 20 km/h + 5 min to park (a visible assumption, listed in `assumptions`).
 - A replan only moves jobs that are not `started` or `done`, and starts from `now`.
 - The LLM only *proposes* (`analysis`); the matcher, triage and planner are deterministic; plans and closures need the
   manager's approval.
-- Topics in English, lowercase, `snake_case`, under `zelar/` or `config/` (retained); errors on `zelar/errors`.
+- Topics in English, lowercase, `snake_case`, under `ruaviva/` or `config/` (retained); errors on `ruaviva/errors`.
 
 ### Components
 
@@ -200,11 +200,11 @@ WebSocket: verified on 23/10. The broker serves MQTT over WebSocket on container
 Full script and plan B in [`PITCH.md`](PITCH.md#demo-script-140). Summary:
 1. A citizen reports the broken bench on the phone view: the category, the hazard and a **high priority with its
    reason** appear.
-2. More reports arrive (and a streetlight controller reports a dead lamp): ZelAR attaches the duplicates, sends one
+2. More reports arrive (and a streetlight controller reports a dead lamp): Rua Viva attaches the duplicates, sends one
    ambiguous case to the manager and asks a citizen "which playground?". **Many reports, few issues.**
 3. The manager approves and asks for **today's plan**: two crews, routes on the map, durations, materials, and one job
    left pending *with the reason*.
-4. **The key moment:** an electrician is called away (or a technician marks a job *blocked: no LED lamp*). ZelAR
+4. **The key moment:** an electrician is called away (or a technician marks a job *blocked: no LED lamp*). Rua Viva
    **recomputes a feasible plan and explains every change**; the manager approves it.
 5. The bench is fixed (after photo + note), the manager closes it, and **every citizen who reported it** gets an email
    (Mailpit).

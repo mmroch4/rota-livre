@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/review/duplicates/R-0014/decision",
+  "topic": "ruaviva/review/duplicates/R-0014/decision",
   "retain": false,
   "note": "{issue_id: null} creates a new issue instead.",
   "payload": {

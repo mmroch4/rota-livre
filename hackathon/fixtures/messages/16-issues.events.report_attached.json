@@ -1,12 +1,12 @@
 {
-  "topic": "zelar/issues/events",
+  "topic": "ruaviva/issues/events",
   "retain": false,
   "note": "",
   "payload": {
     "issue_id": "I-001",
     "type": "report_attached",
     "at": "2026-10-24T09:41:02+01:00",
-    "by": "zelar",
+    "by": "ruaviva",
     "data": {
       "report": {
         "report_id": "R-0011",

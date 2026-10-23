@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/resources/events",
+  "topic": "ruaviva/resources/events",
   "retain": false,
   "note": "Alternative demo trigger: a crew member is called away.",
   "payload": {

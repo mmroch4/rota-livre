@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/reports/new",
+  "topic": "ruaviva/reports/new",
   "retain": false,
   "note": "Model Report from the citizen form: the demo's bench report.",
   "payload": {

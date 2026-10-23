@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/resources/events",
+  "topic": "ruaviva/resources/events",
   "retain": false,
   "note": "type: crew_available | member_absent | stock_set | stock_used.",
   "payload": {

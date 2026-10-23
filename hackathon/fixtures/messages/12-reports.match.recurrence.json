@@ -1,5 +1,5 @@
 {
-  "topic": "zelar/reports/R-0013/match",
+  "topic": "ruaviva/reports/R-0013/match",
   "retain": false,
   "note": "A new issue is created with recurrence_of = I-000.",
   "payload": {
