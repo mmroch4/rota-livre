@@ -38,7 +38,11 @@ Invariants that are easy to break:
 
 Coreflux MQTT broker + HUB in Docker (`hackathon/broker/`). The logic lives in the broker as LoT
 (Actions, Models, Connectors, Rules, Panels); the source of truth is the `.lotnb` files in
-`hackathon/lot/`. Syntax reference: `hackathon/LOT_CHEATSHEET.md`. The organizers provide an event
+`hackathon/lot/` (mounted read-only in the broker at `/lot`). LoT rules for the AI are in `hackathon/AGENTS.md`
+(auto-loaded via `hackathon/CLAUDE.md`). **Never write LoT from memory**: use the Coreflux skills in
+`.claude/skills/` (pinned to broker 2.22.0) and the `coreflux-docs` MCP server, check against the live broker with
+the `coreflux-broker` MCP server (`validate_lot`/`validate_lotnb`), and deploy with `/lot-deploy`.
+Setup: `hackathon/AI.md`. The organizers provide an event
 licence (`CFLX-...`, in `hackathon/broker/.env`, outside git); without it, the Community edition only allows
 **3 Connectors** and no custom Rules.
 The pitch (5 min + up to 3 min of questions; problem → demo → architecture → maturity) is in

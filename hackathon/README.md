@@ -172,6 +172,7 @@ docker compose up -d
 | MQTT broker (from outside Docker) | `localhost:1883` | `root` / `coreflux` |
 | Mailpit (test email inbox) | <http://localhost:8025> | — |
 | Broker health | <http://localhost:9100/health> | — |
+| Broker MCP server (AI agents) | <http://localhost:6278/mcp> (`/health` without a token) | bearer token, see [`AI.md`](AI.md) |
 
 - `docker compose down` stops and keeps the data; `docker compose down -v` **wipes everything, including the licence**.
 - The HUB connects to `broker` (the Docker service name), not `localhost`.
@@ -205,7 +206,13 @@ Check the tier in the badge next to `root` or at <http://localhost:9100/license>
 
 ### LoT code workflow
 
-The **source of truth is git**: the `.lotnb` files in `lot/`.
+The **source of truth is git**: the `.lotnb` files in `lot/`, which are mounted read-only in the broker at `/lot`.
+
+**With AI (recommended):** Claude Code is connected to the Coreflux docs and to our broker over MCP,
+with the official LoT skills. See [`AI.md`](AI.md) for the one-time setup. Edit a notebook, then
+`/lot-deploy` validates it and reloads the `lot` project from git.
+
+**By hand:**
 
 1. Install the **LoT Notebooks** VS Code extension
    ([VSCodeLotNotebook](https://github.com/CorefluxCommunity/VSCodeLotNotebook/releases/tag/v1.0.0), `.vsix` file):
@@ -221,12 +228,15 @@ Suggested layout, one notebook per responsibility:
 ### Useful tools
 
 - **MQTT Explorer** or `mosquitto_sub -h localhost -u root -P coreflux -t '#' -v` to see every topic.
-- **Python:** `pip install paho-mqtt` for services and simulators in `services/`.
+- **Python:** `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` (paho-mqtt, pytest)
+  for services, simulators and tests in `services/`.
 - Broker variables and secrets: `-setEnv NAME=value`, `-setSecret NAME=value` (no spaces around the `=`),
   then `{env.NAME}` or `GET ENV "NAME"` / `GET SECRET "NAME"` in LoT.
 
 ## Documents in this folder
 
+- [`AI.md`](AI.md): AI tooling setup (MCP servers, Coreflux skills, token) and the daily loop.
+- [`AGENTS.md`](AGENTS.md): LoT rules for AI assistants (Claude Code reads it through `CLAUDE.md`).
 - [`LOT_CHEATSHEET.md`](LOT_CHEATSHEET.md): LoT syntax reference (Actions, Models, Connectors, Rules, Panels).
 - [`PITCH.md`](PITCH.md): presentation structure and demo checklist.
 
