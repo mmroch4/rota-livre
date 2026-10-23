@@ -22,7 +22,7 @@ likely duplicates and helps the municipality decide what each crew can fix today
   - The daily crew plan is built by hand, from what the manager remembers. When a part is missing or a crew is short,
     the plan breaks and is rebuilt by phone.
   - The citizen who reported it is rarely told it was fixed.
-  - `[TODO Victor: one verified number, e.g. yearly reports in a Portuguese municipal app such as "Na Minha Rua LX", with source]`
+  - `[TODO #17: one verified number, e.g. yearly reports in a Portuguese municipal app such as "Na Minha Rua LX", with source]`
 - **Why it is automation:** it **integrates** reports from several channels, **organizes** them (dedup, triage),
   **optimizes** the use of crews and materials and **reacts** to events in the field, with a human approving each step
   that has consequences.
@@ -128,7 +128,7 @@ keyword classifier (`Matcher.classify`) gives a lower-quality analysis so the de
 
 The contract between every part of the system, **drafted on 23/10 for Rua Viva: review it together at kickoff, then
 freeze it**. Every row has an example message in [`fixtures/messages/`](fixtures/messages/), and
-`scripts/replay.py` publishes them, so each track can be built before its producer exists. **Change a row only with
+`scripts/replay.py` publishes them, so each piece can be built before its producer exists. **Change a row only with
 the whole team, and update its fixture in the same commit.**
 
 | Topic | Published by | Read by | Payload | Retained |
@@ -304,7 +304,7 @@ with the official LoT skills. See [`AI.md`](AI.md) for the one-time setup. Edit 
 3. Run the cells (▷) to deploy to the local broker; commit the `.lotnb` files.
 
 If someone edits directly in the HUB, they must copy the final code into the matching `.lotnb` before committing.
-Layout: **one notebook per feature, one owner per notebook** (see [`PLAN.md`](PLAN.md#notebooks)), so two
+Layout: **one notebook per feature, one writer per notebook at a time** (see [`PLAN.md`](PLAN.md#notebooks)), so two
 people never edit the same `.lotnb` (they are JSON and merge badly).
 
 ### Useful tools

@@ -22,7 +22,7 @@ and wants to know more about the project. Event on **Saturday, 24/10**.
 
 | # | Block | Lines / screen |
 |---|-------|----------------|
-| 1 | Hook | *"Five neighbours report the same broken bench. Today that is five tickets, five e-mails, and a crew that still doesn't know if it has the wood to fix it."* `[TODO Victor: add one verified number with its source]` |
+| 1 | Hook | *"Five neighbours report the same broken bench. Today that is five tickets, five e-mails, and a crew that still doesn't know if it has the wood to fix it."* `[TODO #17: add one verified number with its source]` |
 | 2 | Problem | The manager gets reports, not jobs: where exactly, what, whose, how urgent, how long, with what material? The daily crew plan is built by memory and rebuilt by phone when a part is missing. And the citizen never hears back. |
 | 3 | Solution | *"Rua Viva turns reports about public space into maintenance plans. It organizes reports, finds likely duplicates and helps the municipality decide what each crew can fix today, with the resources it has."* |
 | 4 | Demo | See the script below. |
@@ -85,14 +85,15 @@ The extra 3 minutes are an opportunity: questions show interest. Prepare short a
 | Who pays? | The municipality, as a subscription priced by population. It complements existing reporting apps instead of replacing them. |
 | What next? | Integrations with existing reporting apps and asset inventories, failure prediction from asset history, camera detection, photo comparison at closure. |
 
-## Owner, roles, timeline
+## Roles and timeline
 
-**Victor owns the pitch** (demo script, slides, rehearsals, presents). Tracks, the 6-hour plan, checkpoints
-and tonight's prep are in [`PLAN.md`](PLAN.md); the task board is GitHub Issues.
+No fixed roles: the pitch is built through issues like everything else, **#17** (demo script + deck) and **#18**
+(backup video + rehearsals). Who presents: `TODO` (decide at kickoff; Victor was the plan before tasks became
+free-for-all). The 6-hour plan, checkpoints and how we take tasks are in [`PLAN.md`](PLAN.md).
 
 ## Slides
 
-The Vale deck (<https://claude.ai/artifact/3QRZ8JXuDBSsBftHCqjaCK>) is **obsolete**. New deck: `TODO` (owner Victor).
+The Vale deck (<https://claude.ai/artifact/3QRZ8JXuDBSsBftHCqjaCK>) is **obsolete**. New deck: `TODO` (#17).
 Suggested 11 slides: cover, hook, problem, the path of one report, demo, architecture, explainability (one plan with
 its reasons), maturity, what it is worth, close, and backup slides (why Coreflux, what if the AI is wrong).
 

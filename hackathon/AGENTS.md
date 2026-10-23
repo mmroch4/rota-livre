@@ -17,7 +17,7 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 
 1. Load the skill for the kind you are writing; check what exists with `explore_topics` /
    `list_entities` (coreflux-broker MCP).
-2. Write or edit the block in the notebook of its **feature** (one owner per notebook, see the table in
+2. Write or edit the block in the notebook of its **feature** (one writer per notebook at a time, see the table in
    [`PLAN.md`](PLAN.md#notebooks)); a notebook holds that feature's Models, Actions, Connectors and Python.
    The broker loads by kind (Models before Actions), so a notebook may use a Model from another.
    Python for `CALL PYTHON` goes in a `python` cell with `# Script Name: <Name>`; keep it pure and add
