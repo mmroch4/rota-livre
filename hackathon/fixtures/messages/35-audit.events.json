@@ -1,0 +1,15 @@
+{
+  "topic": "zelar/audit/events",
+  "retain": false,
+  "note": "Connector AuditLog appends it to broker/exports/audit.json.",
+  "payload": {
+    "at": "2026-10-24T09:41:02+01:00",
+    "issue_id": "I-001",
+    "type": "report_attached",
+    "by": "zelar",
+    "data": {
+      "report_id": "R-0011"
+    }
+  },
+  "edge": false
+}

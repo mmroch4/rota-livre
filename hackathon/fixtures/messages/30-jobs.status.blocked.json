@@ -1,0 +1,16 @@
+{
+  "topic": "zelar/jobs/2026-10-24-I-003/status",
+  "retain": false,
+  "note": "The demo's key moment: triggers stock_used + a replan.",
+  "payload": {
+    "status": "blocked",
+    "at": "2026-10-24T08:30:00+01:00",
+    "by": "lighting_crew",
+    "reason": "Wrong lamp model; need another LED lamp.",
+    "need": {
+      "material": "led_lamp",
+      "qty": 1
+    }
+  },
+  "edge": false
+}

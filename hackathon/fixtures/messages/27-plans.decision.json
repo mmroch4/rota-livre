@@ -1,0 +1,12 @@
+{
+  "topic": "zelar/plans/2026-10-24/decision",
+  "retain": false,
+  "note": "edits: [{issue_id, crew_id?, drop?}] applied before approving.",
+  "payload": {
+    "version": 1,
+    "decision": "approve",
+    "by": "manager",
+    "edits": []
+  },
+  "edge": false
+}

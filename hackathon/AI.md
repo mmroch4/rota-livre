@@ -45,7 +45,7 @@ claude mcp list | grep coreflux
 
 ## Daily loop
 
-1. *"Read the topic map and write Action `ParsePrices` in `lot/20-actions.lotnb`..."*. Be specific:
+1. *"Read the topic map and write Action `MatchReport` in `lot/20-match.lotnb`..."*. Be specific:
    name the topics, the payload format and the thresholds (copy them from the topic map).
 2. The AI loads the `lot-actions` skill, checks the live state (`explore_topics`), writes the block and
    runs `/lot-deploy`. Validation returns errors with line and column, and nothing is deployed until it is valid.

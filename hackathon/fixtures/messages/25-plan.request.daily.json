@@ -1,0 +1,12 @@
+{
+  "topic": "zelar/plan/request",
+  "retain": false,
+  "note": "",
+  "payload": {
+    "date": "2026-10-24",
+    "now": "07:45",
+    "trigger": "daily",
+    "reason": "Manager clicked Plan today"
+  },
+  "edge": false
+}

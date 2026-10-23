@@ -1,7 +1,0 @@
-{
-  "topic": "copilot/sim/cold_room_1/door",
-  "retain": false,
-  "note": "open | closed. Demo-only: dashboard button -> simulator. Not part of the product.",
-  "payload": "open",
-  "edge": false
-}

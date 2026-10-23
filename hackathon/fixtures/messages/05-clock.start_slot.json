@@ -1,7 +1,0 @@
-{
-  "topic": "config/clock/start_slot",
-  "retain": true,
-  "note": "Slot the sim clock resets to (32 = 08:00).",
-  "payload": 32,
-  "edge": false
-}

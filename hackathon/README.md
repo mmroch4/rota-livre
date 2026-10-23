@@ -1,172 +1,239 @@
 # Hackathon — Coreflux solution
 
-> **Status:** idea chosen (23/10): **LLM energy copilot for SMEs**. The structure follows the
-> 4 points the jury judges on (Rules, Art. 1, 3): **problem → demo → architecture → maturity**.
-> Anything marked ⚠️ **verify** must be confirmed in the first hour of the event.
+> **Status:** idea changed on 23/10 (evening) from *Vale* (energy copilot, see git history up to `8245603`) to
+> **ZelAR**. The structure follows the 4 points the jury judges on (Rules, Art. 1, 3):
+> **problem → demo → architecture → maturity**. Anything marked ⚠️ **verify** must be confirmed in the first hour.
 
-**Product name:** **Vale** (Portuguese for "valley"): it finds the *valleys* in the electricity price curve and puts consumption there.
-**One sentence:** For small businesses on an indexed tariff, who pay for electricity at a price that changes
-every 15 minutes, **Vale** understands what each appliance needs to do (from a sentence in Portuguese),
-schedules it for the cheapest quarter-hours and switches it on by itself, without ever putting operations at risk.
+**Product name:** **ZelAR** (from Portuguese *zelar*, "to look after").
+**One sentence:** *ZelAR turns reports about public space into maintenance plans. It organizes reports, finds
+likely duplicates and helps the municipality decide what each crew can fix today with the resources it has.*
 
 ---
 
 ## 1. The problem
 
-- **Who:** small businesses (restaurants, mini-markets, bakeries) on an **OMIE-indexed tariff**, with
-  appliances whose consumption can move in time without hurting operations: cold rooms (thermal
-  inertia), industrial dishwashers, water heaters and electric delivery vans.
-- **The pain, in real numbers** (REN DataHub, day-ahead market price in Portugal):
-  - **22/10/2026:** between **€0.28/MWh** and **€286.76/MWh** on the same day, about **1000×**. The hourly
-    average was about €1/MWh at 12:00–15:00 and about €245/MWh at 18:00–19:00.
-  - **The cheapest hour changes every day:** from 15 to 23/10 it was at 12:00, 13:00, 11:00, 11:00, **01:00**, 14:00, 14:00, 14:00.
-    The intuition behind two-period tariffs ("off-peak is at night") no longer matches the market: with solar,
-    the valley is often at midday, and the night can be among the most expensive hours.
-- **How it is solved today:** it isn't, or with fixed timers. The owner is not going to check OMIE
-  every day at 13:00 (when tomorrow's price comes out) to reprogram 4 appliances.
-- **Why it is automation:** it needs to **integrate** prices with the appliances, **optimize** the schedule
-  and **act** every 15 minutes, while respecting constraints such as food temperature or the van's departure time.
-- **Honesty:** Vale only touches the **energy** component of the bill. Grid fees, contracted power and taxes do not change.
-  The savings figures we present always refer to that component.
+- **Who:** the municipal maintenance manager (and the crews) who receive citizen reports about broken benches,
+  dark streetlights and loose paving stones, plus the citizens who report them and never hear back.
+- **The pain:**
+  - The same problem arrives many times, through different channels, with different words. Five reports of one
+    broken bench become five tickets, and someone has to merge them by hand.
+  - A report is not a job. Someone still has to work out where it is, what it is, who is responsible, how urgent it is,
+    how long it takes and what material it needs.
+  - The daily crew plan is built by hand, from what the manager remembers. When a part is missing or a crew is short,
+    the plan breaks and is rebuilt by phone.
+  - The citizen who reported it is rarely told it was fixed.
+  - `[TODO Victor: one verified number, e.g. yearly reports in a Portuguese municipal app such as "Na Minha Rua LX", with source]`
+- **Why it is automation:** it **integrates** reports from several channels, **organizes** them (dedup, triage),
+  **optimizes** the use of crews and materials and **reacts** to events in the field, with a human approving each step
+  that has consequences.
 
 ## 2. The solution
 
-1. **Say what you need, in plain language:** *"The van arrives at 9:00 and must leave at 17:00 with 30 kWh; cold room 1
-   must stay between 0 and 5 °C."* An LLM turns this into a **structured task**, which is validated
-   (Model `Task`) and shown to the owner to confirm.
-2. **Vale fetches** today's and tomorrow's **prices** from REN (every day after 13:00) and **schedules** each task
-   in the cheapest quarter-hours within the constraints.
-3. **Advise or act:** each appliance is in `advise` mode ("run the machine at 14:15, saves €1.80")
-   or `auto` mode (Vale switches the appliance on and off by itself).
-4. **Never puts operations at risk:** the *guardrails* in the broker override the plan (e.g. the cold room
-   above 5 °C turns on **now**, whatever the price) and notify the owner by email.
-5. **Shows what it saved:** a counter of € saved versus "turn it on right away", and an audit log (a JSON file) with each decision and its reason.
+The path of one problem through ZelAR:
+
+1. **Report.** A citizen takes a photo, **confirms the location** on a map (a photo alone does not say where it was
+   taken) and adds a short description: *"O banco junto ao parque infantil tem uma tábua partida e um parafuso exposto."*
+   ZelAR suggests the category and writes a structured description. If essential information is missing, it asks one
+   concrete question: *"Which of the two playgrounds on this street?"*
+   Devices are a second channel: a smart streetlight controller that reports a lamp failure enters the same pipeline.
+2. **Already reported?** ZelAR compares the report with open issues by **distance, category, asset and text**
+   (and photo, with the LLM, when available). A likely match is attached to the existing issue; ambiguous cases go to the
+   manager. Five people follow **one intervention**, and the five reports stay as evidence. A problem that comes back
+   after being fixed is flagged as a possible **recurrence**.
+3. **Ready for analysis.** Each issue has a card: photos, location, description, category, linked reports, history and
+   status. ZelAR suggests the responsible crew from configured rules (or says it is **outside municipal competence**)
+   and a priority from explicit criteria (risk, sensitive area, impact on use, waiting time), always with the reason:
+   *"Priority review suggested: a sharp element was reported next to a children's play area."*
+   The number of reports is one extra signal, never the only one. The manager approves.
+4. **Daily plan (the core).** The manager states the resources of the day: crews, shifts, skills, materials, vehicles.
+   ZelAR proposes who does what, in which order, with duration, materials and route, and explains **why each job was
+   included or left pending**: *"Not scheduled: needs an LED lamp and there is none in stock."* The manager edits and
+   approves the plan.
+5. **Field work.** On a phone, each technician sees their jobs (location, photos, instructions) and marks them
+   **started**, **done**, **blocked** (with the reason) or **needs another crew/material**. When a job overruns or a
+   part is missing, ZelAR **recomputes the rest of the plan and explains the changes**; the manager approves them.
+6. **Close and inform.** The technician adds an after photo and a note. ZelAR checks that everything needed to close
+   is there (a photo does not prove the repair is safe, so a human approves the closure). Then **every citizen linked to
+   the issue** gets an update, and the history stays with the asset for future interventions.
+
+**Where the automation is, and who decides:**
+
+| Moment | Automated | Decided by |
+|--------|-----------|------------|
+| Intake | Extract information and suggest the category from text (and image) | the citizen confirms location |
+| Organization | Find likely duplicates, recurrences, ask for missing information | the manager, in ambiguous cases |
+| Triage | Suggest the responsible crew and the priority, with a reason | the manager approves |
+| Planning | Assign jobs by skills, shifts, materials, location and duration | the manager approves the plan |
+| Execution | Propose plan changes when something blocks a job | the manager approves the changes |
+| Communication | Prepare and send updates from approved state changes | automatic after approval |
+
+The **LLM only interprets unstructured input** (text, photo). Skills, shifts and materials are handled by **rules and
+planning logic**, which are deterministic and testable.
+
+**Prototype scope:** one neighbourhood (Lordelo do Ouro, Porto: real map, **fictional assets and reports, labelled as
+such**), three categories, two crews, three interfaces (citizen form, manager dashboard, technician job list).
+
+| Category | Example job types | Crew |
+|----------|-------------------|------|
+| `street_furniture` | `bench_repair` (45 min, 1 plank + 1 bolt kit), `fence_inspection` (20 min) | `furniture_crew` (2 technicians, van) |
+| `pavement` | `paving_repair` (60 min, 20 paving stones + sand) | `furniture_crew` |
+| `lighting` | `lamp_replacement` (40 min, 1 LED lamp, bucket truck) | `lighting_crew` (2 electricians, bucket truck) |
 
 ## 3. Architecture
 
 ```text
- [sources]                        [Coreflux Broker: the logic lives here]              [outputs]
+ [channels]                         [Coreflux Broker: the logic lives here]                     [outputs]
 
- REN DataHub ◄──REST_API──── Connector RenPrices ──► Action ParsePrices ──────┐
- (15-min prices)                                     (CALL PYTHON PriceTools) │
-                                                                              ▼
- dashboard ──"free text"────► Action ParseIntent ──► Model Task ──► Action PlanTask ──► copilot/plans/<id>
-                              (CALL LLM Assistant)    (validation)  (CALL PYTHON Planner)        │
-                                                                                                 ▼
- Action SimClock ──copilot/clock/slot──► Action Dispatch ─────► auto mode:   .../command ──► appliances
- (1 s = 15 min in the demo)             (plan + mode)   └─────► advise mode: copilot/advice ──► dashboard
-                                                                                 │
- appliances ──telemetry──► Action Guard (guardrails, alert 1×/episode) ──────────┼──► Connector Mailer (email)
- (Python simulator)        Action Meter (real cost vs. naive)                    └──► Connector DecisionLog (JSON)
-                                                                                      web dashboard + HUB Panel
-                           Rules: only broker Actions may publish commands to the appliances
+ citizen form ──reports/new──► AnalyzeReport ──analysis──► MatchReport ───────► zelar/issues/events
+ (photo + pin + text)          (CALL LLM; plan B           (CALL PYTHON           (created, report_attached)
+                                service; keyword            Matcher: dedup,       or review/... → manager
+ streetlight controller         fallback offline)           recurrence, asset     or question  → citizen
+ (simulator) ──status──► SensorIntake ──reports/new──►       question)                  │
+                                                                                         ▼
+ manager ──issues/decisions──► HandleDecision ──events──► ApplyIssueEvent ──► zelar/state/issues (every card)
+                                                         (CALL PYTHON IssueTools:  zelar/kpi ──► dashboard
+                                                          fold, triage, KPIs)      AuditLog (JSON file)
+                                                                 │                 Notify ──► Mailer ──► citizens
+                                                                 ▼                 (on closed / out of scope)
+ manager ──plan/request, resources/events──► UpdateResources ──► zelar/state/resources
+                                             BuildPlan (CALL PYTHON Planner) ──► plans/<date>/proposed ──► manager
+                                             ApprovePlan ──► plans/<date>/approved ──► technician list
+ technician ──jobs/<id>/status──► HandleJobStatus ──► issue events + resource events + replan request
+
+                Rules: each role (citizen, technician, manager) publishes only its own topics;
+                only broker Actions write issue state, resources and approved plans
 ```
 
 **Split of responsibilities:**
-- **Broker (LoT):** price ingestion, clock, state, dispatch, *guardrails*, accounting, alerts,
-  auditing and security.
-- **Python inside the broker (`CALL PYTHON`):** what LoT does not do well, such as sorting 96 prices and picking the
-  N cheapest quarter-hours before a deadline. The functions are **pure and stateless** (target: under 100 ms) and testable with `pytest` outside the broker.
-- **LLM inside the broker (`CALL LLM`, `PROVIDER "anthropic"`):** only translates text into JSON. It **never decides**
-  anything on its own: the task is validated by the Model and the plan is deterministic.
-- **Outside the broker:** only the **appliance simulator** (in the real world these would be relays/PLCs) and the **dashboard**.
+- **Broker (LoT):** the whole event pipeline: intake, matching, issue state, triage, planning requests, approvals,
+  field updates, notifications, audit and security.
+- **Python inside the broker (`CALL PYTHON`):** what LoT does badly. **`Matcher`** (distance, category, asset and
+  text similarity, recurrence, the "which playground?" question), **`IssueTools`** (folds an event into the issue card,
+  triage with reasons, KPIs, close check) and **`Planner`** (assignment and routing with explanations, plan diff on
+  replan). All functions are **pure and stateless**, return `json.dumps(...)` and have `pytest` tests outside the broker.
+- **LLM (`CALL LLM`, `PROVIDER "anthropic"`):** only turns text (and a photo) into a structured analysis. It never
+  decides: the matcher, triage and planner are deterministic and the manager approves.
+- **Outside the broker:** the three web interfaces and the streetlight simulator (in the real world, a lighting
+  management system or the municipality's existing reporting app).
 
-**LLM licence:** verified on 23/10 that the Community broker refuses `TYPE LLM` ("requires a Growth or
-Enterprise license"). If the event licence does not unlock it, plan B is `services/intent_parser.py` (Claude API via the
-`anthropic` SDK), which reads `copilot/assistant/request` and publishes `copilot/tasks/proposed`, with the same contract.
+**LLM licence:** the Community broker refuses `TYPE LLM` (verified 23/10). If the event licence does not unlock it,
+plan B is `services/report_analyzer.py` (Claude API via the `anthropic` SDK, can also read the photo), which reads
+`zelar/reports/new` and publishes `zelar/reports/<id>/analysis` with the same contract. With no internet at all, a
+keyword classifier (`Matcher.classify`) gives a lower-quality analysis so the demo never stops.
+
+**Photos:** the browser downscales to ≤ 800 px JPEG (≤ 150 KB) and publishes it once, retained, on
+`zelar/photos/<photo_id>`. Every other message refers to the `photo_id`. The demo photos are fixtures.
 
 ### MQTT topic map
 
-The contract between every part of the system, **frozen on 23/10**. Every row has an example message in
-[`fixtures/messages/`](fixtures/messages/), and `scripts/replay.py` publishes them, so each track can be built
-before its producer exists. **Change a row only with the whole team, and update its fixture in the same commit.**
-`<id>` ∈ `cold_room_1`, `dishwasher_1`, `van_1` (the demo appliances).
+The contract between every part of the system, **drafted on 23/10 for ZelAR: review it together at kickoff, then
+freeze it**. Every row has an example message in [`fixtures/messages/`](fixtures/messages/), and
+`scripts/replay.py` publishes them, so each track can be built before its producer exists. **Change a row only with
+the whole team, and update its fixture in the same commit.**
 
 | Topic | Published by | Read by | Payload | Retained |
 |-------|--------------|---------|---------|:--------:|
-| `copilot/market/request` | Action `FetchPrices` (on startup and daily at 13:30) | Connector `RenPrices` | `{"date":"2026-10-24"}` (Lisbon date) | |
-| `copilot/market/raw` | Connector `RenPrices` | Action `ParsePrices` | REN JSON verbatim, or `{"success":false,"statusCode":404,...}` | |
-| `copilot/market/prices` | Action `ParsePrices` | `PlanTask`, `Dispatch`, `Meter`, dashboard | `{"date","source":"ren"\|"cache","unit":"EUR/MWh","step_min":15,"times":[...],"prices":[...]}` | ✅ |
-| `config/clock/mode` | setup | `SimClock` | `sim` \| `real` | ✅ |
-| `config/clock/start_slot` | setup | `SimClock` | `32` (08:00) | ✅ |
-| `copilot/clock/control` | dashboard | `SimClock` | `start` \| `pause` \| `reset` | |
-| `copilot/clock/slot` | Action `SimClock` | `Dispatch`, `Meter`, `Guard`, dashboard | index into `prices` (1 s = 1 slot in sim) | ✅ |
-| `config/devices/<id>` | setup | `PlanTask`, `Guard`, dashboard | Model `Device`: `device_id`, `name`, `type` (`thermal`\|`block`\|`energy`), `power_kw`, `temp_min_c`/`temp_max_c` (thermal) | ✅ |
-| `config/devices/<id>/mode` | dashboard (owner) | `Dispatch` | `advise` \| `auto` | ✅ |
-| `copilot/assistant/request` | dashboard | Action `ParseIntent` | `{"text":"..."}` (Portuguese) | |
-| `copilot/tasks/proposed` | `ParseIntent` | dashboard (owner confirms) | `{"request_text","tasks":[Task,...]}` | |
-| `copilot/assistant/errors` | `ParseIntent` | dashboard | text | |
-| `copilot/tasks/new` | dashboard (confirm or preset button) | Action `PlanTask` | Model `Task`: `task_id`, `device_id`, `kind` (`energy`\|`block`), `energy_kwh`, `duration_slots`, `contiguous`, `earliest_slot`, `deadline_slot` (window is `[earliest, deadline)`) | |
-| `copilot/plans/<id>` | Action `PlanTask` | `Dispatch`, `Meter`, dashboard | `{"ok":true,"task_id","device_id","date","slots":[...],"cost_eur","naive_cost_eur","savings_eur","reason"}` or `{"ok":false,"task_id","device_id","error"}` | ✅ |
-| `copilot/devices/<id>/command` | `Dispatch` (`auto` mode), `Guard` | simulator / relay | `on` \| `off` | ✅ |
-| `copilot/advice/<id>` | `Dispatch` (`advise` mode) | dashboard | `{"device_id","slot","time","text","savings_eur"}` | |
-| `copilot/devices/<id>/telemetry` | simulator (`services/device_sim.py`) | `Guard`, `Meter`, dashboard | `{"device_id","on","power_kw"}` + `"temp_c","door_open"` (thermal) | |
-| `copilot/sim/<id>/door` | dashboard (demo only) | simulator | `open` \| `closed` | |
-| `copilot/alerts/guardrail` | Action `Guard` (on transition only) | Connector `Mailer`, dashboard | Model `Alert`: `device_id`, `kind`, `value`, `limit`, `slot`, `time`, `message` | |
-| `copilot/alerts/guardrail/<id>/active` | Action `Guard` | Action `Guard` | `on` \| `off` | ✅ |
-| `copilot/audit/decisions` | `Dispatch`, `Guard` | Connector `DecisionLog` (JSON file) | Model `Decision`: `slot`, `time`, `device_id`, `action`, `price_eur_mwh`, `reason` (`plan`\|`plan_end`\|`guardrail`\|`advise`) | |
-| `copilot/kpi/savings` | Action `Meter` | dashboard, Panel | `{"cost_eur","naive_cost_eur","saved_eur","energy_kwh"}` | ✅ |
-| `copilot/errors` | any Action | dashboard | text | |
+| `config/categories` | setup | `IssueTools`, `Matcher`, dashboard | `{categories: {<category>: {name, crew_id, job_types, keywords, hazard_words}}, out_of_scope: [{keywords, entity}], sensitive_tags, priority_weights, priority_thresholds}` | ✅ |
+| `config/job_types` | setup | `Planner`, dashboard | `{<job_type>: {category, name, duration_min, skills, materials: {item: qty}, vehicle, instructions}}` | ✅ |
+| `config/assets` | setup | `Matcher`, `IssueTools`, dashboard | `[{asset_id, type, name, lat, lon, tags}]` (tags: `playground`, `school`, `crossing`) | ✅ |
+| `zelar/photos/<photo_id>` | citizen form, technician | dashboard, plan B analyzer | `data:image/jpeg;base64,...` | ✅ |
+| `zelar/reports/new` | citizen form, `SensorIntake` | `AnalyzeReport` | Model `Report`: `report_id`, `channel` (`citizen`\|`sensor`), `submitted_at`, `text`, `photo_id`, `lat`, `lon`, `location_confirmed`, `contact` | |
+| `zelar/reports/<report_id>/analysis` | `AnalyzeReport` (LLM / plan B / keywords) | `MatchReport`, citizen form | `{report_id, source, category, job_type, asset_type, summary, hazards: [...], confidence}` | |
+| `zelar/reports/<report_id>/question` | `MatchReport` | citizen form | `{report_id, question, options: [{asset_id, label}]}` | |
+| `zelar/reports/<report_id>/answer` | citizen form | `MatchReport` | `{report_id, asset_id}` | |
+| `zelar/reports/<report_id>/match` | `MatchReport` | citizen form, dashboard | `{report_id, decision` (`new`\|`attach`\|`review`\|`recurrence`\|`needs_info`), `issue_id, asset_id, candidates: [{issue_id, score, distance_m, why}]}` | |
+| `zelar/review/duplicates/<report_id>` | `MatchReport` | dashboard (manager) | `{report_id, analysis, candidates}`; cleared after the decision | ✅ |
+| `zelar/review/duplicates/<report_id>/decision` | dashboard (manager) | `MatchReport` | `{issue_id}` to attach, or `{issue_id: null}` for a new issue | |
+| `zelar/issues/events` | `MatchReport`, `HandleDecision`, `HandleJobStatus`, `ApprovePlan` | `ApplyIssueEvent` | `{issue_id` (or `issue_ids` for plan events), `type, at, by, data}`, `type` ∈ `created`, `report_attached`, `approved`, `rejected`, `out_of_scope`, `scheduled`, `unscheduled`, `started`, `blocked`, `work_done`, `closed`, `reopened` | |
+| `zelar/issues/decisions` | dashboard (manager) | `HandleDecision` | `{issue_id, decision` (`approve`\|`reject`\|`close`\|`reopen`), `by, note, priority?, crew_id?}` | |
+| `zelar/state/issues` | `ApplyIssueEvent` | `BuildPlan`, `MatchReport`, dashboard, technician | `{<issue_id>: Issue}`: **the** issue store, rebuilt by folding every event | ✅ |
+| `zelar/kpi` | `ApplyIssueEvent` | dashboard | `{new_to_review, possible_duplicates, approved_unscheduled, in_progress, blocked, closed_today, reports_merged, avg_triage_min, avg_resolution_h, block_reasons: {...}}` | ✅ |
+| `zelar/resources/events` | dashboard (manager), `HandleJobStatus` | `UpdateResources` | `{type` (`crew_available`\|`member_absent`\|`stock_set`\|`stock_used`), `crew_id, data, at, by}` | |
+| `zelar/state/resources` | `UpdateResources` | `BuildPlan`, dashboard | `{date, depot: {name, lat, lon}, crews: {<crew_id>: {name, members, skills, shift: ["08:00","16:00"], vehicle, available, stock: {item: qty}}}}` | ✅ |
+| `zelar/plan/request` | dashboard (manager), `UpdateResources`, `HandleJobStatus` | `BuildPlan` | `{date, now: "HH:MM", trigger` (`daily`\|`replan`), `reason}` | |
+| `zelar/plans/<date>/proposed` | `BuildPlan` | dashboard (manager) | Plan (see below) with `status: "proposed"` and `changes` vs. the approved version | ✅ |
+| `zelar/plans/<date>/decision` | dashboard (manager) | `ApprovePlan` | `{version, decision` (`approve`\|`discard`), `by, edits?: [{issue_id, crew_id?, drop?}]}` | |
+| `zelar/plans/<date>/approved` | `ApprovePlan` | `HandleJobStatus`, dashboard, technician list (filters its crew) | Plan with `status: "approved"` | ✅ |
+| `zelar/jobs/<job_id>/status` | technician list | `HandleJobStatus` | `{status` (`started`\|`done`\|`blocked`\|`needs`), `at, by, reason?, need?: {material?, qty?, crew?}, note?, photo_id?}` | |
+| `zelar/devices/<device_id>/status` | streetlight simulator | `SensorIntake` | `{device_id, asset_id, lamp_ok, fault?, at}` | ✅ |
+| `zelar/notifications/email` | `Notify` | Connector `Mailer` | `{to, subject, body, issue_id}` (one message per recipient) | |
+| `zelar/audit/events` | `ApplyIssueEvent`, `ApprovePlan` | Connector `AuditLog` (JSON file) | `{at, issue_id?, type, by, data}` | |
+| `zelar/errors` | any Action | dashboard | text | |
+
+**Model `Issue`:** `issue_id`, `title`, `summary`, `category`, `job_type`, `asset_id`, `lat`, `lon`, `photo_ids`,
+`report_ids`, `reporters` (contacts, never shown to crews), `status` (`new` → `approved` → `scheduled` →
+`in_progress` ⇄ `blocked` → `awaiting_close` → `closed`; or `rejected`, `out_of_scope`), `priority` (`high`\|`normal`\|`low`),
+`priority_score` (0–100), `priority_reasons` (list of text), `priority_summary` (one sentence), `crew_id`, `out_of_scope_entity`, `recurrence_of`,
+`created_at`, `triaged_at`, `closed_at`, `history` (`[{at, type, by, text}]`).
+
+**Plan:** `{date, version, now, generated_at, status, crews: [{crew_id, shift, capacity_min, load_min, jobs: [Job]}],
+unscheduled: [{issue_id, reason}], changes: [{issue_id, change` (`added`\|`dropped`\|`moved`\|`reassigned`),
+`explanation}], assumptions: [...]}`. **Job:** `{job_id, issue_id, job_type, title, lat, lon, start, end,
+duration_min, travel_min, materials, instructions, photo_ids, why}` (no citizen contacts: crews never see them).
 
 Rules of the contract:
-- **`prices` is not always 96 long.** REN's day is Lisbon time, and its last hour belongs to the next day's auction:
-  before ~13:00 today has **92** values (seen live on 23/10), and **25/10 (DST) has 100**. Index by slot, label with
-  `times[slot]`, never assume 96.
-- Money is the **energy component only**: `€ = price_eur_mwh / 1000 × power_kw × 0.25` per slot.
-- `energy` tasks: the planner derives the slots from `energy_kwh / (power_kw × 0.25)`; `block` tasks use
-  `duration_slots`. "Naive" cost = running from `earliest_slot` straight away.
-- The LLM only *proposes* (`tasks/proposed`); nothing is planned until the owner confirms on the dashboard.
-- Topics in English, lowercase, `snake_case`, hierarchy `<domain>/<entity>/<measure>`;
-  configuration under `config/...` (retained); errors under `.../errors`.
+- `job_id` = `<date>-<issue_id>`, so a job keeps its id across replans.
+- One store per kind (`zelar/state/issues`, `zelar/state/resources`, one plan per date), each with **a single writer
+  Action**. LoT has no easy loop over JSON lists, so we publish whole documents instead of one topic per item.
+- The planner never schedules a job whose skills, materials or vehicle the crew does not have, and always says why.
+  Travel = straight-line distance × 1.3 at 20 km/h + 5 min to park (a visible assumption, listed in `assumptions`).
+- A replan only moves jobs that are not `started` or `done`, and starts from `now`.
+- The LLM only *proposes* (`analysis`); the matcher, triage and planner are deterministic; plans and closures need the
+  manager's approval.
+- Topics in English, lowercase, `snake_case`, under `zelar/` or `config/` (retained); errors on `zelar/errors`.
 
 ### Components
 
 | Component | Where | Technology |
 |-----------|-------|------------|
-| Automation logic | `lot/` | LoT: Actions, Models, Connectors (`REST_API`, `EMAIL`, `FILE_STORAGE`; `LLM` if the licence allows), Rules, Panel |
-| Optimizer and price parsing | `lot/` (`CALL PYTHON` scripts) + tests in `services/tests/` | Python (standard library only) |
-| Appliance simulator | `services/device_sim.py` | Python + `paho-mqtt` (simple thermal model of the cold room) |
-| Dashboard | `lot/` (Panel) + `dashboard/` | **HUB Panel first** (MVP by H+2); then our own web app (HTML + MQTT over WebSocket + price chart with the plan overlaid) if time allows |
+| Automation logic | `lot/` | LoT: Actions, Models, Connectors (`EMAIL`, `FILE_STORAGE`; `LLM` if the licence allows), Rules |
+| Matcher, IssueTools, Planner | `lot/` (`CALL PYTHON` scripts) + tests in `services/tests/` | Python (standard library only) |
+| Report analyzer, plan B | `services/report_analyzer.py` | Python + `paho-mqtt` + `anthropic` (only if the LLM connector is not licensed) |
+| Streetlight simulator | `services/streetlight_sim.py` | Python + `paho-mqtt` |
+| Three interfaces | `dashboard/` (`citizen.html`, `manager.html`, `technician.html`) | Plain HTML + JS, MQTT over WebSocket (`mqtt.js`), Leaflet map; no build step |
 | Infrastructure | `broker/` | Docker Compose: Coreflux Broker 2.22, HUB 2.12, Mailpit |
 
-WebSocket: verified on 23/10. The broker serves MQTT over WebSocket on container port 5000, path `/mqtt`; it is **opt-in** via `broker/docker-compose.ws.yml` → `ws://localhost:9001/mqtt`. Read that file's warning first: any web page on the laptop can reach a localhost WebSocket, so change the root password (or use a limited dashboard user) before enabling it.
+WebSocket: verified on 23/10. The broker serves MQTT over WebSocket on container port 5000, path `/mqtt`; it is **opt-in** via `broker/docker-compose.ws.yml` → `ws://localhost:9001/mqtt`. Read that file's warning first: any web page on the laptop can reach a localhost WebSocket, so change the root password (or use limited users per role) before enabling it.
 
 ## 4. Demo
 
 Full script and plan B in [`PITCH.md`](PITCH.md#demo-script-140). Summary:
-1. The chart of **today's real prices** (REN) shows the midday valley.
-2. The owner types a sentence, the LLM turns it into tasks (the JSON appears on screen) and the plans appear over the chart, with the expected savings.
-3. **▶ Simulate the day** (1 s = 15 min): the appliances switch on by themselves in the valleys and the € counter goes up.
-4. **The cold room door is opened:** the temperature goes above 5 °C, the *guardrail* turns the cold room on even at a high price, an
-   email arrives in Mailpit and a line with reason `guardrail` appears in the audit log.
+1. A citizen reports the broken bench on the phone view: the category, the hazard and a **high priority with its
+   reason** appear.
+2. More reports arrive (and a streetlight controller reports a dead lamp): ZelAR attaches the duplicates, sends one
+   ambiguous case to the manager and asks a citizen "which playground?". **Many reports, few issues.**
+3. The manager approves and asks for **today's plan**: two crews, routes on the map, durations, materials, and one job
+   left pending *with the reason*.
+4. **The key moment:** an electrician is called away (or a technician marks a job *blocked: no LED lamp*). ZelAR
+   **recomputes a feasible plan and explains every change**; the manager approves it.
+5. The bench is fixed (after photo + note), the manager closes it, and **every citizen who reported it** gets an email
+   (Mailpit).
 
 ## 5. Maturity and next steps
 
-- **End to end and real:** prices (REN public API, no key), the LLM, scheduling, dispatch, *guardrails*, emails
-  and auditing all run in the broker.
-- **Simulated:** the appliances (Python simulator with a thermal model) and the accelerated clock. Connecting to real
-  hardware means swapping the simulator for a relay/PLC subscribing to the **same** `.../command` topic.
+- **End to end and real:** intake, LLM analysis, dedup, triage, planning, replanning, approvals, notifications and the
+  audit log all run in the broker.
+- **Fictional / simulated:** the neighbourhood's assets, reports, crews and stock (clearly labelled), and the
+  streetlight controller. Real integrations (the municipality's reporting app, asset inventory, lighting management
+  system) plug into the same topics.
+- **Human in the loop by design:** the AI interprets, the rules and planner propose, the manager approves anything with
+  safety or resource implications. The report count never decides priority alone.
+- **Explainable:** every priority, every scheduled or pending job and every replan change has a written reason.
 - **Reliability:**
-  - prices are retained and cached: with no internet, Vale uses the last known plan;
-  - with no prices at all, it falls back to a safe mode (the appliance's normal behaviour);
-  - the LLM never acts directly;
-  - the *guardrails* take priority over the plan;
-  - the alert is sent only once per episode.
-- **Security (Rules):**
-  - only broker Actions publish to `copilot/devices/+/command`;
-  - the dashboard user can only publish requests and change the mode;
-  - each appliance only publishes its own telemetry.
-- **Tests:** the optimizer has `pytest` tests, including edge cases: an impossible deadline, missing prices and the **100**-quarter-hour day
-  at the clock change (25/10!).
-- **Scale:** appliances are configuration (`config/devices/<id>`), and a new type is a new strategy in the planner.
-  For multiple shops, one broker per shop, linked to a central broker.
-- **Business model:** a subscription per establishment. Vale starts with a **bill simulator** ("on the indexed tariff,
-  with your appliances, you would save X €/month"), which is also the sales tool.
-- **With more time:**
-  - a residential profile (the same engine for a family with an electric car);
-  - price forecasting before 13:00;
-  - optimizing **contracted power** and solar self-consumption;
-  - Modbus integration with the refrigeration controllers.
+  - no internet → keyword classifier instead of the LLM, map without tiles, everything else local;
+  - state is retained and rebuilt from events; the audit log records every event;
+  - a replan never touches started or finished work.
+- **Security (Rules, if the licence allows):** one user per role. Citizens only publish reports, answers and photos;
+  technicians only job status and photos; the manager only decisions, resources and plan requests; only broker Actions
+  write issues, state and approved plans. Citizens' contacts never reach the crews' view.
+- **Tests:** `pytest` for the matcher (duplicate, recurrence, ambiguous asset), triage (reasons, out of scope) and planner
+  (skills, missing material, shift overflow, replan stability, empty day).
+- **Scale:** categories, job types, assets and crews are configuration, not code. One broker per municipality; parishes
+  (*juntas de freguesia*) as more crews and assets.
+- **Business model:** a subscription per municipality, priced by population; it complements, not replaces, the
+  existing reporting apps.
+- **With more time:** real integrations, failure prediction from asset history, detection by cameras, photo comparison
+  for closure checks, travel times from a real road network.
 
 ---
 
@@ -244,7 +311,7 @@ people never edit the same `.lotnb` (they are JSON and merge badly).
 
 - **MQTT Explorer** or `mosquitto_sub -h localhost -u root -P coreflux -t '#' -v` to see every topic.
 - **Python:** `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` (paho-mqtt, pytest)
-  for services, simulators and tests in `services/`.
+  for services, simulators and tests in `services/` (`anthropic` only for the plan B analyzer).
 - Broker variables and secrets: `-setEnv NAME=value`, `-setSecret NAME=value` (no spaces around the `=`),
   then `{env.NAME}` or `GET ENV "NAME"` / `GET SECRET "NAME"` in LoT.
 
@@ -255,8 +322,7 @@ people never edit the same `.lotnb` (they are JSON and merge badly).
 - [`LOT_CHEATSHEET.md`](LOT_CHEATSHEET.md): LoT syntax reference (Actions, Models, Connectors, Rules, Panels).
 - [`PLAN.md`](PLAN.md): who builds what, notebooks, timeline, licence decision and spike results.
 - [`PITCH.md`](PITCH.md): presentation structure and demo checklist.
-- [`fixtures/`](fixtures/): one example message per topic (`messages/`) and a week of real REN prices (`ren/`),
-  published by `scripts/replay.py`.
+- [`fixtures/`](fixtures/): one example message per topic (`messages/`), published by `scripts/replay.py`.
 
 ## References
 

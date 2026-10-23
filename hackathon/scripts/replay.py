@@ -5,32 +5,27 @@ planner, simulator and Actions can be built against these before the real produc
 
     python hackathon/scripts/replay.py --list                    # topic table of every fixture
     python hackathon/scripts/replay.py                           # publish all fixtures once
-    python hackathon/scripts/replay.py --only plans telemetry    # only files whose name matches
-    python hackathon/scripts/replay.py --only config --clock     # config, then tick the sim clock
-    python hackathon/scripts/replay.py --only hot --edge         # one edge case: cold room at 6.2 °C
+    python hackathon/scripts/replay.py --only config state       # only files whose name matches
+    python hackathon/scripts/replay.py --only replan --edge      # one edge case: the replanned version 2
     python hackathon/scripts/replay.py --clear                   # wipe every retained fixture topic
 
---clock stands in for the SimClock Action: it publishes copilot/clock/slot (retained) from
---start to the last price slot, one slot per --tick seconds.
+All the data is fictional (a demo neighbourhood in Lordelo do Ouro, Porto).
 """
 
 import argparse
 import json
 import pathlib
 import sys
-import time
 
 import paho.mqtt.client as mqtt
 
 FIXTURES = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "messages"
-SLOT_TOPIC = "copilot/clock/slot"
-PRICES_FIXTURE = "market.prices"
 
 
 def load_fixtures(only, edge=True):
     """Returns (file stem, message) pairs in file order, filtered by name substrings.
 
-    Edge-case fixtures (a 404, an infeasible plan, a hot cold room) share a topic with a normal
+    Edge-case fixtures (e.g. the replanned version 2) share a retained topic with a normal
     fixture, so they are skipped unless asked for; otherwise they would win as the retained value.
     """
     fixtures = []
@@ -63,16 +58,6 @@ def publish(client, topic, payload, retain):
     client.publish(topic, payload, qos=1, retain=retain).wait_for_publish(timeout=5)
 
 
-def tick_clock(client, args):
-    prices = next(m for name, m in load_fixtures(None) if name.endswith(PRICES_FIXTURE))
-    last = len(prices["payload"]["prices"]) - 1
-    times = prices["payload"]["times"]
-    for slot in range(args.start, last + 1):
-        publish(client, SLOT_TOPIC, str(slot), retain=True)
-        print(f"{SLOT_TOPIC} = {slot} ({times[slot]})")
-        time.sleep(args.tick)
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--host", default="localhost")
@@ -80,12 +65,9 @@ def main():
     parser.add_argument("--user", default="root")
     parser.add_argument("--password", default="coreflux")
     parser.add_argument("--only", nargs="+", metavar="WORD", help="only fixtures whose file name contains WORD")
-    parser.add_argument("--edge", action="store_true", help="also publish edge-case fixtures (404, infeasible, hot)")
+    parser.add_argument("--edge", action="store_true", help="also publish edge-case fixtures (e.g. the replanned plan)")
     parser.add_argument("--list", action="store_true", help="print the fixtures and exit")
     parser.add_argument("--clear", action="store_true", help="publish empty retained messages to every fixture topic")
-    parser.add_argument("--clock", action="store_true", help="after publishing, tick copilot/clock/slot")
-    parser.add_argument("--start", type=int, default=32, help="first slot for --clock (32 = 08:00)")
-    parser.add_argument("--tick", type=float, default=1.0, help="seconds per slot for --clock")
     args = parser.parse_args()
 
     if args.list:
@@ -95,13 +77,13 @@ def main():
         print("\nR = retained, E = edge case (only with --edge)")
         return
     fixtures = load_fixtures(args.only, edge=args.edge)
-    if not fixtures and not args.clock:
+    if not fixtures and not args.clear:
         sys.exit(f"No fixture matches {args.only}")
 
     client = connect(args)
     try:
         if args.clear:
-            topics = {m["topic"] for _, m in load_fixtures(None) if m["retain"]} | {SLOT_TOPIC}
+            topics = {m["topic"] for _, m in load_fixtures(None) if m["retain"]}
             for topic in sorted(topics):
                 publish(client, topic, b"", retain=True)
                 print(f"cleared {topic}")
@@ -109,8 +91,6 @@ def main():
         for name, message in fixtures:
             publish(client, message["topic"], encode(message["payload"]), message["retain"])
             print(f"{'R' if message['retain'] else ' '} {message['topic']:<45} {name}")
-        if args.clock:
-            tick_clock(client, args)
     except KeyboardInterrupt:
         pass
     finally:

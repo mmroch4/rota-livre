@@ -1,0 +1,16 @@
+{
+  "topic": "zelar/reports/R-0012/analysis",
+  "retain": false,
+  "note": "Matcher.classify fallback (no LLM, no internet).",
+  "payload": {
+    "report_id": "R-0012",
+    "source": "keywords",
+    "category": "street_furniture",
+    "job_type": "bench_repair",
+    "asset_type": "bench",
+    "summary": "O banco do parque está partido.",
+    "hazards": [],
+    "confidence": 0.5
+  },
+  "edge": false
+}

@@ -1,7 +1,0 @@
-{
-  "topic": "copilot/assistant/errors",
-  "retain": false,
-  "note": "Plain text, shown on the dashboard.",
-  "payload": "Could not understand the request: no appliance named 'oven'.",
-  "edge": false
-}

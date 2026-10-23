@@ -1,0 +1,20 @@
+{
+  "topic": "zelar/reports/R-0011/match",
+  "retain": false,
+  "note": "decision: new | attach | review | recurrence | needs_info.",
+  "payload": {
+    "report_id": "R-0011",
+    "decision": "attach",
+    "issue_id": "I-001",
+    "asset_id": "bench_03",
+    "candidates": [
+      {
+        "issue_id": "I-001",
+        "score": 0.91,
+        "distance_m": 4,
+        "why": "Same asset (bench_03), same category, similar text (screw, plank)."
+      }
+    ]
+  },
+  "edge": false
+}
