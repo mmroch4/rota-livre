@@ -205,6 +205,12 @@ button:disabled { opacity: 0.5; cursor: default; }
 .info-card h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
 .info-card h2 svg.lucide { color: var(--report); }
 .info-card p { color: var(--muted); font-size: 0.95rem; }
+.report-card-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; margin: 4px 0 2px;
+    border: 2px solid var(--report); border-radius: 16px; background: #fff; color: var(--warn); font-weight: 600;
+}
+.report-card-btn:hover { background: var(--warn-bg); }
+.report-card-btn svg.lucide { color: var(--report); }
 .status { margin: 0; font-size: 0.9rem; color: var(--muted); }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #9aa5b6; }
 .dot-on { background: var(--ok); }

@@ -1552,13 +1552,16 @@ $("report-next").addEventListener("click", () => {
     else sendReport();
 });
 
-$("report-btn").addEventListener("click", () => {
-    if (USE_BROKER && !brokerOnline) {
-        showToast("Os reportes não estão disponíveis de momento. Tente mais tarde.");
-        return;
-    }
-    openReportDialog();
-});
+// The orange button on the map and the one in the "Viu um obstáculo?" card.
+for (const id of ["report-btn", "report-card-btn"]) {
+    $(id).addEventListener("click", () => {
+        if (USE_BROKER && !brokerOnline) {
+            showToast("Os reportes não estão disponíveis de momento. Tente mais tarde.");
+            return;
+        }
+        openReportDialog();
+    });
+}
 
 $("report-close").addEventListener("click", () => $("report-dialog").close());
 
