@@ -88,4 +88,5 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
   - copy code from the Coreflux training labs (`CorefluxCommunity/weather-station-hackathon`):
     there is plagiarism detection;
   - use the broker's user-management tools;
-  - expose ports beyond `127.0.0.1`.
+  - expose ports beyond `127.0.0.1` (the one exception is the opt-in WebSocket tunnel for the web app,
+    `broker/docker-compose.tunnel.yml`, used only with a changed root password and `lot/web_access.lotnb` deployed).

@@ -5,7 +5,8 @@ window.APP_CONFIG = {
     // Replace with Pedro's slope-aware Valhalla once it is online (e.g. through a Cloudflare Tunnel).
     valhallaUrl: "https://valhalla1.openstreetmap.de",
 
-    // Coreflux cloud broker over secure WebSocket, from Coreflux Fleet (https://portal.coreflux.org).
+    // Our local Coreflux broker through its Cloudflare tunnel: "wss://<random>.trycloudflare.com/mqtt", user "web"
+    // (limited to access/barriers/# by lot/web_access.lotnb). Steps in hackathon/README.md, "Web app over the internet".
     brokerUrl: "",
     brokerUsername: "",
     brokerPassword: "",

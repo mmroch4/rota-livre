@@ -1,0 +1,27 @@
+[
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# Web app access (owner: Ben)\n\nThe hosted web app logs in to the broker as the user `web`. Its password is in `app/config.js`, so it is public:\nthese Rules keep `web` on the barrier contract (`access/barriers/#`: reports, deletions, \"Já não está\" answers)\nand leave every other user as before.\n\n- `AllowBarrierPublish` / `AllowBarrierSubscribe` (priority 800): anyone may publish and subscribe on `access/barriers/#`.\n- `DenyWebPublishElsewhere` / `DenyWebSubscribeElsewhere` (priority 900): `web` may not publish or subscribe anywhere\n  else; every other user still may (same as the shipped catch-alls at 1000000).\n\nLower priority wins, so on `access/barriers/...` only the 800 rules decide. `$SYS` and broker commands are not affected:\n`web` has no permission flags, so it cannot run commands anyway.\n\nNeeds the event licence (Community allows 0 Rules) and the user, created by a human in the HUB Command Console:\n`-addUser web <password>`. Check: `BROKER_USERNAME=web BROKER_PASSWORD=<password> python runtime/demo/barriers.py seed`,\nthen `list` and `clear` must work."
+  },
+  {
+    "kind": 2,
+    "language": "lot",
+    "value": "DEFINE RULE AllowBarrierPublish WITH PRIORITY 800 FOR Publish TO TOPIC \"access/barriers/#\"\n    ALLOW"
+  },
+  {
+    "kind": 2,
+    "language": "lot",
+    "value": "DEFINE RULE AllowBarrierSubscribe WITH PRIORITY 800 FOR Subscribe TO TOPIC \"access/barriers/#\"\n    ALLOW"
+  },
+  {
+    "kind": 2,
+    "language": "lot",
+    "value": "DEFINE RULE DenyWebPublishElsewhere WITH PRIORITY 900 FOR Publish TO TOPIC \"#\"\n    IF USER IS \"web\" THEN\n        DENY\n    ELSE\n        ALLOW"
+  },
+  {
+    "kind": 2,
+    "language": "lot",
+    "value": "DEFINE RULE DenyWebSubscribeElsewhere WITH PRIORITY 900 FOR Subscribe TO TOPIC \"#\"\n    IF USER IS \"web\" THEN\n        DENY\n    ELSE\n        ALLOW"
+  }
+]

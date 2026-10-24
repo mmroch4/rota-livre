@@ -66,6 +66,7 @@ docker compose up -d
 | Coreflux HUB | <http://localhost:3000> | pre-filled connection: host `broker`, port `1883`, `root` / `coreflux` |
 | MQTT broker (from outside Docker) | `localhost:1883` | `root` / `coreflux` |
 | MQTT over WebSocket (opt-in, `docker-compose.ws.yml`) | `ws://localhost:9001/mqtt` | a limited dashboard user, not root |
+| MQTT over secure WebSocket on the internet (opt-in, `docker-compose.tunnel.yml`) | `wss://<random>.trycloudflare.com/mqtt` | `web`, limited to `access/barriers/#` |
 | Mailpit (test email inbox) | <http://localhost:8025> | — |
 | Broker health | <http://localhost:9100/health> | — |
 | Broker MCP server (AI agents) | <http://localhost:6278/mcp> (`/health` without a token) | bearer token, see [`AI.md`](AI.md) |
@@ -85,6 +86,35 @@ For an Arduino/ESP32 or a teammate's laptop to publish to our broker:
 2. Then set `MQTT_BIND=0.0.0.0` in `broker/.env` and run `docker compose up -d`.
 
 The HUB, Mailpit and the health endpoint always stay on localhost only.
+
+### Web app over the internet (Cloudflare tunnel)
+
+The hosted app is served over HTTPS, so it can only reach the broker through `wss://`. The opt-in tunnel container
+gives the local broker a public `wss://` address. Do steps 1–3 once per broker (they survive restarts, not
+`docker compose down -v`):
+
+1. **Change the root password.** In the HUB Command Console run `-changeUserPassword root <new password>`. Once
+   the tunnel is up, anyone on the internet can try `root` / `coreflux`.
+2. **Create the page's user.** Run `-addUser web <password>`. This password ends up in `app/config.js`, which is
+   public, so do not reuse it anywhere.
+3. **Deploy the Rules** in [`lot/web_access.lotnb`](lot/web_access.lotnb), which keep `web` on `access/barriers/#`.
+   Rules need the licence (see below). Use `/lot-deploy` or run the cells.
+4. **Start the tunnel.** Run it from `hackathon/broker`:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
+   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml logs tunnel
+   ```
+   The log prints `https://<random>.trycloudflare.com`.
+5. **Point the app at it.** In `app/config.js`, set `brokerUrl: "wss://<random>.trycloudflare.com/mqtt"`,
+   `brokerUsername: "web"` and the password from step 2. Push to `main`: the page redeploys in about a minute.
+6. **Check it.** Open the app: the barrier panel should say "Obstáculos atualizados em tempo real.". To check
+   the user and the Rules without the browser, run this from `hackathon/` (PowerShell: set the variables with
+   `$env:BROKER_USERNAME="web"` and so on first):
+   `BROKER_USERNAME=web BROKER_PASSWORD=<password> python runtime/demo/barriers.py seed`, then `list` and `clear`.
+
+The address changes every time the tunnel container is recreated, for example by `docker compose down`. When it
+does, repeat steps 4 and 5. `docker compose stop` / `start` and laptop restarts keep the same container, and with
+it the same address. To close the broker to the internet again, run `docker compose -f docker-compose.yml -f docker-compose.tunnel.yml rm -sf tunnel`.
 
 ### Event licence
 

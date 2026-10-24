@@ -75,7 +75,9 @@ topic map in `hackathon/README.md` in the same commit.
   32768 = no elevation. Used for the "steeper than you asked" warning; if it fails, the route still shows.
 
 **Barriers (Coreflux MQTT over secure WebSocket).** With `brokerUrl` empty (today) reports stay on the device
-(`localStorage` key `access.barriers`) and nobody else sees them; setting `brokerUrl` switches to the broker.
+(`localStorage` key `access.barriers`) and nobody else sees them; setting `brokerUrl` switches to the broker. The broker is the team's local Docker one,
+  reached through the opt-in Cloudflare tunnel (`hackathon/broker/docker-compose.tunnel.yml`, steps in `hackathon/README.md`)
+  as user `web`, which `hackathon/lot/web_access.lotnb` limits to `access/barriers/#`.
 - Topic `access/barriers/<id>`, one **retained** message per barrier, QoS 1. The page subscribes to
   `access/barriers/+` and publishes new reports itself. Only the device that made a report may delete it
   ("Apagar o meu reporte"), by publishing an **empty retained** payload on its topic.

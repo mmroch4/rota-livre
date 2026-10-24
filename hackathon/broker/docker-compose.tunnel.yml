@@ -1,0 +1,23 @@
+# Opt-in: puts the broker's MQTT-over-WebSocket listener on the internet as wss://, for the hosted web app
+# (https://accessible-routes.benlubetzky.workers.dev), which can only reach a secure WebSocket.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml logs tunnel   # shows https://<random>.trycloudflare.com
+#
+# The app's brokerUrl is then wss://<random>.trycloudflare.com/mqtt (see README, "Web app over the internet").
+# It is a Cloudflare quick tunnel: no account needed, but the address changes every time this container is
+# recreated, so update hackathon/app/config.js after each `up` that recreates it.
+#
+# BEFORE THE FIRST `up`: anyone on the internet who finds the address can try to log in. Change the root
+# password in the HUB (-changeUserPassword root <new>), create the page's limited user `web` and deploy
+# lot/web_access.lotnb, which keeps `web` on access/barriers/#. With root / coreflux the broker is open to
+# everyone (including CALL PYTHON).
+services:
+  tunnel:
+    image: cloudflare/cloudflared:2025.10.0
+    container_name: o1n-tunnel
+    restart: unless-stopped
+    # Reaches the broker's WebSocket listener (container port 5000) inside the Docker network; no host port needed.
+    command: tunnel --no-autoupdate --url http://broker:5000
+    depends_on:
+      - broker
