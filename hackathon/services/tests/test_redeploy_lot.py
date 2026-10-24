@@ -23,11 +23,13 @@ def test_real_notebooks_yield_only_actions_and_python():
         ("action", "ImportCityAlerts"), ("action", "SwitchCityAlerts"), ("python", "CityAlerts"),
         ("python", "OpsSummary"),
         ("action", "OpsSummaryOnBarrier"), ("action", "OpsSummaryOnFeedback"), ("action", "OpsSummaryRefresh"),
+        ("python", "TelegramNotify"), ("action", "NotifyNewBarrier"), ("action", "NotifyGoneThreshold"),
     ]
 
 
 def test_only_my_notebooks_are_read():
-    assert redeploy.NOTEBOOKS == ("barrier_feedback.lotnb", "city_alerts.lotnb", "ops_panel.lotnb")
+    assert redeploy.NOTEBOOKS == ("barrier_feedback.lotnb", "city_alerts.lotnb", "ops_panel.lotnb",
+                                 "telegram_notify.lotnb")
 
 
 def test_routes_panels_and_markdown_are_skipped():

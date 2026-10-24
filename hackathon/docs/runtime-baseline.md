@@ -652,3 +652,21 @@ Caveats:
   `RouteBarrierMessage` nor `BarriersDB` at ~13:20 (before the restart) nor at ~13:30 (after it), and no
   `Routes/BarriersDB/status`; whether they were deployed in between is unknown. The script does not cover them: re-add
   them as `AGENTS.md` says.
+
+## Panel moment rehearsed (24 October 2026, ~13:35–13:45 UTC)
+
+One take of the panel moment, recorded in `docs/media/panel_moment.gif`; details, timings and a click script in
+[`demo-rehearsal-2026-10-24.md`](demo-rehearsal-2026-10-24.md). Panel: `on` → city 24 in 0.3–1.8 s; `off` → city 0
+after the next 15 s refresh (5.3 s; the burst briefly published city 7); an app report → app +1 and a new row in under
+0.1 s (summary), on screen at the next look; "Apagar o meu reporte" → app −1. App: obstacle count follows the switch in
+0.2 s.
+
+**Blocker found.** With the switch on, São Bento → Batalha at 6 % has **no route** (Valhalla 442), not 2.164 km: the
+real app report `bmvmf2lix8tqd` (41.1466, -8.6110, expires 25/10 13:10 UTC) sits on the city detour. City only:
+2.164 km; city + that report at 8 %: 1.477 km (1.041 km with city off). Also, the app does not replan from its
+no-route message when barriers change (`barriersChanged` needs `state.screen === "route"`).
+
+End state: switch `on`, 24 city, 1 app barrier (`bmvmf2lix8tqd`), test report deleted; `redeploy_lot.py --check`
+8/8 IDENTICAL + FRESH; `diagnose` 0 action errors, nothing pending.
+At 13:51 UTC, on Miguel's go-ahead, `bmvmf2lix8tqd` was retired (republished with `expires_at` = now): city on, 6 %
+→ 2.164 km again, also in a freshly loaded app tab ("35 min 2,2 km").

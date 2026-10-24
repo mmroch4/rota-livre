@@ -33,7 +33,7 @@ from datetime import datetime
 
 HERE = pathlib.Path(__file__).resolve().parent
 LOT = HERE.parent / "lot"
-NOTEBOOKS = ("barrier_feedback.lotnb", "city_alerts.lotnb", "ops_panel.lotnb")
+NOTEBOOKS = ("barrier_feedback.lotnb", "city_alerts.lotnb", "ops_panel.lotnb", "telegram_notify.lotnb")
 COMMAND_TOPIC = "$SYS/Coreflux/Command"
 OUTPUT_TOPIC = "$SYS/Coreflux/Command/Output"
 ACTION_TOPIC = "$SYS/Coreflux/Actions/{}"
