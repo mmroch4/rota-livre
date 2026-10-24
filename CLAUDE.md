@@ -60,7 +60,9 @@ CORS headers** (`Access-Control-Allow-Origin: *`), or the browser blocks them. A
 `routeService` in `app.js`; if the contract below changes, update that code, `hackathon/app/README.md` and the
 topic map in `hackathon/README.md` in the same commit.
 
-**Routing (Valhalla HTTP API).** Today `valhallaUrl` is the public FOSSGIS instance, which ignores the slope cap.
+**Routing (Valhalla HTTP API).** Today `valhallaUrl` is the public FOSSGIS instance, which ignores the slope cap; the
+page then steers around steep parts itself (`saferRoute`, below). The slope-aware instance is
+`hackathon/runtime/valhalla/` (local on `http://127.0.0.1:8003`, public through its opt-in `compose.tunnel.yml`).
 - `POST {valhallaUrl}/route` with `locations` (start, destination), `costing: "pedestrian"`,
   `costing_options.pedestrian` = `type` (`"wheelchair"` when avoiding rough surfaces, else `"foot"`), `max_grade`
   (percent, 2–14; **omitted** for "no limit"), `step_penalty: 43200` when avoiding steps; `exclude_polygons`
@@ -107,9 +109,11 @@ topic map in `hackathon/README.md` in the same commit.
   `access/state/city_alerts` (broker only). Broker durability is on: every retained message above survives a restart.
 - **Operator panel.** The broker keeps a retained `access/ops/summary` (active barriers per source, active list,
   "gone" counts; `hackathon/lot/ops_panel.lotnb`) for the read-only HUB panel `RotaLivreOps`. The app does not read it.
-- Valhalla rejects more than `max_exclude_polygons_vertices` (default 100 = 20 barriers, error 176), so the page
-  sends only the 20 active barriers nearest the start–destination line (`MAX_EXCLUDED` in `app.js`). The custom
-  instance allows 1000 (`hackathon/runtime/valhalla/setup.sh`); the public FOSSGIS one does not.
+- Valhalla rejects more than `max_exclude_polygons_vertices` (default 100 = 20 squares, error 176). So
+  `saferRoute` in `app.js` starts with the barriers within 100 m of the start–destination line and, for up to 3
+  requests, adds what each route runs into: barriers it goes through, then (with a slope limit) its parts steeper
+  than the limit, read with `trace_attributes`; it keeps the route with the fewest barriers, then the fewest metres
+  over the limit. The custom instance allows 1000 (`hackathon/runtime/valhalla/setup.sh`); the public one does not.
 - Not sent to the broker (device-only for now): the report's photo (≤ 800 px JPEG data URL) and the address text.
   Sharing them means adding optional `photo`/`address` fields to this contract first.
 

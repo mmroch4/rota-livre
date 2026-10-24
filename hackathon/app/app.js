@@ -28,6 +28,10 @@ const STORAGE_KEY = "access.needs";
 const MAX_STEP_PENALTY = 43200; // seconds: Valhalla's upper bound (12 h), so steps are used only as a last resort
 const BARRIER_RADIUS_M = 15;    // half the side of the square excluded around each barrier
 const MAX_EXCLUDED = 20;        // Valhalla's default max_exclude_polygons_vertices (100) / 5 vertices per square
+const FIRST_BARRIER_CORRIDOR_M = 100; // barriers this close to the straight start–destination line are avoided from the start
+const MAX_ROUTE_ROUNDS = 3;     // routing requests per trip while steering around barriers and steep parts
+const MAX_DETOUR = 2;           // a gentler route may be at most this many times longer than the first one
+const STEEP_PAD_M = 8;          // margin around a steep part's box when keeping the route out of it
 const NO_ELEVATION = 32768;     // Valhalla's marker for "no elevation data" on an edge
 const OFF_ROUTE_M = 35;         // further than this from the line counts as off the route
 const ARRIVED_M = 20;
@@ -600,8 +604,9 @@ startWatchingPosition();
 // without touching the screens.
 
 const routeService = {
+    // One Valhalla request; areas = the squares to keep out of ([lon, lat] rings).
     // Returns {ok: true, route} or {ok: false, reason: "no_route" | "far_from_path" | "unavailable"}.
-    async route(from, to, needs) {
+    async route(from, to, needs, areas) {
         if (!config.valhallaUrl) {
             console.warn("valhallaUrl is not set in config.js");
             return { ok: false, reason: "unavailable" };
@@ -616,7 +621,7 @@ const routeService = {
                 body: JSON.stringify({
                     locations: [{ lat: from.lat, lon: from.lon }, { lat: to.lat, lon: to.lon }],
                     ...valhallaCosting(needs),
-                    exclude_polygons: excludedAreas(needs, from, to),
+                    exclude_polygons: areas,
                     units: "kilometers",
                     language: "pt-PT",
                 }),
@@ -660,35 +665,79 @@ const routeService = {
     async gentlestRoute(from, to, needs) {
         let grade = needs.maxGrade;
         for (;;) {
-            const result = await this.route(from, to, { ...needs, maxGrade: grade });
+            const result = await this.saferRoute(from, to, { ...needs, maxGrade: grade });
             if (result.ok) result.route.maxGradeUsed = grade;
             if (result.reason !== "no_route" || grade >= GRADE_LIMIT) return result;
             grade = Math.min(grade + GRADE_RELAX_STEP, GRADE_LIMIT);
         }
     },
 
-    // Slope and surface per edge, for the details and the warnings. Returns null when not available.
-    async slopes(route, needs) {
-        try {
-            const res = await fetch(`${config.valhallaUrl}/trace_attributes`, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain" },
-                body: JSON.stringify({
-                    encoded_polyline: route.encoded,
-                    shape_match: "edge_walk",
-                    ...valhallaCosting(needs),
-                    filters: {
-                        attributes: ["edge.length", "edge.use", "edge.max_upward_grade", "edge.max_downward_grade",
-                            "edge.begin_shape_index", "edge.end_shape_index"],
-                        action: "include",
-                    },
-                }),
-            });
-            const data = await res.json();
-            return res.ok && data.edges ? data.edges : null;
-        } catch {
-            return null;
+    // Routes around barriers and, when there is a slope limit, around streets steeper than it, even on a
+    // Valhalla that ignores max_grade (the public one). Valhalla takes at most MAX_EXCLUDED squares, so it
+    // starts with the barriers next to the straight line and, after each route, adds what that route ran into:
+    // barriers it passes (always first) and its steep parts. Keeps the route with the fewest barriers, then the
+    // fewest metres over the limit, then the shortest; a route over MAX_DETOUR times the first one's length only
+    // wins on barriers. route.edges keeps the slopes of the chosen route.
+    async saferRoute(from, to, needs) {
+        const barriers = needs.avoidBarriers ? activeBarriers() : [];
+        const limit = needs.maxGrade < GRADE_LIMIT ? needs.maxGrade : null;
+        const barrierArea = (b) => ({ key: `b:${b.id}`, barrier: b, ring: squareAround(b.lat, b.lon, BARRIER_RADIUS_M) });
+        let avoid = barriers
+            .map((b) => ({ b, d: distanceToSegmentM(b, from, to) }))
+            .filter(({ d }) => d <= FIRST_BARRIER_CORRIDOR_M)
+            .sort((x, y) => x.d - y.d)
+            .slice(0, MAX_EXCLUDED)
+            .map(({ b }) => barrierArea(b));
+        let best = null, firstKm = null, lastFailure = null;
+        for (let round = 0; round < MAX_ROUTE_ROUNDS; round++) {
+            const result = await this.route(from, to, needs, avoid.map((a) => a.ring));
+            if (!result.ok) {
+                lastFailure = result;
+                break;
+            }
+            const r = result.route;
+            firstKm ??= r.distanceKm;
+            const avoided = new Set(avoid.map((a) => a.key));
+            const hits = barriers.filter((b) => !avoided.has(`b:${b.id}`)
+                && distanceToRouteM(b, r.shape) < BARRIER_RADIUS_M);
+            r.edges = await this.slopes(r, needs);
+            const steep = limit === null || !r.edges ? [] : steepParts(r, limit);
+            r.barrierHits = hits.length;
+            // Without the slopes nothing is known about steepness: such a route loses to any checked one.
+            r.steepMeters = limit !== null && !r.edges ? Infinity : steep.reduce((sum, s) => sum + s.meters, 0);
+            if (!best || isSaferRoute(r, best, firstKm)) best = r;
+            const add = [...hits.map(barrierArea), ...steep.filter((s) => !avoided.has(s.key))];
+            if (add.length === 0) break;
+            avoid = keepMostUseful([...avoid, ...add], r.shape);
         }
+        if (best) return { ok: true, route: best };
+        return lastFailure;
+    },
+
+    // Slope and surface per edge, for the details and the warnings. Returns null when not available.
+    // edge_walk sometimes fails on Valhalla's own route (443); walk_or_snap is its suggested fallback.
+    async slopes(route, needs) {
+        for (const shapeMatch of ["edge_walk", "walk_or_snap"]) {
+            try {
+                const res = await fetch(`${config.valhallaUrl}/trace_attributes`, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify({
+                        encoded_polyline: route.encoded,
+                        shape_match: shapeMatch,
+                        ...valhallaCosting(needs),
+                        filters: {
+                            attributes: ["edge.length", "edge.use", "edge.max_upward_grade", "edge.max_downward_grade",
+                                "edge.begin_shape_index", "edge.end_shape_index"],
+                            action: "include",
+                        },
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok && data.edges) return data.edges;
+            } catch { /* try the next match mode */ }
+        }
+        return null;
     },
 };
 
@@ -699,14 +748,60 @@ function valhallaCosting(needs) {
     return { costing: "pedestrian", costing_options: { pedestrian } };
 }
 
-// Valhalla rejects more than MAX_EXCLUDED squares (error 176), so only the barriers nearest the trip are sent.
-function excludedAreas(needs, from, to) {
-    if (!needs.avoidBarriers) return [];
-    return activeBarriers()
-        .map((b) => ({ b, d: distanceToSegmentM(b, from, to) }))
-        .sort((x, y) => x.d - y.d)
-        .slice(0, MAX_EXCLUDED)
-        .map(({ b }) => squareAround(b.lat, b.lon, BARRIER_RADIUS_M));
+// The parts of a route steeper than limit (percent), as squares to keep out of next time. The first and last
+// edges are skipped: they hold the start and the destination, and excluding them would make the trip impossible.
+function steepParts(route, limit) {
+    if (!route.edges) return [];
+    const parts = [];
+    route.edges.slice(1, -1).forEach((e) => {
+        if (Math.abs(e.max_upward_grade) >= NO_ELEVATION || Math.abs(e.max_downward_grade) >= NO_ELEVATION) return;
+        if (Math.round(Math.max(e.max_upward_grade, Math.abs(e.max_downward_grade))) <= limit) return;
+        const pts = route.shape.slice(e.begin_shape_index, e.end_shape_index + 1);
+        if (pts.length === 0) return;
+        const lats = pts.map((p) => p[0]), lons = pts.map((p) => p[1]);
+        const dLat = STEEP_PAD_M / 111320, dLon = STEEP_PAD_M / (111320 * Math.cos((lats[0] * Math.PI) / 180));
+        const s = Math.min(...lats) - dLat, n = Math.max(...lats) + dLat;
+        const w = Math.min(...lons) - dLon, east = Math.max(...lons) + dLon;
+        parts.push({
+            key: `s:${s.toFixed(5)},${w.toFixed(5)}`,
+            meters: e.length * 1000,
+            ring: [[w, s], [east, s], [east, n], [w, n], [w, s]],
+        });
+    });
+    return parts;
+}
+
+// a is safer than b: fewer barriers on the way, then (within MAX_DETOUR) fewer metres over the slope limit,
+// then shorter.
+function isSaferRoute(a, b, firstKm) {
+    if (a.barrierHits !== b.barrierHits) return a.barrierHits < b.barrierHits;
+    const aOk = a.distanceKm <= firstKm * MAX_DETOUR, bOk = b.distanceKm <= firstKm * MAX_DETOUR;
+    if (aOk !== bOk) return aOk;
+    if (Math.round(a.steepMeters) !== Math.round(b.steepMeters)) return a.steepMeters < b.steepMeters;
+    return a.distanceKm < b.distanceKm;
+}
+
+// Trims the squares to MAX_EXCLUDED: barriers near the current route first, then steep parts, then the other
+// barriers by distance to the route.
+function keepMostUseful(areas, shape) {
+    const unique = [...new Map(areas.map((a) => [a.key, a])).values()];
+    if (unique.length <= MAX_EXCLUDED) return unique;
+    const rank = (a) => {
+        if (!a.barrier) return 1e6;
+        const d = distanceToRouteM(a.barrier, shape);
+        return d < FIRST_BARRIER_CORRIDOR_M ? d : 2e6 + d;
+    };
+    return unique.sort((x, y) => rank(x) - rank(y)).slice(0, MAX_EXCLUDED);
+}
+
+// Metres from p to the nearest point of a route's shape ([lat, lon] points).
+function distanceToRouteM(p, shape) {
+    let best = Infinity;
+    for (let i = 1; i < shape.length; i++) {
+        const a = { lat: shape[i - 1][0], lon: shape[i - 1][1] }, b = { lat: shape[i][0], lon: shape[i][1] };
+        best = Math.min(best, distanceToSegmentM(p, a, b));
+    }
+    return best;
 }
 
 // Metres from p to the straight line a–b (flat approximation, fine at city scale).
@@ -899,7 +994,7 @@ function renderStreets(list, streets, currentIndex) {
 
 async function loadSlopes(route) {
     const needs = state.needs;
-    const edges = await routeService.slopes(route, needs);
+    const edges = route.edges || await routeService.slopes(route, needs);
     if (!edges || state.route !== route) return;
     let steepestUp = 0, steepestDown = 0, overLimit = 0, hasSteps = false;
     for (const e of edges) {

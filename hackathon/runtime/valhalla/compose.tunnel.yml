@@ -1,0 +1,18 @@
+# Opt-in: puts this slope-aware Valhalla on the internet as https://, for the hosted web app
+# (https://accessible-routes.benlubetzky.workers.dev), which can only call HTTPS endpoints.
+#
+#   docker compose -f compose.yml -f compose.tunnel.yml up -d
+#   docker compose -f compose.yml -f compose.tunnel.yml logs tunnel   # shows https://<random>.trycloudflare.com
+#
+# The app's valhallaUrl is then https://<random>.trycloudflare.com (hackathon/app/config.js). It is a Cloudflare
+# quick tunnel: no account needed, but the address changes every time this container is recreated, so update
+# config.js after each `up` that recreates it. Valhalla only answers routing requests (no logins, no writes).
+services:
+  tunnel:
+    image: cloudflare/cloudflared:2025.10.0
+    container_name: passolivre-valhalla-tunnel
+    restart: unless-stopped
+    # Reaches Valhalla's own port (8002) inside the Docker network; no extra host port needed.
+    command: tunnel --no-autoupdate --url http://valhalla:8002
+    depends_on:
+      - valhalla
