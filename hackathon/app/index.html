@@ -165,9 +165,13 @@
             <h2 id="report-title">Reportar um obstáculo</h2>
             <button class="icon-btn" type="button" id="report-close" aria-label="Fechar"><i data-lucide="x"></i></button>
         </div>
+        <div class="report-progress">
+            <p id="report-step-label" aria-live="polite">Passo 1 de 3</p>
+            <div class="report-progress-bar" aria-hidden="true"><span id="report-progress-fill"></span></div>
+        </div>
 
-        <section class="report-step" aria-labelledby="report-where-title">
-            <h3 id="report-where-title"><span class="step-n">1</span> Onde está?</h3>
+        <section class="report-step" data-step="1" aria-labelledby="report-where-title">
+            <h3 id="report-where-title" tabindex="-1">Onde está?</h3>
             <div class="mini-map-wrap">
                 <div id="report-map" class="mini-map" aria-label="Mapa para escolher o sítio do obstáculo"></div>
                 <div class="mini-pin" aria-hidden="true"><span></span></div>
@@ -185,13 +189,13 @@
             </form>
         </section>
 
-        <section class="report-step" aria-labelledby="report-kind-title">
-            <h3 id="report-kind-title"><span class="step-n">2</span> O que é?</h3>
+        <section class="report-step" data-step="2" aria-labelledby="report-kind-title" hidden>
+            <h3 id="report-kind-title" tabindex="-1">O que é?</h3>
             <div class="tiles" id="report-tiles" role="radiogroup" aria-labelledby="report-kind-title"></div>
         </section>
 
-        <section class="report-step" aria-labelledby="report-extra-title">
-            <h3 id="report-extra-title"><span class="step-n">3</span> Foto ou descrição <span class="optional">(opcional)</span></h3>
+        <section class="report-step" data-step="3" aria-labelledby="report-extra-title" hidden>
+            <h3 id="report-extra-title" tabindex="-1">Foto ou descrição <span class="optional">(opcional)</span></h3>
             <div class="photo-row">
                 <button id="photo-btn" type="button" class="secondary"><i data-lucide="camera"></i> <span id="photo-btn-text">Adicionar foto</span></button>
                 <input id="photo-input" type="file" accept="image/*" class="visually-hidden" tabindex="-1" aria-hidden="true">
@@ -205,7 +209,8 @@
         </section>
 
         <div class="report-actions">
-            <button id="report-send" type="button" class="primary big" disabled>Escolha o tipo de obstáculo</button>
+            <button id="report-back" type="button" class="secondary big"><i data-lucide="arrow-left"></i> Voltar</button>
+            <button id="report-next" type="button" class="primary big">Seguinte</button>
         </div>
     </dialog>
 

@@ -23,7 +23,8 @@ All routing calls are in `routeService` in `app.js`, so the routing backend can 
   the limits by itself.
 - **Details:** Valhalla `/trace_attributes` for the steepest climb and descent, and the sections near the limit
   (orange on the map).
-- **Barriers:** the report dialog asks *where* first: a small map with a fixed pin that the person moves the map
+- **Barriers:** the report dialog shows one step at a time ("Passo N de 3" with a progress bar, Voltar/Seguinte;
+  "Seguinte" stays disabled until a type is picked) and asks *where* first: a small map with a fixed pin that the person moves the map
   under, with the address filled in automatically (Nominatim reverse, once the map stops), or typed and searched,
   or "my location". Then the type (one of six tiles), then an optional photo and description; anyone can remove one ("Já não está lá");
   reports expire after 24 h. With `brokerUrl` set they are shared live through the Coreflux broker over

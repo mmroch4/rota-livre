@@ -1453,8 +1453,9 @@ $("still-no").addEventListener("click", () => {
     showToast("Obrigado! Vamos verificar se já não está lá.");
 });
 
-// Report: orange button → pick the type (and, optionally, a photo or a few words) → send.
-const report = { kind: null, photo: null };
+// Report: orange button → one step at a time: where it is → what it is → (optional) a photo or a few words → send.
+const report = { kind: null, photo: null, step: 1 };
+const REPORT_STEPS = 3;
 
 for (const [kind, k] of Object.entries(BARRIER_KINDS)) {
     const b = document.createElement("button");
@@ -1474,9 +1475,33 @@ function selectReportKind(kind) {
     for (const t of document.querySelectorAll("#report-tiles .tile")) {
         t.setAttribute("aria-checked", String(t.dataset.kind === kind));
     }
-    $("report-send").disabled = !kind;
-    $("report-send").textContent = kind ? "Enviar" : "Escolha o tipo de obstáculo";
+    if (report.step === 2) updateReportNext();
 }
+
+function updateReportNext() {
+    const next = $("report-next");
+    const needsKind = report.step === 2 && !report.kind;
+    next.disabled = needsKind;
+    next.textContent = report.step === REPORT_STEPS ? "Enviar" : needsKind ? "Escolha o tipo de obstáculo" : "Seguinte";
+}
+
+function showReportStep(step, focus = true) {
+    report.step = step;
+    for (const s of document.querySelectorAll("#report-dialog .report-step")) s.hidden = Number(s.dataset.step) !== step;
+    $("report-step-label").textContent = `Passo ${step} de ${REPORT_STEPS}`;
+    $("report-progress-fill").style.width = `${(step / REPORT_STEPS) * 100}%`;
+    $("report-back").hidden = step === 1;
+    updateReportNext();
+    $("report-dialog").scrollTop = 0;
+    if (step === 1 && reportMap) reportMap.invalidateSize(); // the map was hidden: let it measure itself again
+    if (focus) document.querySelector(`#report-dialog .report-step[data-step="${step}"] h3`).focus();
+}
+
+$("report-back").addEventListener("click", () => showReportStep(report.step - 1));
+$("report-next").addEventListener("click", () => {
+    if (report.step < REPORT_STEPS) showReportStep(report.step + 1);
+    else sendReport();
+});
 
 $("report-btn").addEventListener("click", () => {
     if (USE_BROKER && !brokerOnline) {
@@ -1499,8 +1524,8 @@ function openReportDialog() {
     $("description-input").value = "";
     setReportPhoto(null);
     selectReportKind(null);
+    showReportStep(1, false);
     $("report-dialog").showModal();
-    $("report-dialog").scrollTop = 0;
     if (state.position) {
         showReportMap(state.position);
         return;
@@ -1663,7 +1688,7 @@ async function shrinkPhoto(file, maxPx) {
     }
 }
 
-$("report-send").addEventListener("click", () => {
+function sendReport() {
     const point = state.reportPoint;
     if (!point || !report.kind) return;
     const now = new Date();
@@ -1688,7 +1713,7 @@ $("report-send").addEventListener("click", () => {
         failed: "Não foi possível enviar o reporte. Tente de novo dentro de momentos.",
     };
     showToast(messages[addBarrier(barrier)], 4500);
-});
+}
 
 // Expired barriers disappear without waiting for a new message.
 setInterval(renderBarriers, 60 * 1000);

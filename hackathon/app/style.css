@@ -332,14 +332,14 @@ select, textarea { width: 100%; min-height: 48px; padding: 10px 12px; border: 2p
 .popup-when { color: var(--muted); font-size: 0.85rem; }
 .popup-address { margin: 2px 0 0; color: var(--muted); }
 
-/* Report dialog: numbered steps, the place first */
+/* Report dialog: one step at a time, the place first */
 .report-dialog { width: min(520px, calc(100vw - 32px)); padding-bottom: 0; }
-.report-step h3 { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; font-size: 1.1rem; font-weight: 600; }
-.report-step:first-of-type h3 { margin-top: 8px; }
-.step-n {
-    display: inline-flex; align-items: center; justify-content: center; flex: none;
-    width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 700;
-}
+.report-progress { margin: 4px 0 6px; }
+.report-progress p { margin: 0 0 6px; color: var(--muted); font-size: 0.95rem; font-weight: 600; }
+.report-progress-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.report-progress-bar span { display: block; height: 100%; width: 33.33%; background: var(--report); border-radius: 3px; transition: width 0.25s ease; }
+.report-step h3 { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; font-size: 1.2rem; font-weight: 600; }
+.report-step h3:focus { outline: none; }
 .optional { color: var(--muted); font-weight: 400; font-size: 0.95rem; }
 
 .mini-map-wrap { position: relative; height: 240px; border-radius: 18px; overflow: hidden; border: 2px solid var(--line); }
@@ -372,7 +372,10 @@ select, textarea { width: 100%; min-height: 48px; padding: 10px 12px; border: 2p
     position: sticky; bottom: 0; z-index: 2; margin: 12px -20px 0; padding: 12px 20px 16px;
     background: #fff; box-shadow: 0 -6px 16px rgba(20, 33, 61, 0.08);
 }
+.report-actions { display: flex; gap: 10px; }
 .report-actions .big { margin: 0; }
+#report-back { flex: 0 0 auto; width: auto; padding: 0 20px; }
+#report-back[hidden] { display: none; }
 .tile-ic { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--report); color: #1a1a1a; }
 
 .toast {
