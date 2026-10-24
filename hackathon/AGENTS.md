@@ -57,6 +57,11 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 - **An Action cannot clear a retained message (verified 24/10).** `PUBLISH TOPIC ... WITH "" WITH RETAIN` (literal or
   an empty variable) is dropped silently and the old retained payload stays; `WITH EMPTY` does not parse. To retire
   a barrier from the broker, republish it retained with `expires_at` in the past: the app hides expired barriers.
+- **Never end a block with `UNTIL` (verified 24/10).** When the line after `UNTIL` dedents, the parser drops one
+  dedent: everything after it is scoped one level deeper than written. An outer `ELSE`/`ELSE IF` binds to the inner
+  `IF`, and later top-level lines run only inside that branch. `validate_lot` and `deploy_lot` accept it (a bare
+  `UNTIL` directly followed by `ELSE` fails to parse). Keep a statement at the `REPEAT`'s own level after `UNTIL`.
+  `REPEAT` is do-while (the body runs once even when the condition is already true).
 - `GET TOPIC {var}` and `GET TOPIC {a} + "/x" AS INT` work with a computed topic; an unknown topic reads as `""`
   (`0` with `AS INT`), so it can be used to skip duplicates.
 - **REST connector:** `WITH ENDPOINT "...?date={payload.json.date}"` works. A non-2xx answer is published to

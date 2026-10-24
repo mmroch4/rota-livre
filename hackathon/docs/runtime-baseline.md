@@ -486,3 +486,45 @@ Caveats:
   vertex centroid, so a long street polygon ("Ambos os lados, em toda a sua extensão") is only partly covered.
 - Retained city barriers are lost on a broker restart until the next import (at most 10 min, or publish to
   `access/city/alerts/fetch`).
+
+## City alerts switch verified (24 October 2026, ~12:30 UTC)
+
+Retained `access/city/alerts/enabled` = `on` | `off` (QoS 1), Action `SwitchCityAlerts` and a gate in
+`ImportCityAlerts` (`lot/city_alerts.lotnb`). Python `CityAlerts.retire_all` added, with tests (11 pass).
+Deployed with `add_python` + `deploy_lot` into the running project; **no project swap**, so Ben's
+`10-barriers-db.lotnb` (valid, but the broker has no `SUPABASE_*` env/secret) is still not loaded. The live Action
+sources were compared with the notebook cells: identical. `diagnose` clean after every step.
+
+São Bento → Batalha, wheelchair 6 %, local Valhalla, every active (non-expired) retained barrier excluded as the app does:
+
+| Step | Active `city-*` | Route |
+|---|---|---|
+| before (no flag) | 24 | 2.164 km |
+| `off` | 0 (24 republished with `expires_at` = now) | 1.302 km |
+| manual fetch while `off` | 0, `last_ok` unchanged | 1.302 km |
+| `on` | 24 (fetch at once, real expiry back) | 2.164 km |
+| repeat fetch, no changes | 24, `last_ok` advanced, `last_error` unchanged | 2.164 km |
+
+**Broker bug found on the way (now in `AGENTS.md`).** A block ending with `UNTIL` mis-scopes the lines after it
+by one level. The first `SwitchCityAlerts` had its `ELSE IF "on"` swallowed (`run_action` published nothing),
+and the original `ImportCityAlerts` had published `last_error` instead of `last_ok` on every import with no changes
+(the `last_error` of 12:21:19 UTC). Both loops now run without the `IF {count} > 0` guard.
+Reproduced and characterised with throwaway `Zz*` Actions, since removed.
+
+Commands (default broker login, loopback; uses the stdlib client in `runtime/demo/barriers.py`, read-only):
+
+```bash
+# off: city barriers retired, import paused. Use "on" to resume and republish them at once.
+python3 -c "import sys; sys.path.insert(0,'hackathon/runtime/demo'); from barriers import connect; c=connect(); c.publish('access/city/alerts/enabled', sys.argv[1].encode()); c.close()" off
+```
+
+`connect()` reads `BROKER_USERNAME` / `BROKER_PASSWORD` like `barriers.py`.
+
+Caveats:
+- The flag is a retained message, so it is lost on a broker restart (durability off) and the import resumes on the
+  next 10-minute fetch. Send `off` again after any restart.
+- While `off`, the connector keeps polling FIWARE every 10 min; only the import is skipped.
+- That a fetch actually produced a FIWARE answer while `off` was not observed directly: the proof is that nothing
+  was imported and `last_ok` did not move, while the same manual fetch while `on` did advance it.
+- The city barriers are retired, not deleted: 24 expired retained messages stay on `access/barriers/city-*` until the
+  next `on` overwrites them. The app hides them, and `barriers.py list` still shows them with a past `expires_at`.

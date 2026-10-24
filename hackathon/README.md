@@ -31,9 +31,10 @@ validation of the custom slope cap; correct enforcement still needs runtime veri
 | `access/feedback/<barrier id>/last_answered_at` (retained) | broker: `StoreBarrierFeedback` | team, end-of-day review | `answered_at` of the latest stored answer (ISO 8601) |
 | `access/db/barriers/upsert` (internal) | broker Action `RouteBarrierMessage` | connector `BarriersDB` → Supabase `barriers` | the report's JSON, unchanged |
 | `access/db/barriers/deleted` (internal) | broker Action `RouteBarrierMessage` | connector `BarriersDB` → sets `deleted_at` | the barrier id (checked: `b` + letters/digits) |
-| `access/city/alerts/fetch` (not retained) | anyone (manual refresh) | broker: `PortoUrbanPlatform` connector | any payload; the connector also fetches every 10 min |
+| `access/city/alerts/fetch` (not retained) | anyone (manual refresh); broker: `SwitchCityAlerts` on `on` | broker: `PortoUrbanPlatform` connector | any payload; the connector also fetches every 10 min |
 | `access/city/alerts/raw` (not retained) | broker: `PortoUrbanPlatform` | broker: `ImportCityAlerts` | FIWARE NGSI v2 `Alert` entities (keyValues), or `{"success": false, ...}` on an HTTP error |
 | `access/city/alerts/last_ok`, `.../last_error` (retained) | broker: `ImportCityAlerts` | team, demo checks | ISO time of the latest successful import / failed fetch |
+| `access/city/alerts/enabled` (retained, QoS 1) | team (demo switch) | broker: `SwitchCityAlerts`, `ImportCityAlerts` | `on` or `off`. `off` retires every imported `city-*` barrier (`expires_at` = now) and makes the import ignore fetches; `on` fetches at once and republishes them. Missing = `on` |
 
 ## 4. Demo
 

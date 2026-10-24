@@ -125,3 +125,22 @@ def test_pick_and_known_of_return_json_strings():
 def test_unsafe_source_ids_are_cleaned():
     b = run([alert("cmp/1#+")])["publish"][0]
     assert b["id"] == "city-cmp1"
+
+
+def test_switch_off_retires_every_imported_barrier_and_on_brings_them_back():
+    first = run([alert("cmp1"), alert("cmp2")])
+    off = json.loads(city.retire_all(json.dumps(first["known"]), "2026-10-24T13:00:00Z"))
+    assert off["ok"] is True and off["count"] == 2 and off["known"] == {}
+    assert [b["id"] for b in off["publish"]] == ["city-cmp1", "city-cmp2"]
+    assert all(b["expires_at"] == "2026-10-24T13:00:00.000Z" for b in off["publish"])
+    assert off["publish"][0]["lat"] == first["known"]["city-cmp1"]["lat"]
+    on = run([alert("cmp1"), alert("cmp2")], known=off["known"])  # the fetch after "on"
+    assert on["publish"] == first["publish"]  # republished with their real expiry
+
+
+def test_switch_off_with_nothing_imported_or_a_bad_time():
+    for known in ["", "{}", "not json"]:
+        batch = json.loads(city.retire_all(known, NOW))
+        assert batch == {"ok": True, "count": 0, "publish": [], "known": {}}
+    assert json.loads(city.retire_all("{}", "garbage"))["ok"] is False
+    assert isinstance(city.retire_all("{}", NOW), str)
