@@ -109,10 +109,56 @@ actor_t::route(const std::string& request_str, const std::function<void()>* inte
   // parse the request
   ParseApi(request_str, Options::route, *api);
   // check the request and locate the locations in the graph
-  pimpl->loki_worker.route(*api);
+  //pimpl->loki_worker.route(*api);
   // route between the locations in the graph to find the best path
-  pimpl->thor_worker.route(*api);
+  //pimpl->thor_worker.route(*api);
   // get some directions back from them and serialize
+
+
+
+
+
+
+  // Locate the input points first. If this fails, do not retry.
+  pimpl->loki_worker.route(*api);
+
+  // Save the correlated request before Thor modifies it.
+  const Api request_before_thor = *api;
+
+  try {
+    // First attempt: use the requested grade cap.
+    pimpl->thor_worker.route(*api);
+  } catch (const valhalla_exception_t& e) {
+    const auto& options = request_before_thor.options();
+    const auto pedestrian_key = static_cast<int>(Costing::pedestrian);
+    const auto& costings = options.costings();
+    const auto it = costings.find(pedestrian_key);
+
+    // Retry only for a pedestrian request with an explicit grade cap
+    // when Thor reports that no suitable route was found.
+    if (e.code != 442 ||
+        options.costing_type() != Costing::pedestrian ||
+        it == costings.end() ||
+        !it->second.has_options() ||
+        !it->second.options().has_max_grade()) {
+      throw;
+    }
+
+    // Restore the request and remove only the pedestrian grade cap.
+    *api = request_before_thor;
+    api->mutable_options()
+        ->mutable_costings()
+        ->at(pedestrian_key)
+        .mutable_options()
+        ->clear_max_grade();
+
+    // Retry once without the grade cap.
+    pimpl->thor_worker.route(*api);
+  }
+
+
+
+
   auto bytes = pimpl->odin_worker.narrate(*api);
   return bytes;
 }
