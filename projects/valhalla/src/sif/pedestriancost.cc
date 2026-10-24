@@ -53,15 +53,6 @@ constexpr float kDefaultElevatorPenalty = 5.0f; // 5 seconds
 constexpr uint32_t kDefaultMaxGradeFoot = 90;
 constexpr uint32_t kDefaultMaxGradeWheelchair = 12; // Conservative for now...
 
-
-float grade_percent_to_degrees(uint32_t grade_percent) {
-  return std::atan(static_cast<float>(grade_percent) / 100.0f) *
-         180.0f / static_cast<float>(M_PI);
-}
-
-
-
-
 // Other defaults (not dependent on type)
 constexpr uint8_t kDefaultMaxHikingDifficulty = 1; // T1 (kHiking)
 constexpr float kModeFactor = 1.5f;                // Favor this mode?
@@ -530,6 +521,10 @@ public:
   Surface minimal_allowed_surface_;
 
   uint32_t max_grade_;             // Maximum grade (percent).
+  // Edge slopes are labelled degrees, but mjolnir stores percent (rise over a 60 m posting),
+  // so max_grade_ is compared with them directly. Below the foot default a cap is in force,
+  // and edges in tiles built without elevation are rejected instead of counted as flat.
+  bool slope_capped_;
   SacScale max_hiking_difficulty_; // Max sac_scale (0 - 6)
   float speed_;                    // Pedestrian speed.
   float speedfactor_;              // Speed factor for costing. Based on speed.
@@ -640,6 +635,7 @@ PedestrianCost::PedestrianCost(const Costing& costing)
   step_penalty_ = costing_options.step_penalty();
   elevator_penalty_ = costing_options.elevator_penalty();
   max_grade_ = costing_options.max_grade();
+  slope_capped_ = max_grade_ < kDefaultMaxGradeFoot;
 
   if (type_ == PedestrianType::kFoot) {
     max_hiking_difficulty_ = static_cast<SacScale>(costing_options.max_hiking_difficulty());
@@ -679,8 +675,8 @@ PedestrianCost::PedestrianCost(const Costing& costing)
 
 // Check if access is allowed on the specified edge. Disallow if no
 // access for this pedestrian type, if surface type exceeds (worse than)
-// the minimum allowed surface type, or if max grade is exceeded
-// (currently disabled bcs of noisy data).
+// the minimum allowed surface type, or if max grade is exceeded in either
+// direction of travel.
 // Disallow edges where max. distance will be exceeded.
 bool PedestrianCost::Allowed(const baldr::DirectedEdge* edge,
                              const EdgeLabel& pred,
@@ -700,7 +696,9 @@ bool PedestrianCost::Allowed(const baldr::DirectedEdge* edge,
       IsUserAvoidEdge(edgeid) || edge->sac_scale() > max_hiking_difficulty_ ||
       (!pred.deadend() && pred.opp_local_idx() == edge->localedgeidx() &&
        pred.mode() == TravelMode::kPedestrian) ||
-            (edge->max_up_slope() > max_grade_ || edge->max_down_slope() > max_grade_) ||
+      static_cast<uint32_t>(edge->max_up_slope()) > max_grade_ ||
+      static_cast<uint32_t>(-edge->max_down_slope()) > max_grade_ ||
+      (slope_capped_ && !tile->header()->has_elevation()) ||
       // path_distance for multimodal is currently checked inside the algorithm
       ((!allow_transit_connections_ && pred.path_distance() + edge->length()) > max_distance_) ||
       CheckExclusions<true>(edge, pred)) {
@@ -746,7 +744,9 @@ bool PedestrianCost::AllowedReverse(const baldr::DirectedEdge* edge,
       edge->sac_scale() > max_hiking_difficulty_ ||
       (!pred.deadend() && pred.opp_local_idx() == edge->localedgeidx() &&
        pred.mode() == TravelMode::kPedestrian) ||
-            (opp_edge->max_up_slope() > max_grade_ || opp_edge->max_down_slope() > max_grade_) ||
+      static_cast<uint32_t>(opp_edge->max_up_slope()) > max_grade_ ||
+      static_cast<uint32_t>(-opp_edge->max_down_slope()) > max_grade_ ||
+      (slope_capped_ && !tile->header()->has_elevation()) ||
       opp_edge->use() == Use::kTransitConnection || opp_edge->use() == Use::kEgressConnection ||
       opp_edge->use() == Use::kPlatformConnection || CheckExclusions<false>(opp_edge, pred)) {
     return false;

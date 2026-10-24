@@ -586,9 +586,11 @@ const routeService = {
         }
         let res, data;
         try {
+            // text/plain (the body is still JSON) keeps this a simple CORS request: Valhalla's own server
+            // answers the OPTIONS preflight that application/json would trigger with 405.
             res = await fetch(`${config.valhallaUrl}/route`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "text/plain" },
                 body: JSON.stringify({
                     locations: [{ lat: from.lat, lon: from.lon }, { lat: to.lat, lon: to.lon }],
                     ...valhallaCosting(needs),
@@ -634,7 +636,7 @@ const routeService = {
         try {
             const res = await fetch(`${config.valhallaUrl}/trace_attributes`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "text/plain" },
                 body: JSON.stringify({
                     encoded_polyline: route.encoded,
                     shape_match: "edge_walk",
