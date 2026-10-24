@@ -59,9 +59,10 @@ is currently **off**, so turn it on before the demo.
   broker quirk). A single command repairs it, and that command was checked across a real restart
   ["Post-restart repair scripted"].
 - **Supabase is not connected to the demo broker** (see point 3). Today the "gone" counts live in the broker only.
-- **Which broker the demo uses.** The hosted page (`config.js`) now points at a tunnel to a different broker than the
-  laptop's. The city import and the panel run on the laptop broker, so demo from the locally served app, as decided
-  under "Core 1 verified".
+- **The demo runs on the laptop (decided 24/10).** Locally served app, local broker and local Valhalla, as under
+  "Core 1 verified"; the city import and the panel only exist there. The hosted page (`config.js`, a tunnel to Ben's
+  broker) and Ben's cloud broker with Supabase are a separate setup: show them at most as an architecture or
+  next-step slide, not in the live demo.
 - **City data.** Road works on file at the Câmara, not checked on the street. The Câmara's open data is polled every
   10 minutes, not pushed.
 - **Not built:** the LLM that turns free text or photos into a report, rain/weather effects, and lift status.
