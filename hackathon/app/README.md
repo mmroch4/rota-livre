@@ -8,7 +8,7 @@ Flow: **welcome** (first visit only: "how do you get around?", five profiles fro
 difficulties*, remembered in `localStorage`; the chip at the top changes it, with the slope/steps/surface/barrier
 options under *Opções avançadas*) → **plan** ("Para onde quer ir?" opens a full-screen search; tapping the map also
 picks a destination) → **route** (shown as soon as a destination is chosen: time, arrival time, a one-line
-verdict, the streets you pass) → **guide** (turn arrow and distance on top, arrival/time/distance at the bottom,
+verdict, the streets you pass; when a barrier appears or goes away and the route changes, a short message says why and how much longer or shorter it is) → **guide** (turn arrow and distance on top, arrival/time/distance at the bottom,
 the map follows you, recalculates when you leave the route or a new barrier appears ahead). The orange button
 reports a barrier with one tap on its type.
 

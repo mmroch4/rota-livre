@@ -738,8 +738,13 @@ $("route-close").addEventListener("click", () => {
 
 let routeRequestId = 0;
 
-async function planRoute() {
+// explainBarriers: recalculated because barriers changed, so tell the person if the route is different.
+async function planRoute(explainBarriers = false) {
     if (!state.to) return;
+    if (!explainBarriers) {
+        routeChange = null; // planned for another reason: nothing to explain
+        clearTimeout(replanTimer);
+    }
     const myRequest = ++routeRequestId;
     showToast(state.from ? "A procurar o melhor caminho…" : "A procurar onde está e o melhor caminho…", 8000);
     const from = state.from || await currentPosition();
@@ -756,6 +761,8 @@ async function planRoute() {
     const result = await routeService.gentlestRoute(from, state.to, state.needs);
     if (myRequest !== routeRequestId) return;
     $("toast").hidden = true;
+    const change = explainBarriers ? routeChange || { before: state.route, added: [], removed: 0 } : null;
+    routeChange = null;
     if (!result.ok) {
         clearRoute();
         showScreen("plan");
@@ -766,6 +773,31 @@ async function planRoute() {
     showScreen("route");
     showRoute(result.route);
     fitRoute(result.route.shape);
+    if (change) explainRouteChange(change, result.route);
+}
+
+// Says why the shown route changed after barriers did; nothing when it is the same route.
+function explainRouteChange(change, route) {
+    const before = change.before;
+    if (!before || before.encoded === route.encoded) return;
+    const meters = Math.round((route.distanceKm - before.distanceKm) * 1000);
+    const minutes = Math.round((route.timeS - before.timeS) / 60);
+    let diff = `${meters < 0 ? "−" : "+"}${formatMeters(Math.abs(meters))}`;
+    if (minutes) diff += ` / ${minutes < 0 ? "−" : "+"}${Math.abs(minutes)} min`;
+    const { added, removed } = change;
+    let text;
+    if (added.length && !removed) {
+        text = added.length === 1
+            ? `Novo obstáculo (${(BARRIER_KINDS[added[0].kind] || BARRIER_KINDS.other).label}) perto do caminho`
+            : `${added.length} obstáculos novos perto do caminho`;
+        text += `: rota alterada, ${diff}.`;
+    } else if (removed && !added.length) {
+        text = removed === 1 ? "Um obstáculo foi retirado" : `${removed} obstáculos foram retirados`;
+        text += meters < 0 ? `: voltámos a um caminho mais curto, ${diff}.` : `: rota alterada, ${diff}.`;
+    } else {
+        text = `Os obstáculos mudaram: rota alterada, ${diff}.`;
+    }
+    showToast(text, 8000);
 }
 
 // gentlestRoute already tried every slope limit, so "no_route" here means steps, surface or barriers block it.
@@ -1198,7 +1230,7 @@ function onBarrierMessage(topic, payload) {
     const text = payload.toString();
     if (!text) {
         state.barriers.delete(id);
-        barriersChanged(null);
+        barriersChanged();
         return;
     }
     try {
@@ -1207,7 +1239,7 @@ function onBarrierMessage(topic, payload) {
         const mine = state.barriers.get(id); // keep the photo of our own report
         const added = { ...b, id, photo: mine && mine.photo, address: mine && mine.address };
         state.barriers.set(id, added);
-        barriersChanged(added);
+        barriersChanged();
     } catch {
         // not one of ours
     }
@@ -1235,7 +1267,7 @@ function addBarrier(barrier) {
         const { photo, address, ...shared } = barrier; // extras outside the agreed barrier contract stay local
         if (!publish(barrierTopic(barrier.id), JSON.stringify(shared))) return "failed";
         state.barriers.set(barrier.id, barrier); // shown now; the broker echo keeps the photo
-        barriersChanged(barrier);
+        barriersChanged();
         return "shared";
     }
     state.barriers.set(barrier.id, barrier);
@@ -1247,7 +1279,7 @@ function addBarrier(barrier) {
         result = "device-no-photo";
     }
     if (!saved) result = "memory";
-    barriersChanged(barrier);
+    barriersChanged();
     return result;
 }
 
@@ -1255,21 +1287,36 @@ function removeBarrier(id) {
     if (USE_BROKER) return publish(barrierTopic(id), "");
     state.barriers.delete(id);
     saveLocalBarriers();
-    barriersChanged(null);
+    barriersChanged();
     return true;
 }
 
-// Map, and routes: a new barrier ahead while walking → reroute from here; a shown route → recalculate.
-function barriersChanged(added) {
+// Barriers active at the last change. Comparing with it tells additions from removals, which arrive in several
+// ways: an empty retained message, a republish with expires_at in the past (the broker's way), a local delete.
+let activeIds = new Set();
+let routeChange = null;  // {before, added, removed}: what changed since the shown route, until it is recalculated
+let replanTimer = null;
+
+// Map, and routes: a new barrier ahead while walking → reroute from here; a shown route → recalculate and explain.
+function barriersChanged() {
     renderBarriers();
-    if (!state.needs || !state.needs.avoidBarriers) return;
+    const active = activeBarriers();
+    const added = active.filter((b) => !activeIds.has(b.id));
+    const removed = activeIds.size - (active.length - added.length);
+    activeIds = new Set(active.map((b) => b.id));
+    if (!state.needs || !state.needs.avoidBarriers || (!added.length && !removed)) return;
     if (state.guiding) {
-        if (added && barrierAhead(added)) {
+        if (added.some(barrierAhead)) {
             state.lastRerouteAt = 0;
             rerouteFromHere("Há um obstáculo novo no seu caminho. A procurar outro caminho…");
         }
     } else if (state.screen === "route" && state.to) {
-        planRoute();
+        routeChange = routeChange || { before: state.route, added: [], removed: 0 };
+        routeChange.added.push(...added);
+        routeChange.removed += removed;
+        // A burst (the city import retires 24 at once) gives one recalculation and one message.
+        clearTimeout(replanTimer);
+        replanTimer = setTimeout(() => planRoute(true), 500);
     }
 }
 
