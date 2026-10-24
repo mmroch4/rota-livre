@@ -24,17 +24,16 @@ validation of the custom slope cap; correct enforcement still needs runtime veri
 
 | Topic | Producer | Consumer | Payload |
 |-------|----------|----------|---------|
-| `access/barriers/<id>` (retained) | web app | web app; future broker automation | `{id, kind, description, lat, lon, reported_at, expires_at}`; empty retained payload removes the barrier |
-<<<<<<< HEAD
-| `access/barriers/<barrier id>/feedback` (not retained) | web app ("Já não está") | broker: store for the end-of-day review | `{id, barrier_id, answer: "gone", answered_at, lat?, lon?}`; does not remove the barrier |
-| `access/db/barriers/upsert` (internal) | broker Action `RouteBarrierMessage` | connector `BarriersDB` → Supabase `barriers` | the report's JSON, unchanged |
-| `access/db/barriers/deleted` (internal) | broker Action `RouteBarrierMessage` | connector `BarriersDB` → sets `deleted_at` | the barrier id (checked: `b` + letters/digits) |
-=======
-| `access/barriers/<barrier id>/feedback` (not retained) | web app ("Já não está") | broker: `StoreBarrierFeedback` (`lot/barrier_feedback.lotnb`) | `{id, barrier_id, answer: "gone", answered_at, lat?, lon?}`; does not remove the barrier |
+| `access/barriers/<id>` (retained) | web app; broker: `ImportCityAlerts` (`city-*` ids) | web app; broker: `RouteBarrierMessage` (app ids → Supabase) | `{id, kind, description, lat, lon, reported_at, expires_at}`, city ones add `source: "cm-porto"`; empty retained payload removes the barrier (only clients can send it: the broker retires a barrier by republishing it with `expires_at` = now) |
+| `access/barriers/<barrier id>/feedback` (not retained) | web app ("Já não está") | broker: `StoreBarrierFeedback` (`lot/barrier_feedback.lotnb`); connector `BarriersDB` → Supabase `barrier_feedback` | `{id, barrier_id, answer: "gone", answered_at, lat?, lon?}`; does not remove the barrier |
 | `access/feedback/<barrier id>/answers/<feedback id>` (retained) | broker: `StoreBarrierFeedback` | team, end-of-day review | the feedback payload, unchanged; one per distinct `id` (resends count once) |
 | `access/feedback/<barrier id>/gone_count` (retained) | broker: `StoreBarrierFeedback` | team, end-of-day review | number of distinct "gone" answers for that barrier |
 | `access/feedback/<barrier id>/last_answered_at` (retained) | broker: `StoreBarrierFeedback` | team, end-of-day review | `answered_at` of the latest stored answer (ISO 8601) |
->>>>>>> 4f9452a68b9a6a3552e66d40d4a02bcb5bc9aee0
+| `access/db/barriers/upsert` (internal) | broker Action `RouteBarrierMessage` | connector `BarriersDB` → Supabase `barriers` | the report's JSON, unchanged |
+| `access/db/barriers/deleted` (internal) | broker Action `RouteBarrierMessage` | connector `BarriersDB` → sets `deleted_at` | the barrier id (checked: `b` + letters/digits) |
+| `access/city/alerts/fetch` (not retained) | anyone (manual refresh) | broker: `PortoUrbanPlatform` connector | any payload; the connector also fetches every 10 min |
+| `access/city/alerts/raw` (not retained) | broker: `PortoUrbanPlatform` | broker: `ImportCityAlerts` | FIWARE NGSI v2 `Alert` entities (keyValues), or `{"success": false, ...}` on an HTTP error |
+| `access/city/alerts/last_ok`, `.../last_error` (retained) | broker: `ImportCityAlerts` | team, demo checks | ISO time of the latest successful import / failed fetch |
 
 ## 4. Demo
 

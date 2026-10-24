@@ -459,3 +459,30 @@ Caveats:
 - `access/barriers/<id>/feedback` is already in the topic map in `README.md`; the "missing from the topic
   map" caveat under "Core 1 verified" is out of date.
 
+
+## City alerts verified (24 October 2026, ~12:10 UTC)
+
+`lot/city_alerts.lotnb` (connector `PortoUrbanPlatform`, Action `ImportCityAlerts`, Python `CityAlerts`) loaded as
+project `lot` with no warnings; `diagnose` clean.
+
+| Check | Result |
+|---|---|
+| Source | FIWARE `type=Alert&q=category==traffic`, `near;maxDistance:500` of (41.1450, -8.6085), `orderBy=!validTo`, 100 rows (82 KB): 48 still valid on 24/10 |
+| Filter | 24 kept ("Obras particulares" / "Obras públicas"); loading bays, events and concrete pumping dropped |
+| Broker | `access/city/alerts/fetch` → 24 retained `access/barriers/city-*` in the contract format, `last_ok` set, snapshot kept |
+| Repeat | Same answer again publishes 0 barriers (unit test and offline run); retiring an alert that leaves the source is unit-tested only |
+| Routing, wheelchair 6 % | São Bento → Batalha: none 1.302 km; 2 demo barriers 1.856 km; 24 city barriers 2.164 km; city + demo 2.164 km |
+
+**Valhalla limit fixed on the way.** The default `service_limits.max_exclude_polygons_vertices` is 100: with the
+app's 5-vertex squares, more than 20 active barriers made every route fail with error 176 ("Exceeded maximum number
+of vertices for exclude_polygons"), city alerts or not. `setup.sh config` now sets 1000 vertices and 50 km of perimeter;
+the existing `data/valhalla.json` was patched the same way and the container restarted (no tile rebuild);
+`setup.sh smoke` passes. The public FOSSGIS fallback keeps the default limit.
+
+Caveats:
+- With the city barriers active, the two demo barriers no longer change the route (the city detour already avoids
+  them). The demo sequence needs new demo barrier positions on the 2.164 km route, or the city import off.
+- These are works registered by the Câmara, not confirmed obstacles. A barrier is a ±15 m square at the polygon's
+  vertex centroid, so a long street polygon ("Ambos os lados, em toda a sua extensão") is only partly covered.
+- Retained city barriers are lost on a broker restart until the next import (at most 10 min, or publish to
+  `access/city/alerts/fetch`).

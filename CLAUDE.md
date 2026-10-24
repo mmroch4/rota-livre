@@ -92,8 +92,13 @@ topic map in `hackathon/README.md` in the same commit.
   `b<base36 time><random>`; `description` may be `""`; expiry = report + 24 h). `kind` is one of `works`,
   `blocked_sidewalk`, `parked_car`, `broken_lift`, `damaged_pavement`, `other`. Unknown kinds show as `other`;
   messages without numeric `lat`/`lon` are ignored, extra fields are ignored.
-- The page hides barriers past `expires_at` itself; the broker may also clear them (empty retained message).
-  Barriers published by the backend (city alerts, lift status) appear and are avoided like any report.
+- The page hides barriers past `expires_at` itself. A LoT Action cannot send an empty retained message (broker
+  2.22.0), so the broker retires a barrier by republishing it with `expires_at` = now.
+  Barriers published by the backend appear and are avoided like any report: `ImportCityAlerts`
+  (`hackathon/lot/city_alerts.lotnb`) imports the Câmara's active road works near the demo route as `city-<id>`
+  barriers (`kind: "works"`, `expires_at` = the alert's end, extra field `source: "cm-porto"`).
+- Valhalla rejects more than `max_exclude_polygons_vertices` (default 100 = 20 barriers, error 176). The custom
+  instance allows 1000 (`hackathon/runtime/valhalla/setup.sh`); the public FOSSGIS one does not.
 - Not sent to the broker (device-only for now): the report's photo (≤ 800 px JPEG data URL) and the address text.
   Sharing them means adding optional `photo`/`address` fields to this contract first.
 

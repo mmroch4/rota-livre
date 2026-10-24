@@ -45,6 +45,8 @@ PY
       --mjolnir-tile-extract /data/valhalla/tiles.tar \
       --mjolnir-concurrency 2 --mjolnir-max-cache-size 268435456 \
       --additional-data-elevation /data/valhalla/elevation \
+      --service-limits-max-exclude-polygons-vertices 1000 \
+      --service-limits-max-exclude-polygons-length 50000 \
       --httpd-service-listen 'tcp://*:8002' > "$data_dir/valhalla.json"
     ;;
   tiles)
