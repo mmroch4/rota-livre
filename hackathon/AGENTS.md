@@ -54,6 +54,9 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 - **`PUBLISH MODEL` (verified 24/10):** a model header with `RETAIN` is rejected (LOT1001 "empty body") unless it
   also has `WITH TOPIC`; even then `PUBLISH MODEL ... TO` publishes **not retained**, and a field declared
   `WITH TIMESTAMP "ISO"` is missing from the payload. For retained state, use `PUBLISH TOPIC ... WITH RETAIN QOS1`.
+- **An Action cannot clear a retained message (verified 24/10).** `PUBLISH TOPIC ... WITH "" WITH RETAIN` (literal or
+  an empty variable) is dropped silently and the old retained payload stays; `WITH EMPTY` does not parse. To retire
+  a barrier from the broker, republish it retained with `expires_at` in the past: the app hides expired barriers.
 - `GET TOPIC {var}` and `GET TOPIC {a} + "/x" AS INT` work with a computed topic; an unknown topic reads as `""`
   (`0` with `AS INT`), so it can be used to skip duplicates.
 - **REST connector:** `WITH ENDPOINT "...?date={payload.json.date}"` works. A non-2xx answer is published to
