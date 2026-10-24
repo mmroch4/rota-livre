@@ -1,4 +1,2 @@
 paho-mqtt>=2.1,<3
 pytest>=8
-# Plan B report analyzer only (if the event licence has no LLM connector):
-# anthropic
