@@ -335,7 +335,7 @@ renderChoices($("welcome-choices"), (name) => {
     applyNeeds(profileNeeds(name));
     saveNeeds();
     $("welcome").hidden = true;
-    $("where-btn").focus();
+    document.querySelector("#screen-plan .js-to-change").focus();
 });
 
 renderChoices($("settings-choices"), (name) => {
@@ -391,8 +391,23 @@ function describeNeeds(needs) {
 
 const PORTO_VIEWBOX = "-8.70,41.19,-8.54,41.13"; // left,top,right,bottom
 
-$("where-btn").addEventListener("click", () => openSearch("to"));
+for (const b of document.querySelectorAll(".js-to-change")) b.addEventListener("click", () => openSearch("to"));
 for (const b of document.querySelectorAll(".js-from-change")) b.addEventListener("click", () => openSearch("from"));
+for (const b of document.querySelectorAll(".js-swap")) b.addEventListener("click", swapPlaces);
+
+// "A sua localização" (no start set) becomes the destination as the current position, when it is known.
+function swapPlaces() {
+    const here = state.position ? { lat: state.position.lat, lon: state.position.lon, label: "A sua localização" } : null;
+    const newFrom = state.to;
+    const newTo = state.from || here;
+    if (!newTo) {
+        showToast("Ainda não sabemos onde está. Escolha a partida primeiro.", 4000);
+        return;
+    }
+    setPlace("from", newFrom);
+    setPlace("to", newTo);
+    planRoute();
+}
 
 function openSearch(mode) {
     state.searchMode = mode;
@@ -507,10 +522,16 @@ function setPlace(which, place) {
 
 function updatePlaceLabels() {
     for (const el of document.querySelectorAll(".from-label")) {
-        el.textContent = state.from ? state.from.label : "a sua localização";
+        el.textContent = state.from ? state.from.label : "A sua localização";
     }
-    $("route-title").textContent = state.to ? state.to.label : "Destino";
+    for (const el of document.querySelectorAll(".to-label")) {
+        el.textContent = state.to ? state.to.label : "Para onde quer ir?";
+        el.closest(".trip-field").classList.toggle("empty", !state.to);
+    }
+    for (const b of document.querySelectorAll(".js-swap")) b.hidden = !state.to;
+    $("route-title").textContent = state.to ? `Caminho para ${state.to.label}` : "Caminho";
 }
+updatePlaceLabels();
 
 // ---------------------------------------------------------------------------------------------------------------
 // The person's position (GPS, or a simulated walk with ?demo)

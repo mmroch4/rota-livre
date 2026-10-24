@@ -171,18 +171,30 @@ button:disabled { opacity: 0.5; cursor: default; }
 }
 .sheet-handle { display: none; }
 
-.where {
-    display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 0 20px;
-    border: 0; border-radius: 18px; background: var(--soft); color: var(--muted);
-    font-size: 1.15rem; font-weight: 500; text-align: left;
+/* Start and destination: two big fields, each opens the search; the swap button sits beside them. */
+.trip { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.trip-fields { position: relative; flex: 1; min-width: 0; border-radius: 18px; background: var(--soft); }
+.trip-fields::before { /* the dotted line joining the two dots */
+    content: ""; position: absolute; left: 27px; top: 34px; bottom: 34px;
+    border-left: 2px dotted var(--muted); opacity: 0.6;
 }
-.where:hover { background: var(--line); }
-.where svg.lucide { color: var(--primary); }
-
-.from-line { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; color: var(--muted); font-size: 0.95rem; }
-.from-line > span { flex: 1; min-width: 0; }
-.from-line strong { color: var(--text); font-weight: 600; }
-.from-line svg.lucide { width: 18px; height: 18px; color: var(--primary); }
+.trip-field {
+    display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 8px 16px 8px 20px;
+    border: 0; border-radius: 18px; background: transparent; color: var(--text); text-align: left;
+}
+.trip-field + .trip-field { border-top: 1px solid var(--line); border-radius: 0 0 18px 18px; }
+.trip-field:first-child { border-radius: 18px 18px 0 0; }
+.trip-field:hover { background: var(--line); }
+.trip-dot { position: relative; z-index: 1; flex: none; width: 16px; height: 16px; border-radius: 50%; border: 3px solid #fff; }
+.trip-dot.from { background: var(--ok); box-shadow: 0 0 0 2px var(--ok); }
+.trip-dot.to { background: var(--danger); box-shadow: 0 0 0 2px var(--danger); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); }
+.trip-text { display: flex; flex-direction: column; min-width: 0; }
+.trip-text small { color: var(--muted); font-size: 0.8rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+.trip-text strong { overflow: hidden; font-size: 1.1rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.trip-field.empty strong { color: var(--primary); }
+.trip-swap { background: var(--primary-soft); color: var(--primary); }
+.trip-swap:hover { background: var(--line); }
+.trip-swap[hidden] { display: none; }
 
 .notice { margin-top: 12px; padding: 14px; border-radius: 16px; background: var(--warn-bg); color: var(--warn); }
 .notice p { margin: 0 0 8px; }

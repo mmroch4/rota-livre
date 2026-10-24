@@ -56,14 +56,19 @@
         </button>
 
         <div id="screen-plan" class="screen" hidden data-more="Mais">
-            <button id="where-btn" class="where" type="button" data-peek>
-                <i data-lucide="search"></i><span>Para onde quer ir?</span>
-            </button>
-            <p class="from-line" data-peek>
-                <i data-lucide="locate-fixed"></i>
-                <span>A partir de <strong class="from-label">a sua localização</strong></span>
-                <button type="button" class="link js-from-change">Mudar</button>
-            </p>
+            <div class="trip" data-peek>
+                <div class="trip-fields">
+                    <button type="button" class="trip-field js-from-change">
+                        <span class="trip-dot from" aria-hidden="true"></span>
+                        <span class="trip-text"><small>De</small><strong class="from-label">A sua localização</strong></span>
+                    </button>
+                    <button type="button" class="trip-field js-to-change">
+                        <span class="trip-dot to" aria-hidden="true"></span>
+                        <span class="trip-text"><small>Para</small><strong class="to-label">Para onde quer ir?</strong></span>
+                    </button>
+                </div>
+                <button type="button" class="icon-btn trip-swap js-swap" aria-label="Trocar partida e destino"><i data-lucide="arrow-up-down"></i></button>
+            </div>
             <div id="plan-message" class="notice" hidden role="status" data-peek></div>
 
             <section class="info-card">
@@ -74,10 +79,20 @@
         </div>
 
         <div id="screen-route" class="screen" hidden data-more="Ver as ruas do caminho">
+            <h1 id="route-title" class="visually-hidden">Caminho</h1>
             <div class="card-head">
-                <div>
-                    <p class="eyebrow">Para</p>
-                    <h1 id="route-title">Destino</h1>
+                <div class="trip">
+                    <div class="trip-fields">
+                        <button type="button" class="trip-field js-from-change">
+                            <span class="trip-dot from" aria-hidden="true"></span>
+                            <span class="trip-text"><small>De</small><strong class="from-label">A sua localização</strong></span>
+                        </button>
+                        <button type="button" class="trip-field js-to-change">
+                            <span class="trip-dot to" aria-hidden="true"></span>
+                            <span class="trip-text"><small>Para</small><strong class="to-label">Para onde quer ir?</strong></span>
+                        </button>
+                    </div>
+                    <button type="button" class="icon-btn trip-swap js-swap" aria-label="Trocar partida e destino"><i data-lucide="arrow-up-down"></i></button>
                 </div>
                 <button id="route-close" class="icon-btn" type="button" aria-label="Cancelar este caminho"><i data-lucide="x"></i></button>
             </div>
@@ -85,11 +100,6 @@
             <p id="sum-verdict" class="verdict"></p>
             <button id="start-btn" type="button" class="primary big" data-peek><i data-lucide="navigation"></i> Começar</button>
 
-            <p class="from-line">
-                <i data-lucide="locate-fixed"></i>
-                <span>A partir de <strong class="from-label">a sua localização</strong></span>
-                <button type="button" class="link js-from-change">Mudar</button>
-            </p>
             <h2>Vai passar por</h2>
             <ol id="streets" class="streets"></ol>
             <details id="slope-details" class="advanced" hidden>
