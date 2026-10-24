@@ -7,9 +7,9 @@ window.APP_CONFIG = {
 
     // Our local Coreflux broker through its Cloudflare tunnel: "wss://<random>.trycloudflare.com/mqtt", user "web"
     // (limited to access/barriers/# by lot/web_access.lotnb). Steps in hackathon/README.md, "Web app over the internet".
-    brokerUrl: "",
-    brokerUsername: "",
-    brokerPassword: "",
+    brokerUrl: "wss://griffin-ray-franklin-lightbox.trycloudflare.com/mqtt",
+    brokerUsername: "web",
+    brokerPassword: "YOUR-WEB-PASSWORD",
 
     // Every topic the page uses starts with this.
     topicPrefix: "access",
