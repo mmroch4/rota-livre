@@ -62,13 +62,23 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
   `IF`, and later top-level lines run only inside that branch. `validate_lot` and `deploy_lot` accept it (a bare
   `UNTIL` directly followed by `ELSE` fails to parse). Keep a statement at the `REPEAT`'s own level after `UNTIL`.
   `REPEAT` is do-while (the body runs once even when the condition is already true).
-- **A broker boot reloads the broker's own copy of the project, not what you deployed (verified 24/10).** Project `lot`
-  is a git copy inside the `broker-data` volume (only `barrier_feedback` and `city_alerts`, older than ac5ec1f).
-  `deploy_lot` / `add_python` over an entity that came from that copy change it only until the next restart or
-  recreate; Actions first deployed ad hoc (e.g. `SwitchCityAlerts`) do survive. So **after every broker restart**,
+- **A broker boot can restore an older version of a redeployed Action (verified 24/10, three boots).** Each boot
+  logs "Duplicate DEFINE ACTION block for 'ImportCityAlerts' in actions file. Keeping the first definition": the
+  persisted actions file holds every version deployed over an entity that came from project `lot` (the broker's own
+  copy, older than ac5ec1f), and the **first, oldest** one wins. Actions deployed only ad hoc (e.g. `SwitchCityAlerts`,
+  the `OpsSummary*` ones) came back current. `remove_action` reports "2 duplicate definitions cleaned up", but after
+  remove + `deploy_lot` the next boot still logged the duplicates and reverted. So **after every broker restart**,
   re-run `add_python` (`CityAlerts` cell) and `deploy_lot` (`ImportCityAlerts` cell) from `lot/city_alerts.lotnb`,
-  then check that the live code in `$SYS/Coreflux/Actions/<Name>` matches the notebook. No project swap: Ben's
+  then compare the live code in `$SYS/Coreflux/Actions/<Name>` with the notebook: subscribe to that exact topic, since
+  a `$SYS/Coreflux/#` subscription also gets non-retained traffic and gave a false mismatch. No project swap: Ben's
   `10-barriers-db.lotnb` must stay unloaded.
+- **An Action's triggers run concurrently (verified 24/10).** Reading a retained topic, changing it and publishing it
+  back loses updates on a burst: a summary updated by 24 back-to-back barrier messages counted 6, and a plain LoT
+  counter on a single topic lost 5 of 40 once. There is no way to serialise an Action. A Python script's module
+  globals persist between `CALL PYTHON` calls (same module object), so a `threading.Lock` around state kept in the
+  module made 30 concurrent calls exact (`OpsSummary` in `lot/ops_panel.lotnb`). Seed that state from a retained
+  topic, since it is empty after a restart or `add_python`. `StoreBarrierFeedback`'s `gone_count` is read-change-publish
+  too: two distinct answers to the same barrier in the same instant could count once (not observed).
 - **`KEEP TOPIC` is memory only; retained topics survive a restart (durability on, verified 24/10).** State that must
   outlive a restart goes in a retained `PUBLISH TOPIC`; `GET TOPIC` reads the retained value after a boot.
   Right after a restart (seconds after `/health` is healthy) one subscriber got no retained messages at all; 5 s

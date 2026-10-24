@@ -36,6 +36,7 @@ validation of the custom slope cap; correct enforcement still needs runtime veri
 | `access/city/alerts/last_ok`, `.../last_error` (retained) | broker: `ImportCityAlerts` | team, demo checks | ISO time of the latest successful import / failed fetch |
 | `access/city/alerts/enabled` (retained, QoS 1) | team (demo switch) | broker: `SwitchCityAlerts`, `ImportCityAlerts` | `on` or `off`. `off` retires every imported `city-*` barrier (`expires_at` = now) and makes the import ignore fetches; `on` fetches at once and republishes them. Missing = `on` |
 | `access/state/city_alerts` (internal, retained, QoS 1) | broker: `ImportCityAlerts`, `SwitchCityAlerts` | broker: the same two Actions | `{<barrier id>: barrier}` of the `city-*` barriers imported last time (`{}` after `off`); what `off` retires and what the next import compares against. Retained so it survives a restart with the barriers |
+| `access/ops/summary` (retained, QoS 1) | broker: `OpsSummaryOnBarrier`, `OpsSummaryOnFeedback`, `OpsSummaryRefresh` (`lot/ops_panel.lotnb`, every 15 s too) | operator panel `RotaLivreOps` (HUB) | `{updated_at, active: {app, city, demo, total}, barriers: [{id, source, kind, description, expires_at, gone_count}], feedback: [{barrier_id, gone_count, last_answered_at}]}`; `barriers` = active only; source `city-*` → city, `demo-*` → demo, else app |
 
 ## 4. Demo
 

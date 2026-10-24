@@ -553,10 +553,11 @@ manual fetch: **0** barriers republished and `last_ok` advanced, so the import c
 (an empty one republishes all 24) → `off`: all 24 retired (`expires_at` = now), snapshot `{}`. `diagnose` clean.
 Broker log: "RetainedStore: recovered 49 retained message(s) from WAL".
 
-**Every boot restores stale code (now in `AGENTS.md`).** The broker's copy of project `lot` predates ac5ec1f. After
-both the recreate and each restart, the live `ImportCityAlerts` was the old one (no `enabled` gate, `UNTIL` bug), and
-`CityAlerts` was redeployed too since its live source cannot be read back; `SwitchCityAlerts` (deployed ad hoc)
-survived. After each boot `add_python CityAlerts` + `deploy_lot ImportCityAlerts` from `lot/city_alerts.lotnb`,
+**Every boot restores stale code (now in `AGENTS.md`).** After both the recreate and each restart, the live
+`ImportCityAlerts` was an old one (no `enabled` gate, `UNTIL` bug), and `CityAlerts` was redeployed too since its live
+source cannot be read back; `SwitchCityAlerts` (deployed ad hoc) survived. Cause, found later (see "Operator panel
+verified"): the boot log says the persisted actions file holds duplicate `ImportCityAlerts` blocks and keeps the first,
+oldest one. After each boot `add_python CityAlerts` + `deploy_lot ImportCityAlerts` from `lot/city_alerts.lotnb`,
 then the live `$SYS/Coreflux/Actions/*` sources were compared with the notebook: identical. Ben's notebook is not in
 the broker's project copy, so a boot does not load it.
 
@@ -567,3 +568,48 @@ Caveats:
   5 s later all 27 were there. Reload browser tabs that were open during a restart.
 - Ended with `enabled = off` (as Codex's last demo check left it): 0 active `city-*`, no demo barriers.
 - Only retained messages were exercised; persistent sessions and queued QoS 1 were not tested (`durable_sessions 0`).
+
+## Operator panel verified (24 October 2026, ~13:00–13:14 UTC)
+
+`lot/ops_panel.lotnb`: Python `OpsSummary`, Actions `OpsSummaryOnBarrier` (`access/barriers/+`), `OpsSummaryOnFeedback`
+(`access/feedback/+/last_answered_at`), `OpsSummaryRefresh` (every 15 s) → retained `access/ops/summary`; LoTV panel
+`RotaLivreOps` (4 columns: gauges for app / city / demo, the `enabled` indicator, a trend of all active barriers,
+`last_ok` / `last_error` / summary time, the active-barrier table and the "gone" table). Read-only. Deployed with
+`add_python` / `deploy_lot` / `add_panel`, no warnings; live sources (Actions and `$SYS/Coreflux/Visus/RotaLivreOps`)
+identical to the notebook. 23 pytest tests pass (`services/tests/`). `diagnose` clean.
+
+**Lost updates found and fixed.** The first, pure version (each run reads the retained summary, changes it,
+publishes it) counted **6 of 24** barriers on a city `on` burst: an Action's triggers run concurrently. Throwaway
+`Zz*` Actions showed a plain LoT counter losing updates too (35/40 on one topic, once), that a Python script's module
+persists between calls, and that a `threading.Lock` makes 30 concurrent calls exact. `OpsSummary` now keeps its state in
+the module under a lock (agreed exception to "pure Python"), seeded from the retained summary after a restart.
+Same burst after the change: **24/24**; `off` → 0.
+
+| Check (live, through MQTT) | Result |
+|---|---|
+| Test barrier `zz-ops-1` published / cleared (empty retained) | app 1 → 0 |
+| City `off` → `on` burst | city 0 → 24 |
+| `zz-ops-2` with `expires_at` = now + 40 s, no further message | dropped by the 15 s refresh after it expired |
+| 2 "gone" answers on `city-cmp1555559` | `gone_count` 2 in its row and in `feedback`; still listed after `off` retired the barrier |
+| Restart (13:12), nothing redeployed | summary, answers and the switch survived; the module re-seeded from the summary |
+
+**In the HUB** (<http://localhost:3000> → Dashboards → "Rota Livre: barrier operations", Chrome): rendered city 24,
+indicator "On", 24 table rows with sources and kinds, "Gone answers 2". Then, without a reload, `off` + `barriers.py
+seed`: city 0, demo 2, indicator grey "Off", the trend fell 24 → 2, 2 demo rows; after `clear` and clearing the test
+answers: all 0, both tables "No data".
+
+**Stale code at boot, cause found.** `remove_action` of a throwaway Action at 13:03 logged "Duplicate DEFINE ACTION
+block for 'ImportCityAlerts' in actions file. Keeping the first definition", and every boot logs the same for
+`ImportCityAlerts` and `StoreBarrierFeedback`. `remove_action` + `deploy_lot` of both ("2 duplicate definitions
+cleaned up") did **not** help: the 13:12 boot logged the duplicates again and reverted `ImportCityAlerts`
+(redeployed with `CityAlerts` afterwards). The `OpsSummary*` Actions (ad hoc only) came back current.
+One live mismatch at 13:10 was a false alarm of the comparison script (a `$SYS/Coreflux/#` subscription), not a revert.
+
+Caveats:
+- After any broker restart, redeploy `CityAlerts` + `ImportCityAlerts` (`AGENTS.md`); the panel needs nothing.
+- The summary only learns barriers from messages it sees: barriers retained before `OpsSummaryOnBarrier` existed were
+  picked up by republishing them (`on`/`off`, `seed`). All current ones are in it.
+- Two summary publishes can still arrive out of order; the 15 s refresh corrects that. The trend chart's history lives
+  in the open HUB page only.
+- A real app report, `bmvmf2lix8tqd` (parked car, 13:10), appeared during the session: not mine, left in place.
+  End state: `enabled = off`, 0 active city, 0 demo, 1 app barrier, no test topics.
