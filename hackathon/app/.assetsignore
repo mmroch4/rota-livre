@@ -3,3 +3,7 @@ wrangler.jsonc
 README.md
 config.local.js
 .wrangler
+# Created when the GitHub Action installs Wrangler in this folder
+node_modules
+package.json
+package-lock.json
