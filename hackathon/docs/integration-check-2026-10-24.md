@@ -1,0 +1,96 @@
+# Browser integration check — 24 October 2026
+
+Verified by Codex at approximately 12:10–12:14 UTC on Miguel's laptop.
+Scope: connectivity, UI report submission, propagation, retained delivery, rerouting and cleanup.
+No frontend, broker automation, account, deployment or service configuration was changed.
+
+## Result
+
+**Local demo passes; hosted shared-report demo is blocked by missing configuration.**
+
+| Surface | Configuration / observation | Result |
+|---|---|---|
+| Hosted app | `https://accessible-routes.benlubetzky.workers.dev` | Loads; displays that reports stay on this device |
+| Hosted routing | Public `config.js` uses `https://valhalla1.openstreetmap.de` | POST `/route` with `Content-Type: text/plain` and hosted Origin returns HTTP 200 and `Access-Control-Allow-Origin: *`; this is not the custom slope-aware service |
+| Hosted broker | Public `brokerUrl` is empty | No WSS endpoint configured; cross-device reports cannot work in this deployment |
+| Local app | `http://127.0.0.1:8765/`, existing ignored `config.local.js` | Loads and reports real-time barriers |
+| Local routing | `http://127.0.0.1:8003` | Browser routes successfully with wheelchair profile |
+| Local broker | `ws://127.0.0.1:9001/mqtt` | UI reports propagate and retained messages arrive after reload |
+
+Two Chrome tabs used the same browser profile and origin. This proves separate live app/MQTT
+connections, not separate devices, separate browser storage or cross-device deletion permissions.
+No geolocation permission was granted; all test locations were entered manually.
+
+## Observed browser sequence
+
+1. Select the **Cadeira de rodas** profile. Search for origin `41.1455, -8.6105`
+   and choose **Praça de Almeida Garrett**. Search destination `41.1459, -8.6064`
+   and choose **Cervejaria Artesanal Levare**. These searches resolve to named OSM
+   places, so they need not use the exact coordinates of the API regression fixture.
+2. Initially the local route showed **1.3 km / 21 min**.
+3. During the session, **24 other barriers arrived through the shared broker**.
+   The existing route automatically changed to **2.2 km / 35 min**. These barriers
+   were preserved. The same route was planned in the second tab.
+4. In tab A, use the orange report button. Search **Rua da Firmeza 300, Porto**,
+   select **Passeio bloqueado**, and use description
+   `TESTE DE INTEGRAÇÃO CODEX — temporário, remover após verificação.`
+   Submit. The marker appeared in both tabs. This placement did not visibly change the route.
+5. Reload tab B: the report returned, with **25 obstacles** shown. Tab A's popup
+   showed the test description. Choose **Apagar o meu reporte** in A: it disappeared
+   from both tabs and B returned to **24 obstacles**.
+6. Restore B's origin/destination after reload (routes themselves are not retained).
+   In A, create another labelled **Passeio bloqueado** report at
+   **Rua do Doutor Alves da Veiga 100, Porto**.
+7. Both tabs changed their itinerary without reload:
+   - Before: **Rua do Doutor Alves da Veiga 420 m → Rua Formosa 40 m**.
+   - With report: **Rua do Doutor Alves da Veiga 200 m → Rua de Fernandes Tomás 95 m
+     → Rua de Dom João IV 205 m**.
+   - The rounded headline remained **2.2 km / 35 min**; use the street list and map
+     to show the actual detour, not rounded distance alone.
+8. Delete that report through A's **Apagar o meu reporte**. Both tabs restored
+   **Rua do Doutor Alves da Veiga 420 m → Rua Formosa 40 m**.
+
+Both Codex test reports were removed. No other reports were cleared. Retention
+was tested across a page reload, not a broker restart. The test did not exercise
+moving-position guidance, feedback processing or expiry (Claude's automation scope).
+
+## Repeatable demo
+
+- Open two tabs of the local app, select the wheelchair profile and set the route
+  above in each tab. Confirm the existing obstacle set before choosing the test street.
+- With the 24-barrier background seen during this check, use the Alves da Veiga
+  report sequence above. Verify the changed street list in both tabs, then delete
+  only the report just created and verify restoration.
+- For a reload check, reload the observer while the report is present, confirm its
+  marker, then re-enter the route before testing cleanup/rerouting.
+- Do not clear other people's barriers to force fixture distances. City intake
+  changes the baseline. Coordinate a stable obstacle set before recording the pitch.
+- For an independent routing regression that does not touch the broker, run:
+
+  ```bash
+  python3 hackathon/runtime/demo/check_routes.py
+  ```
+
+  That script sends only its explicit fixture exclusions to Valhalla. Expected
+  fixture lengths: 1.302 km baseline, 1.721 km roadworks, 1.437 km parked car,
+  1.856 km both. It checks unchanged control/reset geometry and interior grades
+  within 6%. These are API-fixture results, not guaranteed UI distances with live city barriers.
+
+## Handoff and remaining blockers
+
+**Ben — slope display:** the existing `degreesToPercent` conversion in `app.js`
+still applies `tan()` to values the custom backend stores as percent. The initial
+1.3 km route displayed seven overly steep sections even though the API check passes
+the interior 6% cap. Existing runtime-baseline notes already diagnose this. Coordinate
+the display fix with the contract documentation. Endpoint partial edges remain a
+separate, real routing limitation; do not suppress all warnings.
+
+**Hosted integration:** supply a reachable HTTPS endpoint for the custom Valhalla
+and a WSS endpoint with an appropriate browser account, then coordinate deployment
+configuration with Ben. The current checked-in policy keeps services on loopback;
+this verification did not establish public tunnels or expose the broker. The hosted
+app is currently suitable for a public-routing/device-only demonstration, not a
+claim that the custom cap and shared reports are connected.
+
+**Demo coordination:** confirm which city barriers Claude's intake will keep active
+before rehearsing. The working local demo does not require changing that automation.
