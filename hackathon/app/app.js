@@ -1353,7 +1353,7 @@ $("report-btn").addEventListener("click", () => {
         showToast("Os reportes não estão disponíveis de momento. Tente mais tarde.");
         return;
     }
-    openReportDialog(state.position || mapCenterPoint());
+    openReportDialog();
 });
 
 $("report-close").addEventListener("click", () => $("report-dialog").close());
@@ -1363,13 +1363,40 @@ function mapCenterPoint() {
     return { lat: c.lat, lon: c.lng };
 }
 
-function openReportDialog(point) {
+// The report map starts where the person is. If their position is not known yet, it asks for it and moves
+// there when it arrives, unless they already started moving the map themselves.
+function openReportDialog() {
     $("description-input").value = "";
     setReportPhoto(null);
     selectReportKind(null);
     $("report-dialog").showModal();
     $("report-dialog").scrollTop = 0;
-    showReportMap(point);
+    if (state.position) {
+        showReportMap(state.position);
+        return;
+    }
+    showReportMap(mapCenterPoint());
+    setReportNote("A procurar onde está…");
+    let movedByHand = false;
+    const onDrag = () => { movedByHand = true; };
+    reportMap.on("dragstart zoomstart", onDrag);
+    currentPosition().then((p) => {
+        reportMap.off("dragstart zoomstart", onDrag);
+        if (!$("report-dialog").open || movedByHand) return;
+        if (p) {
+            setReportNote("");
+            reportMap.setView([p.lat, p.lon], 18, { animate: false });
+        } else {
+            setReportNote("Não conseguimos saber onde está. Mova o mapa até ao obstáculo ou escreva a morada.");
+        }
+    });
+}
+
+// A note under the address (e.g. "couldn't find you") that stays until the person moves the map themselves.
+let reportNote = "";
+function setReportNote(text) {
+    reportNote = text;
+    $("report-address-status").textContent = text;
 }
 
 // Where is it? A small map inside the dialog with a fixed pin in the middle: the person moves the map under
@@ -1386,6 +1413,7 @@ function showReportMap(point) {
         reportMap = L.map("report-map", { attributionControl: false, zoomControl: !phone.matches }).setView(ll, 18);
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(reportMap);
         reportMap.on("moveend", onReportMapMoved);
+        reportMap.on("dragstart", () => setReportNote(""));
     }
     reportMap.invalidateSize();
     reportMap.setView(ll, 18, { animate: false });
@@ -1403,14 +1431,14 @@ function onReportMapMoved() {
     const seq = ++reportGeocodeSeq;
     $("report-address").value = "";
     $("report-address").placeholder = "A procurar a morada…";
-    $("report-address-status").textContent = "";
+    $("report-address-status").textContent = reportNote;
     // Nominatim allows about one request per second: ask only once the map has stopped.
     reportGeocodeTimer = setTimeout(async () => {
         const address = await addressAt(state.reportPoint);
         if (seq !== reportGeocodeSeq) return;
         $("report-address").placeholder = "Rua, número ou local";
         $("report-address").value = address || "";
-        $("report-address-status").textContent = address ? "" : "Não encontrámos a morada deste sítio. Pode escrevê-la.";
+        $("report-address-status").textContent = address ? reportNote : "Não encontrámos a morada deste sítio. Pode escrevê-la.";
     }, 700);
 }
 

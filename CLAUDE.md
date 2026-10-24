@@ -47,3 +47,43 @@ licence (`CFLX-...`, in `hackathon/broker/.env`, outside git); without it, the C
 **3 Connectors**, no custom Rules and no `TYPE LLM`.
 The pitch (5 min + up to 3 min of questions; problem → demo → architecture → maturity) is in
 `hackathon/PITCH.md`.
+
+### Web app ↔ backend contract (`hackathon/app/`, Rota Livre)
+
+Static page (no build), UI in European Portuguese, live at <https://accessible-routes.benlubetzky.workers.dev>
+(`?demo` simulates a walking position). Every push to `main` touching `hackathon/app/` redeploys it
+(`.github/workflows/deploy-app.yml` → Cloudflare Worker; `.assetsignore` lists what is not published).
+The backend plugs in through `hackathon/app/config.js` only: `valhallaUrl`, `brokerUrl`, `topicPrefix` (`access`).
+Broker credentials go in `config.local.js` (gitignored) and are visible to any browser, so give the page a broker
+user limited to `access/barriers/#`. The page is served over HTTPS: **both endpoints must be HTTPS/WSS and send
+CORS headers** (`Access-Control-Allow-Origin: *`), or the browser blocks them. All routing calls are in
+`routeService` in `app.js`; if the contract below changes, update that code, `hackathon/app/README.md` and the
+topic map in `hackathon/README.md` in the same commit.
+
+**Routing (Valhalla HTTP API).** Today `valhallaUrl` is the public FOSSGIS instance, which ignores the slope cap.
+- `POST {valhallaUrl}/route` with `locations` (start, destination), `costing: "pedestrian"`,
+  `costing_options.pedestrian` = `type` (`"wheelchair"` when avoiding rough surfaces, else `"foot"`), `max_grade`
+  (percent, 2–14; **omitted** for "no limit"), `step_penalty: 43200` when avoiding steps; `exclude_polygons`
+  (one closed `[lon, lat]` square of ±15 m around each active barrier); `units: "kilometers"`, `language: "pt-PT"`.
+- Read from the response: `trip.summary.{length,time}`, `trip.legs[0].shape` (polyline, 6 decimals),
+  `legs[0].maneuvers[].{type, instruction, street_names, length, begin_shape_index, end_shape_index}`
+  (types 4–6 = arrival). Errors: `error_code` 442/443 = no route under the limits (the page offers +2 % and **never
+  relaxes the limit itself**), 170/171 = point too far from a path, anything else = "try again".
+- `POST {valhallaUrl}/trace_attributes` with `encoded_polyline`, `shape_match: "edge_walk"`, the same costing and
+  `filters.attributes` = `edge.length`, `edge.use`, `edge.max_upward_grade`, `edge.max_downward_grade`,
+  `edge.begin_shape_index`, `edge.end_shape_index`. Grades are read as **degrees** (shown as % via tan);
+  32768 = no elevation. Used for the "steeper than you asked" warning; if it fails, the route still shows.
+
+**Barriers (Coreflux MQTT over secure WebSocket).** With `brokerUrl` empty (today) reports stay on the device
+(`localStorage` key `access.barriers`) and nobody else sees them; setting `brokerUrl` switches to the broker.
+- Topic `access/barriers/<id>`, one **retained** message per barrier, QoS 1. The page subscribes to
+  `access/barriers/+`, publishes new reports itself, and removes one ("Já não está lá", anyone may) by publishing an
+  **empty retained** payload on its topic.
+- Payload: `{"id", "kind", "description", "lat", "lon", "reported_at", "expires_at"}` (ISO 8601 times; `id` like
+  `b<base36 time><random>`; `description` may be `""`; expiry = report + 24 h). `kind` is one of `works`,
+  `blocked_sidewalk`, `parked_car`, `broken_lift`, `damaged_pavement`, `other`. Unknown kinds show as `other`;
+  messages without numeric `lat`/`lon` are ignored, extra fields are ignored.
+- The page hides barriers past `expires_at` itself; the broker may also clear them (empty retained message).
+  Barriers published by the backend (city alerts, lift status) appear and are avoided like any report.
+- Not sent to the broker (device-only for now): the report's photo (≤ 800 px JPEG data URL) and the address text.
+  Sharing them means adding optional `photo`/`address` fields to this contract first.
