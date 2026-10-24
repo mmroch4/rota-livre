@@ -9,7 +9,7 @@ window.APP_CONFIG = {
     // (limited to access/barriers/# by lot/web_access.lotnb). Steps in hackathon/README.md, "Web app over the internet".
     brokerUrl: "wss://griffin-ray-franklin-lightbox.trycloudflare.com/mqtt",
     brokerUsername: "web",
-    brokerPassword: "YOUR-WEB-PASSWORD",
+    brokerPassword: "barackObama1234",
 
     // Every topic the page uses starts with this.
     topicPrefix: "access",
