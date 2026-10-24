@@ -425,3 +425,37 @@ a DEM.
   than a looser one. The demo pair is monotonic.
 - An image rebuild is a full C++ compile (~40 min, two workers). A ccache mount would make later
   costing changes take minutes.
+
+## Demo barriers verified (24 October 2026, ~11:45 UTC)
+
+`runtime/demo/barriers.py` seeds and clears the demo barriers (usage and table in
+`runtime/demo/README.md`). São Bento → Batalha, wheelchair profile (6 %), ±15 m exclusion squares:
+
+| Barriers | Route |
+|---|---|
+| none | 1.302 km, 21.4 min |
+| `demo-roadworks` (41.14384, -8.60766) | 1.721 km |
+| `demo-parked-car` (41.14494, -8.61080) | 1.437 km |
+| both | 1.856 km, 29.4 min |
+| `demo-control` (41.1468, -8.6085), off the route | 1.302 km, no change |
+
+Checked in two Chrome tabs of the locally served app (`127.0.0.1:8765`) with the route already drawn:
+after `seed` both tabs showed "2 obstáculos no mapa" and rerouted to 1.856 km without a reload; a
+reloaded tab got both barriers back from the retained messages and routed to 1.856 km; after `clear`
+both tabs dropped to no barriers and 1.302 km. `clear` was also checked not to touch a non-demo retained
+barrier (a throwaway `zz-other-test` survived and was removed by hand). The control barrier was checked
+against Valhalla directly (and in the seed/list/clear round trip), not drawn in the browser.
+
+```bash
+export BROKER_USERNAME=... BROKER_PASSWORD=...   # same login as app/config.local.js
+python3 hackathon/runtime/demo/barriers.py seed      # list / clear likewise
+```
+
+Caveats:
+- Retained barriers are lost on a broker restart and expire after 24 h: seed again before the demo.
+- The script uses the default broker login over plain MQTT on loopback (Community tier, no per-user rules).
+- The slope warning in the app still overstates grades (the `degreesToPercent` bug above): the detour screenshot
+  showed orange "steeper than asked" segments although every edge is within 6 %.
+- `access/barriers/<id>/feedback` is already in the topic map in `README.md`; the "missing from the topic
+  map" caveat under "Core 1 verified" is out of date.
+
