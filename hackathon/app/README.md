@@ -23,7 +23,14 @@ All routing calls are in `routeService` in `app.js`, so the routing backend can 
   the limits by itself.
 - **Details:** Valhalla `/trace_attributes` for the steepest climb and descent, and the sections near the limit
   (orange on the map).
-- **Barriers:** reported and shown live through the Coreflux broker over MQTT/WebSocket.
+- **Barriers:** the report dialog asks *where* first: a small map with a fixed pin that the person moves the map
+  under, with the address filled in automatically (Nominatim reverse, once the map stops), or typed and searched,
+  or "my location". Then the type (one of six tiles), then an optional photo and description; anyone can remove one ("Já não está lá");
+  reports expire after 24 h. With `brokerUrl` set they are shared live through the Coreflux broker over
+  MQTT/WebSocket. **Until then (no `brokerUrl`) they are kept on the device** (`localStorage`, key
+  `access.barriers`): they show on the map and that device's routes avoid them, but nobody else sees them.
+  Photos (shrunk to 800 px JPEG) and the address text stay on the reporting device; they are not part of the
+  MQTT payload.
 - **Search:** Nominatim, limited to Porto, only when the user presses Enter.
 
 Kerb height cannot be filtered: Valhalla's pedestrian costing has no option for it.

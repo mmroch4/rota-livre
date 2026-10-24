@@ -199,6 +199,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #9aa5b6; }
 .dot-on { background: var(--ok); }
 .dot-off { background: var(--danger); }
+.dot-local { background: var(--primary); }
 
 /* Route card */
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -321,6 +322,59 @@ select, textarea { width: 100%; min-height: 48px; padding: 10px 12px; border: 2p
     font-weight: 600; text-align: center; line-height: 1.2;
 }
 .tile:hover { border-color: var(--report); background: #fff8ef; }
+.tile[aria-checked="true"] { border-color: var(--report); background: #fff1dd; box-shadow: 0 0 0 2px var(--report); }
+
+.photo-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 4px 0 8px; }
+.photo-preview { position: relative; }
+.photo-preview img { display: block; width: 88px; height: 88px; object-fit: cover; border-radius: 14px; }
+.photo-preview .icon-btn { position: absolute; top: -10px; right: -10px; width: 36px; height: 36px; background: #fff; box-shadow: var(--shadow-sm); }
+.photo-preview .icon-btn svg.lucide { width: 18px; height: 18px; }
+#description-input { margin-bottom: 4px; }
+.popup-photo { display: block; width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px; margin: 8px 0 4px; }
+.popup-when { color: var(--muted); font-size: 0.85rem; }
+.popup-address { margin: 2px 0 0; color: var(--muted); }
+
+/* Report dialog: numbered steps, the place first */
+.report-dialog { width: min(520px, calc(100vw - 32px)); padding-bottom: 0; }
+.report-step h3 { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; font-size: 1.1rem; font-weight: 600; }
+.report-step:first-of-type h3 { margin-top: 8px; }
+.step-n {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 700;
+}
+.optional { color: var(--muted); font-weight: 400; font-size: 0.95rem; }
+
+.mini-map-wrap { position: relative; height: 240px; border-radius: 18px; overflow: hidden; border: 2px solid var(--line); }
+.mini-map { position: absolute; inset: 0; }
+.mini-pin { position: absolute; left: 50%; top: 50%; z-index: 500; pointer-events: none; transform: translate(-50%, -100%); }
+.mini-pin span {
+    position: relative; display: block; width: 38px; height: 38px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    background: var(--report); border: 3px solid #fff; box-shadow: var(--shadow-sm);
+}
+.mini-pin span::after { content: ""; position: absolute; inset: 10px; border-radius: 50%; background: #fff; }
+.mini-pin::after { /* the exact point, on the ground under the pin */
+    content: ""; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; margin-left: -4px;
+    border-radius: 50%; background: rgba(20, 33, 61, 0.45);
+}
+.mini-locate { position: absolute; right: 10px; bottom: 10px; z-index: 500; width: 48px; height: 48px; }
+.report-step .hint { margin: 8px 0; }
+
+.address-row {
+    display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px;
+    border: 2px solid var(--line); border-radius: 16px; background: #fff;
+}
+.address-row:focus-within { border-color: var(--primary); }
+.address-row input { flex: 1; min-width: 0; min-height: 44px; border: 0; outline: none; font-size: 1.05rem; font-weight: 500; background: none; }
+.address-ic { display: inline-flex; color: var(--report); }
+.address-status { min-height: 1.2em; }
+.address-status:empty { display: none; }
+
+#description-input { margin-top: 4px; }
+.report-actions {
+    position: sticky; bottom: 0; z-index: 2; margin: 12px -20px 0; padding: 12px 20px 16px;
+    background: #fff; box-shadow: 0 -6px 16px rgba(20, 33, 61, 0.08);
+}
+.report-actions .big { margin: 0; }
 .tile-ic { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--report); color: #1a1a1a; }
 
 .toast {
@@ -382,6 +436,9 @@ select, textarea { width: 100%; min-height: 48px; padding: 10px 12px; border: 2p
         border-radius: 24px 24px 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom));
     }
     .toast { bottom: calc(var(--sheet-h, 40dvh) + 12px); }
+    .report-dialog { width: 100%; padding-bottom: 0; }
+    .report-actions { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+    .mini-map-wrap { height: 34dvh; min-height: 200px; }
 }
 
 /* Landscape phones and small tablets: keep the floating card, a bit narrower. */

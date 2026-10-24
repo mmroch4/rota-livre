@@ -55,7 +55,7 @@ const state = {
     offRouteCount: 0,
     lastRerouteAt: 0,
     arrived: false,
-    mapPick: null,     // what a tap on the map sets: "to" | "from" | "report" | null
+    mapPick: null,     // what a tap on the map sets: "to" | "from" | null
     searchMode: "to",
     reportPoint: null,
     barriers: new Map(),
@@ -100,10 +100,7 @@ const PERSON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" 
 
 map.on("click", (e) => {
     const point = { lat: e.latlng.lat, lon: e.latlng.lng };
-    if (state.mapPick === "report") {
-        setPick(null);
-        openReportDialog(point, "Sítio escolhido no mapa");
-    } else if (state.mapPick === "from" || state.mapPick === "to") {
+    if (state.mapPick === "from" || state.mapPick === "to") {
         const which = state.mapPick;
         setPick(null);
         chooseFromMap(which, point);
@@ -1095,17 +1092,29 @@ function fixPortuguese(s) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Barriers (MQTT). Each report is one retained message on <prefix>/barriers/<id>; an empty retained message
-// removes it. Reports past their expires_at are ignored.
+// Barriers. Two stores, chosen by config.brokerUrl:
+//  - broker (Coreflux, MQTT): each report is one retained message on <prefix>/barriers/<id>; an empty retained
+//    message removes it. Shared live with everyone. Photos stay on the reporting device (not in the contract).
+//  - device (no broker yet): reports are kept in this browser's localStorage, so they show on the map and the
+//    person's routes avoid them, but nobody else sees them.
+// Reports past their expires_at are ignored.
+
+const USE_BROKER = !!config.brokerUrl;
+const LOCAL_BARRIERS_KEY = "access.barriers";
+const REPORT_HOURS = 24;
+const PHOTO_MAX_PX = 800;
 
 let mqttClient = null;
 let brokerOnline = false;
 const barrierTopic = (id) => `${config.topicPrefix}/barriers/${id}`;
 
 function connectBroker() {
-    if (!config.brokerUrl) {
-        console.warn("brokerUrl is not set in config.js");
-        setBrokerStatus(false, "Os reportes não estão disponíveis de momento.");
+    if (!USE_BROKER) {
+        loadLocalBarriers();
+        renderBarriers();
+        setBrokerStatus(true, "Os seus reportes ficam guardados neste dispositivo.", "local");
+        $("report-info").textContent = "Obras, um passeio bloqueado, um elevador avariado… Toque no botão laranja "
+            + "para o marcar no mapa. Os seus caminhos passam a evitá-lo.";
         return;
     }
     mqttClient = mqtt.connect(config.brokerUrl, {
@@ -1130,24 +1139,79 @@ function connectBroker() {
 function onBarrierMessage(topic, payload) {
     const id = topic.split("/").pop();
     const text = payload.toString();
-    let added = null;
     if (!text) {
         state.barriers.delete(id);
-    } else {
-        try {
-            const b = JSON.parse(text);
-            if (typeof b.lat !== "number" || typeof b.lon !== "number") return;
-            added = { ...b, id };
-            state.barriers.set(id, added);
-        } catch {
-            return; // not one of ours
-        }
+        barriersChanged(null);
+        return;
     }
+    try {
+        const b = JSON.parse(text);
+        if (typeof b.lat !== "number" || typeof b.lon !== "number") return;
+        const mine = state.barriers.get(id); // keep the photo of our own report
+        const added = { ...b, id, photo: mine && mine.photo, address: mine && mine.address };
+        state.barriers.set(id, added);
+        barriersChanged(added);
+    } catch {
+        // not one of ours
+    }
+}
+
+function loadLocalBarriers() {
+    try {
+        for (const b of JSON.parse(localStorage.getItem(LOCAL_BARRIERS_KEY)) || []) state.barriers.set(b.id, b);
+    } catch { /* storage blocked or corrupt: start empty */ }
+}
+
+// Returns false when the browser refuses to store (full or blocked).
+function saveLocalBarriers() {
+    try {
+        localStorage.setItem(LOCAL_BARRIERS_KEY, JSON.stringify(activeBarriers()));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function addBarrier(barrier) {
+    if (USE_BROKER) {
+        const { photo, address, ...shared } = barrier; // extras outside the agreed barrier contract stay local
+        if (!publish(barrierTopic(barrier.id), JSON.stringify(shared))) return "failed";
+        state.barriers.set(barrier.id, barrier); // shown now; the broker echo keeps the photo
+        barriersChanged(barrier);
+        return "shared";
+    }
+    state.barriers.set(barrier.id, barrier);
+    let result = "device";
+    let saved = saveLocalBarriers();
+    if (!saved && barrier.photo) {
+        delete barrier.photo; // the photo did not fit in the browser's storage: keep the report without it
+        saved = saveLocalBarriers();
+        result = "device-no-photo";
+    }
+    if (!saved) result = "memory";
+    barriersChanged(barrier);
+    return result;
+}
+
+function removeBarrier(id) {
+    if (USE_BROKER) return publish(barrierTopic(id), "");
+    state.barriers.delete(id);
+    saveLocalBarriers();
+    barriersChanged(null);
+    return true;
+}
+
+// Map, and routes: a new barrier ahead while walking → reroute from here; a shown route → recalculate.
+function barriersChanged(added) {
     renderBarriers();
-    // A new barrier on the way ahead: find another route while walking.
-    if (added && state.guiding && state.needs.avoidBarriers && barrierAhead(added)) {
-        state.lastRerouteAt = 0;
-        rerouteFromHere("Há um obstáculo novo no seu caminho. A procurar outro caminho…");
+    if (!state.needs || !state.needs.avoidBarriers) return;
+    if (state.guiding) {
+        if (added && barrierAhead(added)) {
+            state.lastRerouteAt = 0;
+            rerouteFromHere("Há um obstáculo novo no seu caminho. A procurar outro caminho…");
+        }
+    } else if (state.screen === "route" && state.to) {
+        planRoute();
     }
 }
 
@@ -1167,13 +1231,15 @@ function activeBarriers() {
 function renderBarriers() {
     barrierLayer.clearLayers();
     const active = activeBarriers();
+    // Fixed width; panning clear of the floating panels is done by keepPopupVisible.
+    const popupOptions = { minWidth: 240, maxWidth: 240, autoPan: false };
     for (const b of active) {
         const kind = BARRIER_KINDS[b.kind] || BARRIER_KINDS.other;
         const marker = L.marker([b.lat, b.lon], {
             icon: L.divIcon({ className: "barrier", html: iconHtml(kind.icon), iconSize: [32, 32], iconAnchor: [16, 16] }),
             title: kind.label,
         });
-        marker.bindPopup(() => barrierPopup(b));
+        marker.bindPopup(() => barrierPopup(b), popupOptions);
         barrierLayer.addLayer(marker);
     }
     refreshIcons();
@@ -1181,35 +1247,73 @@ function renderBarriers() {
         : active.length === 1 ? "· 1 obstáculo no mapa" : `· ${active.length} obstáculos no mapa`;
 }
 
+// Leaflet's autoPan knows nothing about our floating panels: move the map until the popup is in the free part.
+function keepPopupVisible(popup) {
+    const el = popup.getElement();
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const box = $("map").getBoundingClientRect();
+    const i = mapInsets();
+    const margin = 12;
+    let dx = 0, dy = 0;
+    if (r.left < box.left + i.left + margin) dx = r.left - (box.left + i.left + margin);
+    else if (r.right > box.right - i.right - 84) dx = r.right - (box.right - i.right - 84); // round buttons
+    if (r.top < box.top + i.top + margin) dy = r.top - (box.top + i.top + margin);
+    else if (r.bottom > box.bottom - i.bottom - margin) dy = r.bottom - (box.bottom - i.bottom - margin);
+    if (dx || dy) map.panBy([dx, dy]);
+}
+
+map.on("popupopen", (e) => {
+    requestAnimationFrame(() => keepPopupVisible(e.popup));
+    const img = e.popup.getElement() && e.popup.getElement().querySelector("img");
+    if (img && !img.complete) img.addEventListener("load", () => keepPopupVisible(e.popup), { once: true });
+});
+
 function barrierPopup(b) {
     const div = document.createElement("div");
     div.className = "popup";
     const title = document.createElement("strong");
     title.textContent = (BARRIER_KINDS[b.kind] || BARRIER_KINDS.other).label;
     div.append(title);
+    if (b.address) {
+        const where = document.createElement("p");
+        where.className = "popup-address";
+        where.textContent = b.address;
+        div.append(where);
+    }
+    if (b.photo) {
+        const img = document.createElement("img");
+        img.src = b.photo;
+        img.alt = "Foto do obstáculo";
+        img.className = "popup-photo";
+        div.append(img);
+    }
     if (b.description) {
         const p = document.createElement("p");
         p.textContent = b.description;
         div.append(p);
     }
     const when = document.createElement("p");
-    when.textContent = `Reportado ${new Date(b.reported_at).toLocaleString("pt-PT")}`;
+    when.className = "popup-when";
+    when.textContent = `Reportado ${new Date(b.reported_at).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" })}`;
     div.append(when);
     const gone = document.createElement("button");
     gone.type = "button";
     gone.className = "secondary";
     gone.textContent = "Já não está lá";
     gone.addEventListener("click", () => {
-        if (publish(barrierTopic(b.id), "")) showToast("Obrigado! O obstáculo foi retirado do mapa.");
         map.closePopup();
+        showToast(removeBarrier(b.id)
+            ? "Obrigado! O obstáculo foi retirado do mapa."
+            : "Não foi possível retirar o obstáculo. Tente de novo dentro de momentos.");
     });
     div.append(gone);
     return div;
 }
 
-function setBrokerStatus(online, text) {
+function setBrokerStatus(online, text, kind) {
     brokerOnline = online;
-    $("broker-dot").className = `dot ${online ? "dot-on" : "dot-off"}`;
+    $("broker-dot").className = `dot ${kind === "local" ? "dot-local" : online ? "dot-on" : "dot-off"}`;
     $("broker-status").textContent = text;
 }
 
@@ -1219,70 +1323,214 @@ function publish(topic, message) {
     return true;
 }
 
-// Report: one tap on the orange button, one tap on what it is.
+// Report: orange button → pick the type (and, optionally, a photo or a few words) → send.
+const report = { kind: null, photo: null };
+
 for (const [kind, k] of Object.entries(BARRIER_KINDS)) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "tile";
+    b.dataset.kind = kind;
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", "false");
     b.innerHTML = `<span class="tile-ic">${iconHtml(k.icon)}</span><span></span>`;
     b.lastChild.textContent = k.label;
-    b.addEventListener("click", () => sendReport(kind));
+    b.addEventListener("click", () => selectReportKind(kind));
     $("report-tiles").append(b);
 }
 
-$("report-btn").addEventListener("click", async () => {
-    if (!brokerOnline) {
+function selectReportKind(kind) {
+    report.kind = kind;
+    for (const t of document.querySelectorAll("#report-tiles .tile")) {
+        t.setAttribute("aria-checked", String(t.dataset.kind === kind));
+    }
+    $("report-send").disabled = !kind;
+    $("report-send").textContent = kind ? "Enviar" : "Escolha o tipo de obstáculo";
+}
+
+$("report-btn").addEventListener("click", () => {
+    if (USE_BROKER && !brokerOnline) {
         showToast("Os reportes não estão disponíveis de momento. Tente mais tarde.");
         return;
     }
-    if (state.position) {
-        openReportDialog({ lat: state.position.lat, lon: state.position.lon }, null);
-    } else {
-        setPick("report", "Toque no mapa onde está o obstáculo.");
-    }
+    openReportDialog(state.position || mapCenterPoint());
 });
 
 $("report-close").addEventListener("click", () => $("report-dialog").close());
 
-function openReportDialog(point, placeText) {
-    state.reportPoint = point;
-    $("description-input").value = "";
-    const where = $("report-where");
-    where.replaceChildren(document.createTextNode(placeText || "Onde está agora. "));
-    const other = document.createElement("button");
-    other.type = "button";
-    other.className = "link";
-    other.textContent = "Escolher outro sítio no mapa";
-    other.addEventListener("click", () => {
-        $("report-dialog").close();
-        setPick("report", "Toque no mapa onde está o obstáculo.");
-    });
-    where.append(other);
-    $("report-dialog").showModal();
+function mapCenterPoint() {
+    const c = map.getCenter();
+    return { lat: c.lat, lon: c.lng };
 }
 
-function sendReport(kind) {
+function openReportDialog(point) {
+    $("description-input").value = "";
+    setReportPhoto(null);
+    selectReportKind(null);
+    $("report-dialog").showModal();
+    $("report-dialog").scrollTop = 0;
+    showReportMap(point);
+}
+
+// Where is it? A small map inside the dialog with a fixed pin in the middle: the person moves the map under
+// the pin (like ride-hailing apps), and the address under it fills itself in. Typing an address and searching,
+// or "my location", move the map instead.
+let reportMap = null;
+let reportGeocodeTimer = null;
+let reportGeocodeSeq = 0;
+let reportKeepAddress = false; // the map moved to an address the person searched: keep their words
+
+function showReportMap(point) {
+    const ll = [point.lat, point.lon];
+    if (!reportMap) {
+        reportMap = L.map("report-map", { attributionControl: false, zoomControl: !phone.matches }).setView(ll, 18);
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(reportMap);
+        reportMap.on("moveend", onReportMapMoved);
+    }
+    reportMap.invalidateSize();
+    reportMap.setView(ll, 18, { animate: false });
+    onReportMapMoved();
+}
+
+function onReportMapMoved() {
+    const c = reportMap.getCenter();
+    state.reportPoint = { lat: c.lat, lon: c.lng };
+    clearTimeout(reportGeocodeTimer);
+    if (reportKeepAddress) {
+        reportKeepAddress = false;
+        return;
+    }
+    const seq = ++reportGeocodeSeq;
+    $("report-address").value = "";
+    $("report-address").placeholder = "A procurar a morada…";
+    $("report-address-status").textContent = "";
+    // Nominatim allows about one request per second: ask only once the map has stopped.
+    reportGeocodeTimer = setTimeout(async () => {
+        const address = await addressAt(state.reportPoint);
+        if (seq !== reportGeocodeSeq) return;
+        $("report-address").placeholder = "Rua, número ou local";
+        $("report-address").value = address || "";
+        $("report-address-status").textContent = address ? "" : "Não encontrámos a morada deste sítio. Pode escrevê-la.";
+    }, 700);
+}
+
+// Street and number first (that is what an address is); the name of a place only if there is no street.
+async function addressAt(p) {
+    const url = "https://nominatim.openstreetmap.org/reverse?" + new URLSearchParams({
+        lat: p.lat, lon: p.lon, format: "jsonv2", zoom: "18", "accept-language": "pt-PT",
+    });
+    try {
+        const r = await (await fetch(url)).json();
+        const a = r.address || {};
+        if (a.road) return a.house_number ? `${a.road}, ${a.house_number}` : a.road;
+        return r.name || a.pedestrian || a.footway || a.square || null;
+    } catch {
+        return null;
+    }
+}
+
+$("report-address-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const query = $("report-address").value.trim();
+    if (!query) return;
+    clearTimeout(reportGeocodeTimer);
+    reportGeocodeSeq++; // a pending reverse lookup must not overwrite what the person typed
+    $("report-address-status").textContent = "A procurar…";
+    const url = "https://nominatim.openstreetmap.org/search?" + new URLSearchParams({
+        q: query, format: "jsonv2", limit: "1", countrycodes: "pt",
+        viewbox: PORTO_VIEWBOX, bounded: "1", "accept-language": "pt-PT",
+    });
+    try {
+        const [r] = await (await fetch(url)).json();
+        if (!r) {
+            $("report-address-status").textContent = "Não encontrámos essa morada no Porto. Experimente mover o mapa.";
+            return;
+        }
+        $("report-address-status").textContent = "Confirme no mapa que o pino está no sítio certo.";
+        reportKeepAddress = true;
+        reportMap.setView([Number(r.lat), Number(r.lon)], 18);
+    } catch {
+        $("report-address-status").textContent = "A pesquisa falhou. Experimente mover o mapa.";
+    }
+});
+
+$("report-locate").addEventListener("click", async () => {
+    $("report-address-status").textContent = "A procurar onde está…";
+    const p = await currentPosition();
+    if (!p) {
+        $("report-address-status").textContent = "Não conseguimos saber onde está. Mova o mapa ou escreva a morada.";
+        return;
+    }
+    reportMap.setView([p.lat, p.lon], 18);
+});
+
+// Photo: the phone offers the camera or the gallery; we shrink it so it fits in the browser's storage.
+$("photo-btn").addEventListener("click", () => $("photo-input").click());
+$("photo-remove").addEventListener("click", () => setReportPhoto(null));
+$("photo-input").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+        setReportPhoto(await shrinkPhoto(file, PHOTO_MAX_PX));
+    } catch {
+        showToast("Não foi possível usar esta foto. Experimente outra.");
+    }
+});
+
+function setReportPhoto(dataUrl) {
+    report.photo = dataUrl;
+    $("photo-preview").hidden = !dataUrl;
+    $("photo-img").src = dataUrl || "";
+    $("photo-btn-text").textContent = dataUrl ? "Trocar foto" : "Adicionar foto (opcional)";
+}
+
+async function shrinkPhoto(file, maxPx) {
+    const url = URL.createObjectURL(file);
+    try {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = url;
+        });
+        const scale = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.naturalWidth * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL("image/jpeg", 0.7);
+    } finally {
+        URL.revokeObjectURL(url);
+    }
+}
+
+$("report-send").addEventListener("click", () => {
     const point = state.reportPoint;
-    $("report-dialog").close();
-    if (!point) return;
-    const hours = Number($("duration-select").value);
+    if (!point || !report.kind) return;
     const now = new Date();
-    const id = `b${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const barrier = {
-        id,
-        kind,
+        id: `b${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        kind: report.kind,
         description: $("description-input").value.trim(),
         lat: Number(point.lat.toFixed(6)),
         lon: Number(point.lon.toFixed(6)),
         reported_at: now.toISOString(),
-        expires_at: new Date(now.getTime() + hours * 3600 * 1000).toISOString(),
+        expires_at: new Date(now.getTime() + REPORT_HOURS * 3600 * 1000).toISOString(),
     };
-    if (publish(barrierTopic(id), JSON.stringify(barrier))) {
-        showToast("Obrigado! Os caminhos de todos passam a evitar este obstáculo.");
-    } else {
-        showToast("Não foi possível enviar o reporte. Tente de novo dentro de momentos.");
-    }
-}
+    if (report.photo) barrier.photo = report.photo;
+    const address = $("report-address").value.trim();
+    if (address) barrier.address = address;
+    $("report-dialog").close();
+    const messages = {
+        shared: "Obrigado! Os caminhos de todos passam a evitar este obstáculo.",
+        device: "Obrigado! O obstáculo ficou no mapa e os seus caminhos passam a evitá-lo.",
+        "device-no-photo": "Guardámos o obstáculo, mas a foto não coube na memória do navegador.",
+        memory: "O obstáculo está no mapa, mas o navegador não o deixou guardar: desaparece se fechar a página.",
+        failed: "Não foi possível enviar o reporte. Tente de novo dentro de momentos.",
+    };
+    showToast(messages[addBarrier(barrier)], 4500);
+});
 
 // Expired barriers disappear without waiting for a new message.
 setInterval(renderBarriers, 60 * 1000);

@@ -67,7 +67,7 @@
 
             <section class="info-card">
                 <h2><i data-lucide="triangle-alert"></i> Viu um obstáculo?</h2>
-                <p>Obras, um passeio bloqueado, um elevador avariado… Toque no botão laranja para avisar. O caminho de todos passa a evitá-lo.</p>
+                <p id="report-info">Obras, um passeio bloqueado, um elevador avariado… Toque no botão laranja para avisar. O caminho de todos passa a evitá-lo.</p>
                 <p class="status"><span id="broker-dot" class="dot"></span> <span id="broker-status">A ligar…</span> <span id="barrier-count"></span></p>
             </section>
         </div>
@@ -159,28 +159,53 @@
         <button id="settings-done" type="button" class="primary big">Feito</button>
     </dialog>
 
-    <dialog id="report-dialog" aria-labelledby="report-title">
+    <dialog id="report-dialog" class="report-dialog" aria-labelledby="report-title">
         <div class="dialog-head">
-            <h2 id="report-title">O que encontrou?</h2>
+            <h2 id="report-title">Reportar um obstáculo</h2>
             <button class="icon-btn" type="button" id="report-close" aria-label="Fechar"><i data-lucide="x"></i></button>
         </div>
-        <p class="hint" id="report-where"></p>
-        <div class="tiles" id="report-tiles"></div>
-        <details class="advanced">
-            <summary>Mais detalhes (opcional)</summary>
-            <div class="field">
-                <label for="description-input">Descrição</label>
-                <textarea id="description-input" rows="2" maxlength="280"></textarea>
+
+        <section class="report-step" aria-labelledby="report-where-title">
+            <h3 id="report-where-title"><span class="step-n">1</span> Onde está?</h3>
+            <div class="mini-map-wrap">
+                <div id="report-map" class="mini-map" aria-label="Mapa para escolher o sítio do obstáculo"></div>
+                <div class="mini-pin" aria-hidden="true"><span></span></div>
+                <button id="report-locate" type="button" class="fab mini-locate" aria-label="Usar a minha localização"><i data-lucide="locate-fixed"></i></button>
             </div>
-            <div class="field">
-                <label for="duration-select">Evitar durante</label>
-                <select id="duration-select">
-                    <option value="2">2 horas</option>
-                    <option value="24" selected>1 dia</option>
-                    <option value="168">1 semana</option>
-                </select>
+            <p class="hint">Mova o mapa até o pino laranja ficar em cima do obstáculo, ou escreva a morada.</p>
+            <form id="report-address-form" class="address-field" role="search">
+                <label for="report-address" class="visually-hidden">Morada do obstáculo</label>
+                <div class="address-row">
+                    <span class="address-ic"><i data-lucide="map-pin"></i></span>
+                    <input id="report-address" type="text" autocomplete="off" enterkeyhint="search" placeholder="Rua, número ou local">
+                    <button type="submit" class="icon-btn" aria-label="Procurar esta morada"><i data-lucide="search"></i></button>
+                </div>
+                <p id="report-address-status" class="hint address-status" aria-live="polite"></p>
+            </form>
+        </section>
+
+        <section class="report-step" aria-labelledby="report-kind-title">
+            <h3 id="report-kind-title"><span class="step-n">2</span> O que é?</h3>
+            <div class="tiles" id="report-tiles" role="radiogroup" aria-labelledby="report-kind-title"></div>
+        </section>
+
+        <section class="report-step" aria-labelledby="report-extra-title">
+            <h3 id="report-extra-title"><span class="step-n">3</span> Foto ou descrição <span class="optional">(opcional)</span></h3>
+            <div class="photo-row">
+                <button id="photo-btn" type="button" class="secondary"><i data-lucide="camera"></i> <span id="photo-btn-text">Adicionar foto</span></button>
+                <input id="photo-input" type="file" accept="image/*" class="visually-hidden" tabindex="-1" aria-hidden="true">
+                <div id="photo-preview" class="photo-preview" hidden>
+                    <img id="photo-img" alt="Foto do obstáculo">
+                    <button id="photo-remove" type="button" class="icon-btn" aria-label="Remover a foto"><i data-lucide="trash-2"></i></button>
+                </div>
             </div>
-        </details>
+            <label for="description-input" class="visually-hidden">Descrição</label>
+            <textarea id="description-input" rows="2" maxlength="280" placeholder="Ex.: andaime a ocupar o passeio todo"></textarea>
+        </section>
+
+        <div class="report-actions">
+            <button id="report-send" type="button" class="primary big" disabled>Escolha o tipo de obstáculo</button>
+        </div>
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
