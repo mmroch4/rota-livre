@@ -13,6 +13,7 @@ const DEMO = params.has("demo"); // ?demo: fake position that walks along the ro
 // is not something Valhalla can filter on, so there is no option for it.
 
 const GRADE_LIMIT = 15; // the slider's top value, meaning "no slope limit"
+const GRADE_RELAX_STEP = 2; // with no route under the limit, retry this much higher each time, then with no limit
 
 const PROFILES = {
     wheelchair: { label: "Cadeira de rodas", icon: "accessibility", maxGrade: 6, avoidSteps: true, avoidRoughSurface: true },
@@ -26,6 +27,7 @@ const STORAGE_KEY = "access.needs";
 
 const MAX_STEP_PENALTY = 43200; // seconds: Valhalla's upper bound (12 h), so steps are used only as a last resort
 const BARRIER_RADIUS_M = 15;    // half the side of the square excluded around each barrier
+const MAX_EXCLUDED = 20;        // Valhalla's default max_exclude_polygons_vertices (100) / 5 vertices per square
 const NO_ELEVATION = 32768;     // Valhalla's marker for "no elevation data" on an edge
 const OFF_ROUTE_M = 35;         // further than this from the line counts as off the route
 const ARRIVED_M = 20;
@@ -596,7 +598,7 @@ const routeService = {
                 body: JSON.stringify({
                     locations: [{ lat: from.lat, lon: from.lon }, { lat: to.lat, lon: to.lon }],
                     ...valhallaCosting(needs),
-                    exclude_polygons: excludedAreas(needs),
+                    exclude_polygons: excludedAreas(needs, from, to),
                     units: "kilometers",
                     language: "pt-PT",
                 }),
@@ -633,6 +635,20 @@ const routeService = {
         };
     },
 
+    // Like route, but when nothing fits under the slope limit, retries GRADE_RELAX_STEP higher each time and
+    // finally with no limit, so the person still gets the gentlest route there is. Only the slope limit is
+    // relaxed (steps, surface and barriers stay). route.maxGradeUsed says which limit found it (GRADE_LIMIT =
+    // none); the screens must tell the person when it is above theirs.
+    async gentlestRoute(from, to, needs) {
+        let grade = needs.maxGrade;
+        for (;;) {
+            const result = await this.route(from, to, { ...needs, maxGrade: grade });
+            if (result.ok) result.route.maxGradeUsed = grade;
+            if (result.reason !== "no_route" || grade >= GRADE_LIMIT) return result;
+            grade = Math.min(grade + GRADE_RELAX_STEP, GRADE_LIMIT);
+        }
+    },
+
     // Slope and surface per edge, for the details and the warnings. Returns null when not available.
     async slopes(route, needs) {
         try {
@@ -665,9 +681,24 @@ function valhallaCosting(needs) {
     return { costing: "pedestrian", costing_options: { pedestrian } };
 }
 
-function excludedAreas(needs) {
+// Valhalla rejects more than MAX_EXCLUDED squares (error 176), so only the barriers nearest the trip are sent.
+function excludedAreas(needs, from, to) {
     if (!needs.avoidBarriers) return [];
-    return activeBarriers().map((b) => squareAround(b.lat, b.lon, BARRIER_RADIUS_M));
+    return activeBarriers()
+        .map((b) => ({ b, d: distanceToSegmentM(b, from, to) }))
+        .sort((x, y) => x.d - y.d)
+        .slice(0, MAX_EXCLUDED)
+        .map(({ b }) => squareAround(b.lat, b.lon, BARRIER_RADIUS_M));
+}
+
+// Metres from p to the straight line a–b (flat approximation, fine at city scale).
+function distanceToSegmentM(p, a, b) {
+    const kx = 111320 * Math.cos((a.lat * Math.PI) / 180), ky = 111320;
+    const px = (p.lon - a.lon) * kx, py = (p.lat - a.lat) * ky;
+    const bx = (b.lon - a.lon) * kx, by = (b.lat - a.lat) * ky;
+    const len2 = bx * bx + by * by;
+    const t = len2 ? Math.max(0, Math.min(1, (px * bx + py * by) / len2)) : 0;
+    return Math.hypot(px - t * bx, py - t * by);
 }
 
 // A closed ring of [lon, lat] pairs, as Valhalla's exclude_polygons expects.
@@ -704,7 +735,7 @@ async function planRoute() {
         });
         return;
     }
-    const result = await routeService.route(from, state.to, state.needs);
+    const result = await routeService.gentlestRoute(from, state.to, state.needs);
     if (myRequest !== routeRequestId) return;
     $("toast").hidden = true;
     if (!result.ok) {
@@ -719,25 +750,15 @@ async function planRoute() {
     fitRoute(result.route.shape);
 }
 
-// Never relax the person's limits on our own: explain and let them decide.
+// gentlestRoute already tried every slope limit, so "no_route" here means steps, surface or barriers block it.
 function showRouteProblem(reason, show) {
     const needs = state.needs;
     const where = state.to ? ` até ${state.to.label}` : "";
     if (reason === "no_route") {
-        const higher = needs.maxGrade + 2;
-        const text = `Não encontrámos um caminho${where} com ${describeNeeds(needs) || "estas opções"}.`;
-        if (higher < GRADE_LIMIT) {
-            show(text + " Se conseguir, pode aceitar subidas um pouco maiores.", {
-                label: `Tentar com subidas até ${higher}%`,
-                onClick: () => {
-                    applyNeeds({ ...needs, maxGrade: higher, profile: "custom" });
-                    saveNeeds();
-                    planRoute();
-                },
-            });
-        } else {
-            show(text + " Experimente outro destino ou mude as opções em \"Como se desloca\".");
-        }
+        const others = describeNeeds({ ...needs, maxGrade: GRADE_LIMIT });
+        const evenSteeper = needs.maxGrade < GRADE_LIMIT ? ", mesmo com subidas maiores" : "";
+        show(`Não encontrámos um caminho${where}${others ? ` (${others})` : ""}${evenSteeper}. `
+            + "Experimente outro destino ou mude as opções em \"Como se desloca\".");
     } else if (reason === "far_from_path") {
         show("A partida ou o destino estão longe de um passeio acessível. Escolha um ponto mais perto da rua.");
     } else {
@@ -752,12 +773,21 @@ function showRoute(route) {
     updatePlaceLabels();
     $("sum-time").textContent = formatDuration(route.timeS);
     $("sum-meta").textContent = `${formatDistance(route.distanceKm)} · chega às ${clockIn(route.timeS)}`;
-    setVerdict(true, describeNeeds(state.needs) ? `Caminho com ${describeNeeds(state.needs)}.` : "O caminho a pé mais direto.");
+    if (relaxedNote(route)) setVerdict(false, relaxedNote(route));
+    else setVerdict(true, describeNeeds(state.needs) ? `Caminho com ${describeNeeds(state.needs)}.` : "O caminho a pé mais direto.");
     $("slope-details").hidden = true;
     route.streets = streetList(route.maneuvers);
     renderStreets($("streets"), route.streets, -1);
     renderStreets($("guide-streets"), route.streets, 0);
     loadSlopes(route);
+}
+
+// Set when gentlestRoute had to go above the person's slope limit; "" otherwise.
+function relaxedNote(route) {
+    const asked = state.needs.maxGrade;
+    if (!(route.maxGradeUsed > asked)) return "";
+    const used = route.maxGradeUsed >= GRADE_LIMIT ? "sem limite de subida" : `com subidas até ${route.maxGradeUsed}%`;
+    return `Não há caminho com subidas até ${asked}%. Este é o mais suave que encontrámos, ${used}.`;
 }
 
 function setVerdict(ok, text) {
@@ -825,8 +855,9 @@ async function loadSlopes(route) {
     for (const e of edges) {
         if (e.use === "steps") hasSteps = true;
         if (Math.abs(e.max_upward_grade) >= NO_ELEVATION || Math.abs(e.max_downward_grade) >= NO_ELEVATION) continue;
-        const up = degreesToPercent(e.max_upward_grade);
-        const down = degreesToPercent(Math.abs(e.max_downward_grade));
+        // Percent grade, like max_grade: Valhalla stores rise/run * 100 (its "degrees" comments are wrong).
+        const up = e.max_upward_grade;
+        const down = Math.abs(e.max_downward_grade);
         steepestUp = Math.max(steepestUp, up);
         steepestDown = Math.max(steepestDown, down);
         const over = needs.maxGrade < GRADE_LIMIT && Math.round(Math.max(up, down)) > needs.maxGrade;
@@ -839,7 +870,10 @@ async function loadSlopes(route) {
     const problems = [];
     if (overLimit > 0) problems.push(overLimit === 1 ? "uma parte mais inclinada do que pediu" : `${overLimit} partes mais inclinadas do que pediu`);
     if (hasSteps && needs.avoidSteps) problems.push("escadas que não foi possível evitar");
-    if (problems.length) setVerdict(false, `Atenção: tem ${problems.join(" e ")} (a laranja no mapa).`);
+    if (problems.length) {
+        const prefix = relaxedNote(route) ? relaxedNote(route) + " " : "";
+        setVerdict(false, `${prefix}Atenção: tem ${problems.join(" e ")} (a laranja no mapa).`);
+    }
     $("sum-slopes").textContent = `Subida mais inclinada: ${Math.round(steepestUp)}%. Descida mais inclinada: ${Math.round(steepestDown)}%.`;
     $("slope-details").hidden = false;
 }
@@ -957,7 +991,7 @@ async function rerouteFromHere(message) {
     if (Date.now() - state.lastRerouteAt < REROUTE_EVERY_MS || !state.position || !state.to) return;
     state.lastRerouteAt = Date.now();
     setBanner("navigation", "", message);
-    const result = await routeService.route(state.position, state.to, state.needs);
+    const result = await routeService.gentlestRoute(state.position, state.to, state.needs);
     if (!state.guiding) return;
     if (!result.ok) {
         showRouteProblem(result.reason, (text) => showNotice($("guide-message"), text));
@@ -965,6 +999,7 @@ async function rerouteFromHere(message) {
     }
     state.offRouteCount = 0;
     showRoute(result.route);
+    if (relaxedNote(result.route)) showNotice($("guide-message"), relaxedNote(result.route));
     if (DEMO) startDemoWalk();
     updateGuidance();
 }
@@ -1068,10 +1103,6 @@ function decodePolyline6(str) {
         points.push([lat / 1e6, lon / 1e6]);
     }
     return points;
-}
-
-function degreesToPercent(deg) {
-    return Math.tan((deg * Math.PI) / 180) * 100; // Valhalla stores edge slopes in degrees
 }
 
 function formatDistance(km) {

@@ -67,11 +67,14 @@ topic map in `hackathon/README.md` in the same commit.
   (one closed `[lon, lat]` square of ±15 m around each active barrier); `units: "kilometers"`, `language: "pt-PT"`.
 - Read from the response: `trip.summary.{length,time}`, `trip.legs[0].shape` (polyline, 6 decimals),
   `legs[0].maneuvers[].{type, instruction, street_names, length, begin_shape_index, end_shape_index}`
-  (types 4–6 = arrival). Errors: `error_code` 442/443 = no route under the limits (the page offers +2 % and **never
-  relaxes the limit itself**), 170/171 = point too far from a path, anything else = "try again".
+  (types 4–6 = arrival). Errors: `error_code` 442/443 = no route under the limits: the page retries with
+  `max_grade` +2 % each time and finally without it (`gentlestRoute`), and **always tells the person** when the route
+  is above their limit; steps, surface and barriers are never relaxed. 170/171 = point too far from a path, anything
+  else = "try again". The Valhalla server itself must not relax anything (the page could not tell).
 - `POST {valhallaUrl}/trace_attributes` with `encoded_polyline`, `shape_match: "edge_walk"`, the same costing and
   `filters.attributes` = `edge.length`, `edge.use`, `edge.max_upward_grade`, `edge.max_downward_grade`,
-  `edge.begin_shape_index`, `edge.end_shape_index`. Grades are read as **degrees** (shown as % via tan);
+  `edge.begin_shape_index`, `edge.end_shape_index`. Grades are **percent** (Valhalla stores rise/run × 100
+  despite its "degrees" comments);
   32768 = no elevation. Used for the "steeper than you asked" warning; if it fails, the route still shows.
 
 **Barriers (Coreflux MQTT over secure WebSocket).** With `brokerUrl` empty (today) reports stay on the device
@@ -104,7 +107,8 @@ topic map in `hackathon/README.md` in the same commit.
   `access/state/city_alerts` (broker only). Broker durability is on: every retained message above survives a restart.
 - **Operator panel.** The broker keeps a retained `access/ops/summary` (active barriers per source, active list,
   "gone" counts; `hackathon/lot/ops_panel.lotnb`) for the read-only HUB panel `RotaLivreOps`. The app does not read it.
-- Valhalla rejects more than `max_exclude_polygons_vertices` (default 100 = 20 barriers, error 176). The custom
+- Valhalla rejects more than `max_exclude_polygons_vertices` (default 100 = 20 barriers, error 176), so the page
+  sends only the 20 active barriers nearest the start–destination line (`MAX_EXCLUDED` in `app.js`). The custom
   instance allows 1000 (`hackathon/runtime/valhalla/setup.sh`); the public FOSSGIS one does not.
 - Not sent to the broker (device-only for now): the report's photo (≤ 800 px JPEG data URL) and the address text.
   Sharing them means adding optional `photo`/`address` fields to this contract first.

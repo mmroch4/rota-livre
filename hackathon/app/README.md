@@ -19,8 +19,9 @@ All routing calls are in `routeService` in `app.js`, so the routing backend can 
 
 - **Routes:** Valhalla `/route` with `costing: pedestrian`: `max_grade` from the slope slider, `type: wheelchair`
   to avoid rough surfaces, a maximum `step_penalty` to avoid steps, and every active barrier sent as an
-  `exclude_polygons` square. If there is no route, the page says so and offers a higher slope; it never relaxes
-  the limits by itself.
+  `exclude_polygons` square. If there is no route under the slope limit, the page retries 2 % higher each time
+  and finally without a limit, and says clearly that the route is steeper than asked (steep parts in orange). Steps,
+  surface and barriers are never relaxed.
 - **Details:** Valhalla `/trace_attributes` for the steepest climb and descent, and the sections near the limit
   (orange on the map).
 - **Barriers:** the report dialog shows one step at a time ("Passo N de 3" with a progress bar, Voltar/Seguinte;
