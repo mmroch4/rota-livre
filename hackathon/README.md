@@ -1,6 +1,6 @@
 # Hackathon — Coreflux solution
 
-> **Status:** new idea, not written up yet (24/10). The earlier ideas *Vale* and *ZelAR* are in the git history.
+> **Status:** new idea, not written up yet (24/10).
 > The write-up follows the 4 points the jury judges on (Rules, Art. 1, 3):
 > **problem → demo → architecture → maturity**.
 
