@@ -94,3 +94,11 @@ topic map in `hackathon/README.md` in the same commit.
   Barriers published by the backend (city alerts, lift status) appear and are avoided like any report.
 - Not sent to the broker (device-only for now): the report's photo (≤ 800 px JPEG data URL) and the address text.
   Sharing them means adding optional `photo`/`address` fields to this contract first.
+
+**Storage (Supabase Postgres, written by Coreflux).** Coreflux is the backend: `hackathon/lot/10-barriers-db.lotnb`
+(Action `RouteBarrierMessage` + PostgreSQL connector `BarriersDB`) stores reports in `barriers` (a reporter's
+delete sets `deleted_at`, rows are never removed) and answers in `barrier_feedback`; the view `barrier_review`
+is the end-of-day count. Schema, tests and setup: `hackathon/db/` (`schema.sql`, `README.md`). Internal topics
+`access/db/barriers/upsert` and `access/db/barriers/deleted` are for the broker only. The connector's
+credentials are broker env/secrets (`SUPABASE_DB_HOST`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`), never git.
+If you add a field to a payload above, add the column in `schema.sql` and the value in the connector's QUERY.
