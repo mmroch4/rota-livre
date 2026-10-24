@@ -11,6 +11,10 @@ window.APP_CONFIG = {
     brokerUsername: "web",
     brokerPassword: "barackObama1234",
 
+    // Public Telegram channel with the new reports (the broker's TELEGRAM_CHANNEL_ID), shown on the start screen.
+    // Empty hides the link.
+    telegramChannelUrl: "",
+
     // Every topic the page uses starts with this.
     topicPrefix: "access",
 

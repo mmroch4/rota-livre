@@ -8,6 +8,12 @@ const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo"); // ?demo: fake position that walks along the route (for the pitch)
 
+// The public Telegram channel where the broker posts new reports (lot/telegram_notify.lotnb); hidden when unset.
+if (config.telegramChannelUrl) {
+    $("telegram-link").href = config.telegramChannelUrl;
+    $("telegram-line").hidden = false;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Needs. Valhalla's pedestrian costing has two types: "wheelchair" (only hard surfaces) and "foot". Kerb height
 // is not something Valhalla can filter on, so there is no option for it.
