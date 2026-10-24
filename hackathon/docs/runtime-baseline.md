@@ -4,7 +4,7 @@
 
 The custom Valhalla runtime now runs locally at **http://127.0.0.1:8003**. Setup,
 data provenance and commands are in [`../runtime/valhalla/README.md`](../runtime/valhalla/README.md).
-The rest of this document is the earlier pre-setup baseline, kept as a record.
+The rest of this document is the earlier pre-setup baseline, kept as a record. See the "Core 1 verified" section at the end for the integrated check.
 
 | Item | Verified result |
 |---|---|
@@ -290,3 +290,45 @@ is necessary, state the data/build budget before proceeding. Stop before slope
 fixes, broker automation, frontend edits, deployments or end-to-end demo work.
 Then take WebSocket/barrier integration as its own task with Ben. Keep the current
 Valhalla architecture and `access/barriers/<id>` contract.
+
+## Core 1 verified (24 October 2026, ~10:40 UTC)
+
+Locally served app → custom Valhalla + local Coreflux over WebSocket, in Chrome 155 on Miguel's laptop.
+All ports stay on 127.0.0.1.
+
+| Check | Result |
+|---|---|
+| Broker WebSocket | Broker recreated with `docker-compose.ws.yml` (same `broker_broker-data` volume); `ws://127.0.0.1:9001/mqtt` accepts MQTT sessions |
+| App endpoints | Two tabs of `http://127.0.0.1:8765/` load `config.local.js` (gitignored, in `.assetsignore`) and report the broker online |
+| Route | Aliados pair (41.1466,-8.6110 → 41.1496,-8.6109): 6 % cap shows the app's no-route message (cap not raised); 8 % draws the route |
+| Barrier | Retained `access/barriers/core1-test` appeared live in both tabs, was back after reloading one, and vanished from both after an empty retained publish |
+| Exclusion | With that barrier active the same route grew from 0.388 to 0.437 km (its polygon was avoided) |
+
+**Fix needed on the way.** Valhalla's built-in HTTP server answers the CORS preflight (`OPTIONS`) with
+405, so browser `POST`s with `Content-Type: application/json` never left the page (`Failed to fetch`;
+curl and the smoke test do not preflight). `app/app.js` now sends both Valhalla requests as
+`text/plain` (body unchanged), a simple CORS request. The public fallback accepts it too.
+
+Setup on the demo laptop (no secrets here; the broker login goes only in `app/config.local.js`):
+
+```bash
+bash hackathon/runtime/valhalla/setup.sh start && bash hackathon/runtime/valhalla/setup.sh smoke
+cd hackathon/broker && docker compose -f docker-compose.yml -f docker-compose.ws.yml up -d broker && cd -
+# hackathon/app/config.local.js: valhallaUrl http://127.0.0.1:8003, brokerUrl ws://127.0.0.1:9001/mqtt, broker login
+python3 -m http.server 8765 --bind 127.0.0.1 --directory hackathon/app
+```
+
+**Hosting decision: serve the app locally for the demo.** The Cloudflare HTTPS page
+(`accessible-routes.benlubetzky.workers.dev`) ships `config.js` only: public Valhalla (no custom slope cap)
+and no broker, so its barriers stay in each browser. Requests from that page to `http://127.0.0.1:8003`
+and `ws://127.0.0.1:9001` hung for 8 s without a result, consistent with Chrome's local-network-access
+gate for a public origin calling loopback. Even if allowed, it would only work on this laptop, and it would
+need the broker login in committed config. A tunnel (HTTPS Valhalla + `wss` broker) is only worth it if a
+phone or second laptop must join; it exposes the broker beyond loopback, so it is not set up.
+
+**Remaining blockers / caveats**
+- Broker is Community tier (no licence active, `.env` holds no code): 0 custom Rules, so no topic-scoped
+  browser user. For the prototype the local config uses the default broker login, loopback only.
+- Retained barriers do not survive a broker restart (durability off by default): re-seed before the demo.
+- `access/barriers/<id>/feedback` (non-retained, published by the app) is missing from the topic map.
+- The default 6 % cap blocks the Aliados pair: Core 2 needs a demo pair where a stricter cap changes the route.
