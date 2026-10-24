@@ -3,11 +3,11 @@
 window.APP_CONFIG = {
     // Our slope-aware Valhalla (hackathon/runtime/valhalla) through its Cloudflare tunnel; the address changes when
     // the tunnel container is recreated. Fallback that ignores the slope cap: "https://valhalla1.openstreetmap.de".
-    valhallaUrl: "https://softball-bristol-continually-defense.trycloudflare.com",
+    valhallaUrl: "https://por-name-hammer-democracy.trycloudflare.com",
 
     // Our local Coreflux broker through its Cloudflare tunnel: "wss://<random>.trycloudflare.com/mqtt", user "web"
     // (limited to access/barriers/# by lot/web_access.lotnb). Steps in hackathon/README.md, "Web app over the internet".
-    brokerUrl: "wss://griffin-ray-franklin-lightbox.trycloudflare.com/mqtt",
+    brokerUrl: "wss://candy-continuity-aerospace-beginning.trycloudflare.com/mqtt",
     brokerUsername: "web",
     brokerPassword: "barackObama1234",
 
