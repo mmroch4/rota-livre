@@ -530,6 +530,7 @@ public:
   Surface minimal_allowed_surface_;
 
   uint32_t max_grade_;             // Maximum grade (percent).
+  float max_slope_degrees_;        // max_grade_ in degrees, the unit of edge slopes.
   SacScale max_hiking_difficulty_; // Max sac_scale (0 - 6)
   float speed_;                    // Pedestrian speed.
   float speedfactor_;              // Speed factor for costing. Based on speed.
@@ -640,6 +641,7 @@ PedestrianCost::PedestrianCost(const Costing& costing)
   step_penalty_ = costing_options.step_penalty();
   elevator_penalty_ = costing_options.elevator_penalty();
   max_grade_ = costing_options.max_grade();
+  max_slope_degrees_ = grade_percent_to_degrees(max_grade_);
 
   if (type_ == PedestrianType::kFoot) {
     max_hiking_difficulty_ = static_cast<SacScale>(costing_options.max_hiking_difficulty());
@@ -700,7 +702,7 @@ bool PedestrianCost::Allowed(const baldr::DirectedEdge* edge,
       IsUserAvoidEdge(edgeid) || edge->sac_scale() > max_hiking_difficulty_ ||
       (!pred.deadend() && pred.opp_local_idx() == edge->localedgeidx() &&
        pred.mode() == TravelMode::kPedestrian) ||
-            (edge->max_up_slope() > max_grade_ || edge->max_down_slope() > max_grade_) ||
+      edge->max_up_slope() > max_slope_degrees_ || -edge->max_down_slope() > max_slope_degrees_ ||
       // path_distance for multimodal is currently checked inside the algorithm
       ((!allow_transit_connections_ && pred.path_distance() + edge->length()) > max_distance_) ||
       CheckExclusions<true>(edge, pred)) {
@@ -746,7 +748,8 @@ bool PedestrianCost::AllowedReverse(const baldr::DirectedEdge* edge,
       edge->sac_scale() > max_hiking_difficulty_ ||
       (!pred.deadend() && pred.opp_local_idx() == edge->localedgeidx() &&
        pred.mode() == TravelMode::kPedestrian) ||
-            (opp_edge->max_up_slope() > max_grade_ || opp_edge->max_down_slope() > max_grade_) ||
+      opp_edge->max_up_slope() > max_slope_degrees_ ||
+      -opp_edge->max_down_slope() > max_slope_degrees_ ||
       opp_edge->use() == Use::kTransitConnection || opp_edge->use() == Use::kEgressConnection ||
       opp_edge->use() == Use::kPlatformConnection || CheckExclusions<false>(opp_edge, pred)) {
     return false;
