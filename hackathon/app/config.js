@@ -1,9 +1,9 @@
 // Deployment settings for the route planner. Committed, so no passwords here: put the broker login in
 // config.local.js (gitignored), or, on the hosted page, use a broker user that can only touch the barrier topics.
 window.APP_CONFIG = {
-    // The public FOSSGIS Valhalla for now: it works for Porto but ignores our slope cap.
-    // Replace with Pedro's slope-aware Valhalla once it is online (e.g. through a Cloudflare Tunnel).
-    valhallaUrl: "https://valhalla1.openstreetmap.de",
+    // Our slope-aware Valhalla (hackathon/runtime/valhalla) through its Cloudflare tunnel; the address changes when
+    // the tunnel container is recreated. Fallback that ignores the slope cap: "https://valhalla1.openstreetmap.de".
+    valhallaUrl: "https://softball-bristol-continually-defense.trycloudflare.com",
 
     // Our local Coreflux broker through its Cloudflare tunnel: "wss://<random>.trycloudflare.com/mqtt", user "web"
     // (limited to access/barriers/# by lot/web_access.lotnb). Steps in hackathon/README.md, "Web app over the internet".

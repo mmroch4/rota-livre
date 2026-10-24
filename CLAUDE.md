@@ -60,8 +60,9 @@ CORS headers** (`Access-Control-Allow-Origin: *`), or the browser blocks them. A
 `routeService` in `app.js`; if the contract below changes, update that code, `hackathon/app/README.md` and the
 topic map in `hackathon/README.md` in the same commit.
 
-**Routing (Valhalla HTTP API).** Today `valhallaUrl` is the public FOSSGIS instance, which ignores the slope cap; the
-page then steers around steep parts itself (`saferRoute`, below). The slope-aware instance is
+**Routing (Valhalla HTTP API).** Today `valhallaUrl` is the slope-aware instance through its tunnel (it changes when
+the tunnel container is recreated). With the public FOSSGIS instance, which ignores the slope cap, the page steers
+around steep parts itself (`saferRoute`, below). The slope-aware instance is
 `hackathon/runtime/valhalla/` (local on `http://127.0.0.1:8003`, public through its opt-in `compose.tunnel.yml`).
 - `POST {valhallaUrl}/route` with `locations` (start, destination), `costing: "pedestrian"`,
   `costing_options.pedestrian` = `type` (`"wheelchair"` when avoiding rough surfaces, else `"foot"`), `max_grade`
