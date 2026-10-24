@@ -93,8 +93,24 @@ class BarrierTests(unittest.TestCase):
 
 
 class MqttTests(unittest.TestCase):
+    def test_city_switch_retained_missing_invalid_and_live(self):
+        ack = b'\x90\x04\x00\x01\x00\x00'
+        for value in (b'on', b'off', b'bad'):
+            client = reader(ack + publish('access/city/alerts/enabled', value))
+            self.assertEqual(client.snapshot('access'), ({}, 0))
+            self.assertEqual(client.city_switch['state'],
+                             value.decode() if value != b'bad' else 'invalid')
+            self.assertTrue(client.city_switch['retained'])
+        client = reader(ack)
+        client.snapshot('access')
+        self.assertEqual(client.city_switch,
+                         {'retained': False, 'state': 'missing', 'effective': 'on'})
+        client = reader(ack + publish('access/city/alerts/enabled', b'off', False))
+        self.assertEqual(client.snapshot('access'), ({}, 1))
+        self.assertEqual(client.city_switch['state'], 'missing')
+
     def test_retained_direct_children_and_updates(self):
-        client = reader(b'\x90\x03\x00\x01\x00' +
+        client = reader(b'\x90\x04\x00\x01\x00\x00' +
                         publish('access/barriers/city-1', b'{}') +
                         publish('access/barriers/a/feedback', b'{}') +
                         publish('access/barriers/a', b'{}', False))
@@ -110,13 +126,13 @@ class MqttTests(unittest.TestCase):
 
     def test_partial_packet_is_failure(self):
         with self.assertRaises(live.CheckError) as error:
-            reader(b'\x90\x03\x00\x01\x00\x31\x05\x00').snapshot('access')
+            reader(b'\x90\x04\x00\x01\x00\x00\x31\x05\x00').snapshot('access')
         self.assertEqual(error.exception.category, 'snapshot_timeout')
 
     def test_continuously_busy_broker_bounded(self):
         start = time.monotonic()
         with self.assertRaises(live.CheckError) as error:
-            reader(b'\x90\x03\x00\x01\x00', repeat=True, delay=.001).snapshot(
+            reader(b'\x90\x04\x00\x01\x00\x00', repeat=True, delay=.001).snapshot(
                 'access', idle=.02, duration=.03)
         self.assertEqual(error.exception.category, 'snapshot_timeout')
         self.assertLess(time.monotonic() - start, .3)
@@ -148,6 +164,7 @@ class HttpAndGradeTests(unittest.TestCase):
     def test_invalid_route_response(self):
         with patch.object(live, 'Reader') as client, patch.object(live, 'post', return_value={'trip': {}}):
             client.return_value.snapshot.return_value = ({}, 0)
+            client.return_value.city_switch = {'state': 'off'}
             output = io.StringIO()
             with patch('sys.stdout', output):
                 self.assertEqual(live.main(['--json']), 1)

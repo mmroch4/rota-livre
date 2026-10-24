@@ -94,3 +94,37 @@ claim that the custom cap and shared reports are connected.
 
 **Demo coordination:** confirm which city barriers Claude's intake will keep active
 before rehearsing. The working local demo does not require changing that automation.
+
+## Repeatable city-off verification — follow-up starting 12:39 UTC
+
+Miguel selected **keep city import off for the demo**. No city-on repositioning is
+required for this sequence; the existing demo coordinates remain unchanged.
+The supported switch command and presenter sequence are now in `runtime/demo/README.md`.
+
+Baseline work committed as `c7e40f5`, after 15 offline unit tests and all independent
+`check_routes.py` fixtures passed. Switch-state reporting adds a sixteenth test:
+retained on/off, missing default-on, invalid values, and concurrent switch updates.
+All 16 tests pass. The checker subscribes read-only to both barriers and the switch.
+
+| UTC | Operation | Switch | Retained / active / city active | Exact API route |
+|---|---|---|---|---|
+| 12:39:55 | Publish retained `off`, run live checker | retained off | 24 / 0 / 0 (24 expired) | 1.302 km, 1281.263 s |
+| 12:41:17 | Seed the existing two demo barriers, run live checker | **missing**, default on | 2 / 2 / 0 | 1.856 km, 1763.952 s |
+
+Both API runs passed interior grade checks with no missing elevation or violations:
+baseline 62 interior edges (+6% / −5%); detour 75 (+6% / −6%). Endpoint candidates
+were separately reported at +1% / −3% in both cases.
+
+The off flag and 24 expired city records disappeared between checks. Tab A briefly
+showed disconnected/reconnecting, then reconnected. This is evidence of state loss
+or external mutation, **not proof of a restart or of durability**. Broker commands
+were paused and Miguel was asked to confirm stability before further mutations.
+The demo barriers were seeded at 12:41:16 UTC, expiring 25 October at 12:41:16 UTC.
+
+Browser observations so far in this follow-up: two fresh Chrome tabs of the local
+app, same profile/origin, each routed the named São Bento → Batalha search results
+with Cadeira de rodas and displayed **1.3 km / 21 min** before seeding. The existing
+seven-section slope-display warning remained. Exact distances in the table are
+API checks, not measurements extracted from browser requests. Subsequent detour,
+reload and clearing observations will be recorded separately after broker stability
+is confirmed. No services were restarted or reconfigured by this session.

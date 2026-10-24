@@ -84,7 +84,10 @@ class Reader(Mqtt):
         end = time.monotonic() + duration
         self.deadline = end
         topic_root = prefix + '/barriers/'
-        self._send(0x82, b'\x00\x01' + self._str(topic_root + '+') + b'\x00')
+        switch_topic = prefix + '/city/alerts/enabled'
+        self.city_switch = {'retained': False, 'state': 'missing', 'effective': 'on'}
+        self._send(0x82, b'\x00\x01' + self._str(topic_root + '+') + b'\x00'
+                   + self._str(switch_topic) + b'\x00')
         records, acknowledged, updates = {}, False, 0
         while True:
             if time.monotonic() >= end:
@@ -103,7 +106,7 @@ class Reader(Mqtt):
             except socket.timeout:
                 raise CheckError('snapshot_timeout', 'Partial MQTT packet timed out') from None
             if kind == 0x90:
-                if body != b'\x00\x01\x00':
+                if body != b'\x00\x01\x00\x00':
                     raise CheckError('subscription', 'Subscription rejected or invalid SUBACK')
                 acknowledged = True
             elif kind & 0xF0 == 0x30:
@@ -116,6 +119,15 @@ class Reader(Mqtt):
                     topic = body[2:2 + size].decode('utf-8')
                 except UnicodeError:
                     raise CheckError('mqtt_protocol', 'Invalid topic encoding') from None
+                if topic == switch_topic:
+                    if not kind & 1:
+                        updates += 1
+                        continue
+                    payload = body[2 + size:]
+                    state = payload.decode('ascii') if payload in (b'on', b'off') else 'invalid'
+                    self.city_switch = {'retained': True, 'state': state,
+                                        'effective': state if state != 'invalid' else None}
+                    continue
                 suffix = topic[len(topic_root):] if topic.startswith(topic_root) else ''
                 if not suffix or '/' in suffix:
                     continue
@@ -236,6 +248,7 @@ def run(args, result):
                         os.getenv('BROKER_PASSWORD'), args.connect_timeout)
         try:
             records, updates = client.snapshot(args.topic_prefix, args.read_timeout, args.snapshot_timeout)
+            result['city_switch'] = client.city_switch
         finally:
             client.close()
     except OSError:
@@ -246,6 +259,8 @@ def run(args, result):
                   concurrent_updates=updates, polygons=len(polygons), vertices=5*len(polygons))
     if updates:
         raise CheckError('snapshot_changed', 'Live updates during retained replay; retry snapshot')
+    if result['city_switch']['state'] == 'invalid':
+        raise CheckError('invalid_switch', 'Retained city switch must be on or off')
     costing = {'costing': 'pedestrian', 'costing_options': {'pedestrian': {
         'type': 'wheelchair', 'max_grade': 6, 'step_penalty': 43200}}}
     route = post(args.valhalla_url, '/route', {**costing,
@@ -309,7 +324,7 @@ def main(argv=None):
         print(json.dumps(result, allow_nan=False))
     else:
         print('PASS' if result['ok'] else 'FAIL', '— live barrier check; fixed 6% cap')
-        for key in ('snapshot_at', 'counts', 'invalid_reasons', 'concurrent_updates', 'polygons', 'vertices', 'route', 'grades', 'error'):
+        for key in ('snapshot_at', 'city_switch', 'counts', 'invalid_reasons', 'concurrent_updates', 'polygons', 'vertices', 'route', 'grades', 'error'):
             if key in result:
                 print(f'{key}: {json.dumps(result[key])}')
         print('Endpoint candidates are separate from the interior cap check. Not accessibility certification.')

@@ -43,7 +43,8 @@ also have no aggregate deadline or size limit. `barriers.py` was not edited.
 
 The checker allows only CONNECT (clean session, no will), SUBSCRIBE at QoS 0 and
 DISCONNECT outbound. It cannot PUBLISH, delete, seed, clear or operate the city
-switch. It subscribes to `<prefix>/barriers/+`, verifies SUBACK, and accepts only
+switch. It subscribes to `<prefix>/barriers/+` and `<prefix>/city/alerts/enabled`,
+verifies both SUBACK results, and accepts only
 retained direct children. No feedback descendants are collected. Packets are
 limited to 1 MiB; snapshots to 10,000 unique topics; HTTP bodies to 4 MiB.
 
@@ -56,6 +57,13 @@ replay beyond the quiet interval and expiry during HTTP requests remain possible
 Expiry is evaluated once at `snapshot_at`, immediately after collection.
 
 ## Filtering and output
+
+`city_switch` reports `retained`, `state` (`on`, `off`, `missing`, `invalid`), and
+`effective`. A missing retained flag means the documented default `on`; an invalid
+payload fails the check with `invalid_switch` and an unknown effective state.
+Live switch updates invalidate the snapshot just like live barrier updates.
+This records the switch, not proof that the import Action has finished executing:
+inspect the active city count as well. The checker never changes the switch.
 
 The current app (`onBarrierMessage`, `activeBarriers`, `squareAround` in `app.js`)
 uses the topic's final component as the ID, numeric coordinates, and no kind or
@@ -150,10 +158,10 @@ updates, subscription/auth failures, busy/partial/slow packets, read-only send
 guard, HTTP invalid JSON/transport/errors 176 and 442/443, percent grades,
 endpoint separation and missing elevation.
 
-## Planned city-off / demo / city-on acceptance (not run)
+## Original acceptance plan (superseded)
 
-1. Obtain Claude's exact supported switch commands and Miguel's authorization
-   for the mutation sequence. No switch command is assumed here.
+1. The supported switch and mutation sequence have now been supplied by Miguel.
+   Follow `README.md` and the latest integration-check document for current evidence.
 2. Record the current read-only snapshot. Operate the authorized city-off switch;
    rerun the checker. Confirm active city count is zero; retained city records
    may remain and count as expired. Preserve all non-city reports.
@@ -161,8 +169,8 @@ endpoint separation and missing elevation.
    the agreed demo reports, verify propagation/reload and actual changed route
    geometry, and remove only those demo reports. Other active reports can affect
    the baseline; do not require fixture distances from live state.
-4. Operate the authorized city-on switch, allow intake to refresh, and rerun the
-   checker. Record actual restored counts and route rather than assuming 24.
+4. Miguel selected city-off for the demo. Restore city-on only if he requests it;
+   record actual restored counts and route rather than assuming 24.
 5. Check cleanup and restoration in the UI and record the actual sequence.
 
 Claude owns the switch, retained durability investigation and feedback-storage
