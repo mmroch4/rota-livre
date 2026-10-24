@@ -208,6 +208,22 @@
         </div>
     </dialog>
 
+    <!-- While guiding, near a reported obstacle: is it still there? Goes away by itself after 10 s. -->
+    <div id="still-there" class="still-there" hidden role="region" aria-live="assertive" aria-labelledby="still-title">
+        <div class="still-head">
+            <span class="still-ic" id="still-icon"></span>
+            <div>
+                <p class="still-q" id="still-title"></p>
+                <p class="still-sub" id="still-sub"></p>
+            </div>
+        </div>
+        <div class="still-actions">
+            <button id="still-yes" type="button" class="secondary">Ainda está</button>
+            <button id="still-no" type="button" class="primary">Já não está</button>
+        </div>
+        <div class="still-timer" aria-hidden="true"><span id="still-bar"></span></div>
+    </div>
+
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>

@@ -56,6 +56,7 @@ The hosted page needs the broker login in the browser, so use a broker user that
 | Topic | Retained | Payload |
 |-------|:--------:|---------|
 | `access/barriers/<id>` | yes | `{"id","kind","description","lat","lon","reported_at","expires_at"}`; an empty message removes it |
+| `access/barriers/<barrier id>/feedback` | no | `{"id","barrier_id","answer":"gone","answered_at","lat"?,"lon"?}`: someone says it is gone; stored by the backend for review, removes nothing |
 
 `kind`: `works`, `blocked_sidewalk`, `parked_car`, `broken_lift`, `damaged_pavement`, `other`.
 

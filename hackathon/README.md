@@ -25,6 +25,7 @@ validation of the custom slope cap; correct enforcement still needs runtime veri
 | Topic | Producer | Consumer | Payload |
 |-------|----------|----------|---------|
 | `access/barriers/<id>` (retained) | web app | web app; future broker automation | `{id, kind, description, lat, lon, reported_at, expires_at}`; empty retained payload removes the barrier |
+| `access/barriers/<barrier id>/feedback` (not retained) | web app ("Já não está") | broker: store for the end-of-day review | `{id, barrier_id, answer: "gone", answered_at, lat?, lon?}`; does not remove the barrier |
 
 ## 4. Demo
 

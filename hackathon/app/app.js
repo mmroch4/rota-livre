@@ -32,12 +32,12 @@ const ARRIVED_M = 20;
 const REROUTE_EVERY_MS = 15000;
 
 const BARRIER_KINDS = {
-    works: { label: "Obras ou andaime", icon: "construction" },
-    blocked_sidewalk: { label: "Passeio bloqueado", icon: "ban" },
-    parked_car: { label: "Carro no passeio", icon: "car" },
-    broken_lift: { label: "Elevador ou rampa avariados", icon: "arrow-up-down" },
-    damaged_pavement: { label: "Piso danificado", icon: "triangle-alert" },
-    other: { label: "Outro", icon: "info" },
+    works: { label: "Obras ou andaime", icon: "construction", question: "Ainda há obras aqui?" },
+    blocked_sidewalk: { label: "Passeio bloqueado", icon: "ban", question: "O passeio ainda está bloqueado?" },
+    parked_car: { label: "Carro no passeio", icon: "car", question: "O carro ainda está no passeio?" },
+    broken_lift: { label: "Elevador ou rampa avariados", icon: "arrow-up-down", question: "O elevador ou a rampa ainda estão avariados?" },
+    damaged_pavement: { label: "Piso danificado", icon: "triangle-alert", question: "O piso ainda está danificado?" },
+    other: { label: "Outro", icon: "info", question: "O obstáculo ainda está aqui?" },
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -847,6 +847,7 @@ $("start-btn").addEventListener("click", startGuidance);
 $("stop-btn").addEventListener("click", stopGuidance);
 
 async function startGuidance() {
+    askedThisTrip.clear();
     state.guiding = true;
     state.following = true;
     state.arrived = false;
@@ -868,6 +869,7 @@ async function startGuidance() {
 
 function stopGuidance() {
     state.guiding = false;
+    hideStillThere();
     stopDemoWalk();
     showScreen("route");
     if (state.route) fitRoute(state.route.shape);
@@ -879,6 +881,7 @@ function updateGuidance() {
     if (!route || !p || state.arrived) return;
 
     if (state.following) centerOn([p.lat, p.lon], Math.max(map.getZoom(), 17));
+    maybeAskStillThere(p);
 
     const near = nearestOnRoute(route, p);
     const total = route.cumulative[route.cumulative.length - 1];
@@ -1126,6 +1129,7 @@ function connectBroker() {
     mqttClient.on("connect", () => {
         setBrokerStatus(true, "Obstáculos atualizados em tempo real.");
         mqttClient.subscribe(barrierTopic("+"));
+        flushFeedback(); // answers given while there was no connection
     });
     mqttClient.on("reconnect", () => setBrokerStatus(false, "A ligar…"));
     mqttClient.on("offline", () => setBrokerStatus(false, "Sem ligação. A tentar de novo…"));
@@ -1173,6 +1177,7 @@ function saveLocalBarriers() {
 }
 
 function addBarrier(barrier) {
+    rememberMyReport(barrier.id);
     if (USE_BROKER) {
         const { photo, address, ...shared } = barrier; // extras outside the agreed barrier contract stay local
         if (!publish(barrierTopic(barrier.id), JSON.stringify(shared))) return "failed";
@@ -1297,17 +1302,27 @@ function barrierPopup(b) {
     when.className = "popup-when";
     when.textContent = `Reportado ${new Date(b.reported_at).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" })}`;
     div.append(when);
-    const gone = document.createElement("button");
-    gone.type = "button";
-    gone.className = "secondary";
-    gone.textContent = "Já não está lá";
-    gone.addEventListener("click", () => {
-        map.closePopup();
-        showToast(removeBarrier(b.id)
-            ? "Obrigado! O obstáculo foi retirado do mapa."
-            : "Não foi possível retirar o obstáculo. Tente de novo dentro de momentos.");
-    });
-    div.append(gone);
+    // Only the person who reported it may delete it; anyone else's "it's gone" is recorded for review.
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "secondary";
+    if (myReports.has(b.id)) {
+        action.textContent = "Apagar o meu reporte";
+        action.addEventListener("click", () => {
+            map.closePopup();
+            showToast(removeBarrier(b.id)
+                ? "O seu reporte foi apagado."
+                : "Não foi possível apagar o reporte. Tente de novo dentro de momentos.");
+        });
+    } else {
+        action.textContent = "Já não está lá";
+        action.addEventListener("click", () => {
+            map.closePopup();
+            sendGoneFeedback(b);
+            showToast("Obrigado! Vamos verificar se já não está lá.");
+        });
+    }
+    div.append(action);
     return div;
 }
 
@@ -1317,11 +1332,122 @@ function setBrokerStatus(online, text, kind) {
     $("broker-status").textContent = text;
 }
 
-function publish(topic, message) {
+function publish(topic, message, retain = true) {
     if (!mqttClient || !mqttClient.connected) return false;
-    mqttClient.publish(topic, message, { qos: 1, retain: true });
+    mqttClient.publish(topic, message, { qos: 1, retain });
     return true;
 }
+
+// Reports made on this device: the person may delete their own; others can only say "it's gone".
+const MY_REPORTS_KEY = "access.myReports";
+const myReports = new Set(readJson(MY_REPORTS_KEY, []));
+
+function rememberMyReport(id) {
+    myReports.add(id);
+    writeJson(MY_REPORTS_KEY, [...myReports]);
+}
+
+function readJson(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+}
+
+function writeJson(key, value) {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// "It's gone" answers. They do not remove anything: the backend stores them and the team reviews the counts
+// at the end of the day. They wait in an outbox on the device until a broker is there to take them
+// (non-retained, QoS 1, on <prefix>/barriers/<barrier id>/feedback).
+const FEEDBACK_OUTBOX_KEY = "access.feedbackOutbox";
+const feedbackTopic = (barrierId) => `${config.topicPrefix}/barriers/${barrierId}/feedback`;
+
+function sendGoneFeedback(b) {
+    const now = new Date();
+    const feedback = {
+        id: `f${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        barrier_id: b.id,
+        answer: "gone",
+        answered_at: now.toISOString(),
+    };
+    if (state.position) {
+        feedback.lat = Number(state.position.lat.toFixed(6));
+        feedback.lon = Number(state.position.lon.toFixed(6));
+    }
+    writeJson(FEEDBACK_OUTBOX_KEY, [...readJson(FEEDBACK_OUTBOX_KEY, []), feedback]);
+    flushFeedback();
+}
+
+function flushFeedback() {
+    if (!mqttClient || !mqttClient.connected) return;
+    const waiting = readJson(FEEDBACK_OUTBOX_KEY, []);
+    const unsent = waiting.filter((f) => !publish(feedbackTopic(f.barrier_id), JSON.stringify(f), false));
+    writeJson(FEEDBACK_OUTBOX_KEY, unsent);
+}
+
+// "Ainda está aí?" Only while guiding, when the person passes close to a reported obstacle: once per obstacle
+// per trip, one card at a time, never about something they reported themselves a moment ago. No answer within
+// 10 s: the card goes away and nothing is recorded.
+const ASK_RADIUS_M = 30;
+const ASK_MS = 10000;
+const OWN_REPORT_QUIET_MS = 5 * 60 * 1000;
+const askedThisTrip = new Set();
+let askingBarrier = null;
+let askTimer = null;
+
+function maybeAskStillThere(p) {
+    if (!state.guiding || askingBarrier) return;
+    const now = Date.now();
+    for (const b of activeBarriers()) {
+        if (askedThisTrip.has(b.id)) continue;
+        if (myReports.has(b.id) && now - Date.parse(b.reported_at) < OWN_REPORT_QUIET_MS) continue;
+        if (metersBetween(p, b) > ASK_RADIUS_M) continue;
+        askedThisTrip.add(b.id);
+        showStillThere(b);
+        return;
+    }
+}
+
+function showStillThere(b) {
+    const kind = BARRIER_KINDS[b.kind] || BARRIER_KINDS.other;
+    askingBarrier = b;
+    setIcon($("still-icon"), kind.icon);
+    $("still-title").textContent = kind.question;
+    $("still-sub").textContent = b.address || b.description
+        || `Reportado ${new Date(b.reported_at).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" })}`;
+    $("still-there").hidden = false;
+    const bar = $("still-bar");
+    bar.style.setProperty("--still-ms", `${ASK_MS}ms`);
+    bar.classList.remove("running");
+    void bar.offsetWidth; // restart the countdown animation
+    bar.classList.add("running");
+    try { navigator.vibrate && navigator.vibrate([120, 80, 120]); } catch { /* not supported */ }
+    clearTimeout(askTimer);
+    askTimer = setTimeout(hideStillThere, ASK_MS);
+}
+
+function hideStillThere() {
+    clearTimeout(askTimer);
+    askingBarrier = null;
+    $("still-there").hidden = true;
+}
+
+$("still-yes").addEventListener("click", () => {
+    hideStillThere();
+    showToast("Obrigado por confirmar!");
+});
+
+$("still-no").addEventListener("click", () => {
+    const b = askingBarrier;
+    hideStillThere();
+    if (!b) return;
+    sendGoneFeedback(b);
+    showToast("Obrigado! Vamos verificar se já não está lá.");
+});
 
 // Report: orange button → pick the type (and, optionally, a photo or a few words) → send.
 const report = { kind: null, photo: null };

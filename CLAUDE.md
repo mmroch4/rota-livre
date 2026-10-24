@@ -77,8 +77,15 @@ topic map in `hackathon/README.md` in the same commit.
 **Barriers (Coreflux MQTT over secure WebSocket).** With `brokerUrl` empty (today) reports stay on the device
 (`localStorage` key `access.barriers`) and nobody else sees them; setting `brokerUrl` switches to the broker.
 - Topic `access/barriers/<id>`, one **retained** message per barrier, QoS 1. The page subscribes to
-  `access/barriers/+`, publishes new reports itself, and removes one ("Já não está lá", anyone may) by publishing an
-  **empty retained** payload on its topic.
+  `access/barriers/+` and publishes new reports itself. Only the device that made a report may delete it
+  ("Apagar o meu reporte"), by publishing an **empty retained** payload on its topic.
+- **"Is it still there?" answers:** while guiding, passing within 30 m of a barrier asks "Ainda está aí?" (once per
+  barrier per trip; gone after 10 s without an answer). "Ainda está" sends nothing. "Já não está" (from that card
+  or from a barrier's popup) **does not remove the barrier**: it publishes a **non-retained**, QoS 1 message on
+  `access/barriers/<barrier id>/feedback` = `{"id", "barrier_id", "answer": "gone", "answered_at", "lat"?, "lon"?}`
+  (`lat`/`lon` = where the person was, when known). **The backend must store these** (the page does not keep them
+  once sent); the team reviews the counts per barrier at the end of the day and decides. Until a broker is
+  connected, answers wait in the device outbox (`localStorage` key `access.feedbackOutbox`) and are sent on connect.
 - Payload: `{"id", "kind", "description", "lat", "lon", "reported_at", "expires_at"}` (ISO 8601 times; `id` like
   `b<base36 time><random>`; `description` may be `""`; expiry = report + 24 h). `kind` is one of `works`,
   `blocked_sidewalk`, `parked_car`, `broken_lift`, `damaged_pavement`, `other`. Unknown kinds show as `other`;

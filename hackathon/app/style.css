@@ -383,6 +383,25 @@ select, textarea { width: 100%; min-height: 48px; padding: 10px 12px; border: 2p
     background: var(--text); color: #fff; border-radius: 16px; box-shadow: var(--shadow); text-align: center;
 }
 
+/* "Ainda está aí?" card, above the guidance bar */
+.still-there {
+    position: fixed; z-index: 1100; left: 432px; bottom: 24px; width: min(440px, calc(100vw - 448px));
+    padding: 16px 16px 0; overflow: hidden;
+    background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); border: 2px solid var(--report);
+}
+.still-head { display: flex; align-items: center; gap: 14px; }
+.still-ic { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 52px; height: 52px; border-radius: 50%; background: var(--report); color: #1a1a1a; }
+.still-ic svg.lucide { width: 28px; height: 28px; }
+.still-q { margin: 0; font-size: 1.2rem; font-weight: 700; line-height: 1.25; }
+.still-sub { margin: 2px 0 0; color: var(--muted); font-size: 0.95rem; }
+.still-sub:empty { display: none; }
+.still-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.still-actions button { min-height: 56px; font-size: 1.05rem; }
+.still-timer { height: 5px; margin: 0 -16px; background: var(--soft); }
+.still-timer span { display: block; height: 100%; width: 100%; background: var(--report); transform-origin: left; }
+.still-timer span.running { animation: still-countdown var(--still-ms, 10000ms) linear forwards; }
+@keyframes still-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
 /* ---------- Phones (portrait): full-screen map, bottom sheet ---------- */
 @media (max-width: 760px) and (orientation: portrait) {
     body { font-size: 17px; }
@@ -436,6 +455,7 @@ select, textarea { width: 100%; min-height: 48px; padding: 10px 12px; border: 2p
         border-radius: 24px 24px 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom));
     }
     .toast { bottom: calc(var(--sheet-h, 40dvh) + 12px); }
+    .still-there { left: 10px; right: 10px; width: auto; bottom: calc(var(--sheet-h, 40dvh) + 10px); }
     .report-dialog { width: 100%; padding-bottom: 0; }
     .report-actions { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
     .mini-map-wrap { height: 34dvh; min-height: 200px; }
