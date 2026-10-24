@@ -153,3 +153,48 @@ active city barriers, retaining route/grade diagnostics. An offline regression t
 covers that case. Current broker intent: retained off; demo barriers cleared.
 Restart durability remains unverified: there is no controlled before/after snapshot
 of identical barrier payloads and switch across a confirmed restart in this session.
+
+## Repaired switch and completed browser sequence — 12:47–12:48 UTC
+
+Miguel relayed Claude's diagnosis: the durability restart at 12:43 retained city
+barriers but lost the memory-only `access/state/city_alerts` import snapshot, leaving
+`off` with no known barriers to retire. Claude changed that snapshot to retained
+storage and verified on → off at 12:45 (24 imported, then 24 retired). Claude also
+reported that retained messages now survive broker restarts. This is owner-reported
+restart evidence; this session did not restart the broker or deploy any LoT.
+
+The following checks were then performed directly by this session, with both
+existing Chrome tabs, local app :8765, broker WebSocket :9001/mqtt and Valhalla :8003:
+
+| UTC / step | Live checker | Browser observation |
+|---|---|---|
+| 12:47:36 baseline | retained off; 24 expired records; 0 active; 1.302 km / 1281.263 s | Both tabs at 1.3 km / 21 min, no barrier markers |
+| 12:47:48 after `barriers.py seed` | retained off; 26 retained, 2 active, 0 active city; 1.856 km / 1763.952 s | Both existing tabs changed without reload to 1.9 km / 29 min and two markers |
+| Observer reload | Same seeded broker state; no mutation | Two retained markers returned, “2 obstáculos no mapa”; after re-entering the route, 1.9 km / 29 min and the same detour itinerary |
+| 12:48:35 after `barriers.py clear` | retained off; 24 expired records, 0 active; 1.302 km / 1281.263 s | Both tabs changed without reload to 1.3 km / 21 min, no barrier markers, original itinerary restored |
+
+The visible detour included Rua do Corpo da Guarda (175 m) and Rua do Sol (215 m).
+Clearing restored Caminho pedonal (410 m) and Rua de Augusto Rosa (400 m).
+Exact km/seconds are from the live checker with exact fixture coordinates; browser
+headlines are rounded and endpoints are named search results. Routes themselves
+are not retained across page reload; barrier messages are. The two tabs share a
+Chrome profile/origin, so this does not establish independent devices/storage.
+This run used CLI-seeded reports; browser-created report propagation was tested in
+the earlier 12:10–12:14 sequence, not repeated here.
+
+All live checks passed: no concurrent updates, invalid records, missing interior
+elevation or interior grade violations. Baseline/reset: 62 interior edges, +6%/−5%;
+detour: 75, +6%/−6%; endpoint candidates separately +1%/−3%. The app still showed
+the known slope-display warning (7 baseline sections, 11 detour sections); this
+remains Ben's issue and is not evidence that the interior API cap failed.
+
+Final regression commands: 17 offline tests passed; `check_routes.py` passed all
+fixtures (baseline/control/reset 1.302, roadworks 1.721, car 1.437, both 1.856 km),
+including interior grades and unchanged control/reset geometry.
+
+**Demo acceptance passes after the repair.** Final state: city switch retained off,
+demo barriers cleared, zero active city barriers; no city-on step requested by Miguel.
+No demo barrier positions were changed. Durability is attributed to Claude's report:
+this session has not independently captured an unchanged switch plus identical demo
+payloads immediately before and after a controlled restart. Post-restart functionality,
+fresh retained replay, route changes and cleanup have all been checked directly.

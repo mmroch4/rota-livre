@@ -1,7 +1,9 @@
 # Demo barriers (seed / list / clear)
 
 `barriers.py` puts the demo barriers on the local Coreflux broker and takes them off again, so the
-demo can be repeated. Retained barriers are lost when the broker restarts: seed again before each run.
+demo can be repeated. Broker durability is now enabled (reported by Claude after the
+24 October restart); retained barriers persist across restarts but still expire
+after 24 hours. Seed before each rehearsal to refresh the demo timestamps.
 
 ## Victor's repeatable sequence (city import off)
 
@@ -36,7 +38,9 @@ Do not promise a city-on demo detour with these positions.
 
 Browser distances are rounded; exact distances above come from Valhalla requests.
 Named search results can differ slightly from the exact fixture coordinates.
-Until restart durability is verified, repeat `off` and seed after any broker restart.
+After any broker restart, check the retained switch and active barrier counts before
+presenting. The city-import snapshot is now retained too; without that snapshot an
+off flag could coexist with active city barriers. The live checker detects this.
 
 ```bash
 export BROKER_USERNAME=...   # the broker login (same one as app/config.local.js); never committed or printed
