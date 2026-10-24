@@ -76,6 +76,10 @@ docker compose up -d
 - `docker compose down` stops and keeps the data; `docker compose down -v` **wipes everything, including the licence**.
 - Durability is on (`COREFLUX_DURABILITY_*` in `docker-compose.yml`): retained messages (barriers, feedback, the city
   switch) survive a restart. The log lives on the `broker-data` volume, so `down -v` wipes it too.
+- **After every broker restart**, repair the LoT the boot restores stale (see the boot-revert quirk in
+  [`AGENTS.md`](AGENTS.md)), from the repo root with the broker login in `BROKER_USERNAME` / `BROKER_PASSWORD`:
+  `docker restart o1n-broker && sleep 10 && python3 hackathon/broker/redeploy_lot.py --fix`.
+  `redeploy_lot.py --check` only reports (exit 1 on any mismatch). Reload app and HUB tabs opened during the restart.
 - The HUB connects to `broker` (the Docker service name), not `localhost`.
 - Port taken? Change the host port number in `docker-compose.yml` (e.g. `"127.0.0.1:3001:3000"`).
 

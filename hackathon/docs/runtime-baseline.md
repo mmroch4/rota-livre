@@ -613,3 +613,42 @@ Caveats:
   in the open HUB page only.
 - A real app report, `bmvmf2lix8tqd` (parked car, 13:10), appeared during the session: not mine, left in place.
   End state: `enabled = off`, 0 active city, 0 demo, 1 app barrier, no test topics.
+
+## Post-restart repair scripted (24 October 2026, ~13:20–13:25 UTC)
+
+`broker/redeploy_lot.py` (stdlib, MQTT through `runtime/demo/barriers.py`) replaces the manual post-restart redeploy.
+It reads only `barrier_feedback`, `city_alerts` and `ops_panel`, compares each Action with its retained
+`$SYS/Coreflux/Actions/<Name>` (whether an entity exists comes from `-listEntities`; Python is checked for presence
+only, since its source cannot be read back), and with `--fix` resends a mismatched notebook's Python cells, then its
+mismatched Actions, through `$SYS/Coreflux/Command`, stopping on any `success:false`. 10 pytest tests for the pure
+parts; `services/tests/` 33 pass.
+
+| Step (live) | Result |
+|---|---|
+| `--check` before the restart | 8/8 IDENTICAL (6 Actions, 2 Python), exit 0 |
+| `docker restart o1n-broker` (13:23:51, healthy 13:23:57) | boot log: duplicate blocks for `StoreBarrierFeedback` and `ImportCityAlerts`; "recovered 60 retained message(s) from WAL" |
+| `--check` 10 s after `/health` | only `ImportCityAlerts` DIFFERS, exit 1 (`StoreBarrierFeedback`'s kept copy is current) |
+| `--fix` | sent `CityAlerts`, then `ImportCityAlerts`; both replies `success:true`; re-check 8/8 IDENTICAL, exit 0 |
+| `--check` again | 8/8 IDENTICAL, exit 0 |
+| manual `access/city/alerts/fetch` with the switch `off` (13:24:33) | FIWARE answered (`raw`: 100 entities), **0** barrier messages, `last_ok` unchanged (13:04:41.587Z) |
+| `diagnose` | 0 action errors, nothing pending |
+
+This closes the caveat under "City alerts switch verified": a fetch while `off` now provably got a FIWARE answer and
+imported nothing. End state as before: 29 retained `access/*`, switch `off`, 1 app barrier (`bmvmf2lix8tqd`), summary
+`active` app 1, city 0, demo 0.
+
+**Found on the way (now in `AGENTS.md`).** The command channel strips `//` outside string literals in Python too:
+a throwaway `ZzSlash` with `int(x) // 2` failed with `'(' was never closed`; `f"{7 // 2:03d}"` deployed and returned
+`003`. Both Python cells only use `//` inside an f-string. The `-addAction` source stored by the broker was
+byte-identical to what was sent, and `-addAction` over an existing name replaces it. The throwaway `ZzSlash` /
+`ZzSlashProbe` were removed; their `zz/redeploy/*` topics were never retained.
+
+Caveats:
+- Python is only checked for presence, so a stale script after a boot is not detected unless an Action of its notebook
+  differs. On this boot `CityAlerts` was resent anyway (it shares the notebook with `ImportCityAlerts`); `OpsSummary` was
+  not, and the panel kept working.
+- The Action duplicates in the broker's persisted actions file are still there; the script repairs the effect, not the cause.
+- Ben's `0b589ef` (13:22 UTC, pushed while this ran) keeps `10-barriers-db.lotnb` loaded. `-listEntities` showed neither
+  `RouteBarrierMessage` nor `BarriersDB` at ~13:20 (before the restart) nor at ~13:30 (after it), and no
+  `Routes/BarriersDB/status`; whether they were deployed in between is unknown. The script does not cover them: re-add
+  them as `AGENTS.md` says.
