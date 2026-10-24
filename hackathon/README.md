@@ -79,7 +79,8 @@ docker compose up -d
 - **After every broker restart**, repair the LoT the boot restores stale (see the boot-revert quirk in
   [`AGENTS.md`](AGENTS.md)), from the repo root with the broker login in `BROKER_USERNAME` / `BROKER_PASSWORD`:
   `docker restart o1n-broker && sleep 10 && python3 hackathon/broker/redeploy_lot.py --fix`.
-  `redeploy_lot.py --check` only reports (exit 1 on any mismatch). Reload app and HUB tabs opened during the restart.
+  `redeploy_lot.py --check` only reports (exit 1 on any mismatch, or when the operator summary `access/ops/summary`
+  is more than 45 s old or missing). Reload app and HUB tabs opened during the restart.
 - The HUB connects to `broker` (the Docker service name), not `localhost`.
 - Port taken? Change the host port number in `docker-compose.yml` (e.g. `"127.0.0.1:3001:3000"`).
 

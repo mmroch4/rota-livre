@@ -4,6 +4,10 @@
     redeploy_lot.py [--check]   one line per Action / Python script: IDENTICAL, DIFFERS or NOT LIVE; exit 1 on any mismatch
     redeploy_lot.py --fix       resend what differs through $SYS/Coreflux/Command, then check again
 
+Both also report whether the operator summary (retained access/ops/summary) is alive: FRESH when its updated_at is at
+most 45 s old (OpsSummaryRefresh republishes it every 15 s), else STALE, or MISSING. A STALE or MISSING summary makes
+the exit code 1; --fix sends nothing extra for it (only the ops notebook's cells, when one of its Actions differs).
+
 Why: every broker boot can restore an older ImportCityAlerts (AGENTS.md, "Broker 2.22.0 quirks"). After a restart:
 
     docker restart o1n-broker && sleep 10 && python3 hackathon/broker/redeploy_lot.py --fix
@@ -25,6 +29,7 @@ import socket
 import struct
 import sys
 import time
+from datetime import datetime
 
 HERE = pathlib.Path(__file__).resolve().parent
 LOT = HERE.parent / "lot"
@@ -32,9 +37,12 @@ NOTEBOOKS = ("barrier_feedback.lotnb", "city_alerts.lotnb", "ops_panel.lotnb")
 COMMAND_TOPIC = "$SYS/Coreflux/Command"
 OUTPUT_TOPIC = "$SYS/Coreflux/Command/Output"
 ACTION_TOPIC = "$SYS/Coreflux/Actions/{}"
+SUMMARY_TOPIC = "access/ops/summary"
+SUMMARY_MAX_AGE = 45  # seconds; OpsSummaryRefresh runs every 15 s
 
 DEFINE = re.compile(r'^DEFINE\s+(\w+)\s+"?([\w-]+)"?', re.MULTILINE)
 SCRIPT_NAME = re.compile(r"^#\s*Script Name:\s*(\w+)", re.MULTILINE)
+FRACTION = re.compile(r"\.(\d{1,6})\d*")
 
 
 # ---- pure parts (tested in services/tests/test_redeploy_lot.py) ----
@@ -109,6 +117,30 @@ def parse_reply(payload, request_id):
     except ValueError:
         return None
     return reply if isinstance(reply, dict) and reply.get("requestId") == request_id else None
+
+
+def parse_time(text):
+    """ISO 8601 with Z (LoT TIMESTAMP "ISO" can carry 7 fractional digits) to an aware datetime, or None."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    text = FRACTION.sub(lambda match: "." + match.group(1).ljust(6, "0"), text.strip()).replace("Z", "+00:00")
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else None
+
+
+def summary_status(payload, now):
+    """(FRESH | STALE | MISSING, age in seconds or None) for the retained summary payload (str or None)."""
+    try:
+        updated = parse_time(json.loads(payload).get("updated_at")) if payload else None
+    except (ValueError, AttributeError):
+        updated = None
+    if updated is None:
+        return "MISSING", None
+    age = (now - updated).total_seconds()
+    return ("FRESH" if age <= SUMMARY_MAX_AGE else "STALE"), age
 
 
 def load_entities():
@@ -201,7 +233,7 @@ def fix(entities):
         plan = plan_fix(entities, statuses)
         if not plan:
             print("Nothing to fix.")
-            return 0
+            return 0 if check_summary(broker) else 1
         for entity in plan:
             reply = broker.deploy(entity)
             if reply is None:
@@ -227,13 +259,22 @@ def fix(entities):
     return report_final(entities)
 
 
+def check_summary(broker):
+    """Print the summary line; True when FRESH."""
+    state, age = summary_status(broker.retained(SUMMARY_TOPIC), datetime.now().astimezone())
+    note = f"(updated {age:.0f}s ago)" if age is not None else "(no retained updated_at)"
+    print(f"{state:<10} {'summary':<7} {SUMMARY_TOPIC:<22} {note}")
+    return state == "FRESH"
+
+
 def report_final(entities):
     broker = Broker()
     try:
         statuses = check(broker, entities)
+        fresh = check_summary(broker)
     finally:
         broker.close()
-    return 0 if all(value == "IDENTICAL" for value in statuses.values()) else 1
+    return 0 if fresh and all(value == "IDENTICAL" for value in statuses.values()) else 1
 
 
 def main():

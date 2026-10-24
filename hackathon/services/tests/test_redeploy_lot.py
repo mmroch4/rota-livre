@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import pathlib
+from datetime import datetime, timezone
 
 HACKATHON = pathlib.Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("redeploy_lot", HACKATHON / "broker" / "redeploy_lot.py")
@@ -99,3 +100,35 @@ def test_parse_reply_keeps_only_our_request():
     assert redeploy.parse_reply(mine, "r2") is None
     assert redeploy.parse_reply(b"not json", "r1") is None
     assert redeploy.parse_reply(b"[1]", "r1") is None
+
+
+NOW = datetime(2026, 10, 24, 13, 30, 0, tzinfo=timezone.utc)
+
+
+def summary(updated_at):
+    return json.dumps({"updated_at": updated_at, "active": {"app": 1, "city": 0, "demo": 0, "total": 1}})
+
+
+def test_parse_time_accepts_z_and_seven_fractional_digits():
+    assert redeploy.parse_time("2026-10-24T13:29:50.1234567Z") == datetime(2026, 10, 24, 13, 29, 50, 123456,
+                                                                           tzinfo=timezone.utc)
+    assert redeploy.parse_time("2026-10-24T13:29:50.1Z").microsecond == 100000
+    assert redeploy.parse_time("2026-10-24T13:29:50Z") == datetime(2026, 10, 24, 13, 29, 50, tzinfo=timezone.utc)
+    assert redeploy.parse_time("2026-10-24T13:29:50") is None  # no zone: refuse rather than guess
+    assert redeploy.parse_time("yesterday") is None
+    assert redeploy.parse_time("") is None and redeploy.parse_time(None) is None
+
+
+def test_summary_status_fresh_up_to_45_seconds():
+    assert redeploy.summary_status(summary("2026-10-24T13:29:45.0000000Z"), NOW) == ("FRESH", 15.0)
+    assert redeploy.summary_status(summary("2026-10-24T13:29:15Z"), NOW) == ("FRESH", 45.0)
+    assert redeploy.summary_status(summary("2026-10-24T13:29:14.9Z"), NOW)[0] == "STALE"
+    assert redeploy.summary_status(summary("2026-10-24T12:00:00Z"), NOW) == ("STALE", 5400.0)
+
+
+def test_summary_status_missing():
+    assert redeploy.summary_status(None, NOW) == ("MISSING", None)
+    assert redeploy.summary_status("", NOW) == ("MISSING", None)
+    assert redeploy.summary_status("not json", NOW) == ("MISSING", None)
+    assert redeploy.summary_status("[1]", NOW) == ("MISSING", None)
+    assert redeploy.summary_status(json.dumps({"active": {}}), NOW) == ("MISSING", None)
