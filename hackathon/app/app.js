@@ -81,9 +81,11 @@ function setIcon(el, name) {
 // Map and its layers
 
 const map = L.map("map", { zoomControl: false }).setView(config.center, config.zoom);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+// Vector basemap (OpenFreeMap "liberty", no API key), drawn by MapLibre inside Leaflet.
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+L.maplibreGL({
+    style: MAP_STYLE,
+    attribution: '<a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }).addTo(map);
 L.control.zoom({ position: "topright" }).addTo(map);
 
@@ -1539,7 +1541,7 @@ function showReportMap(point) {
     const ll = [point.lat, point.lon];
     if (!reportMap) {
         reportMap = L.map("report-map", { attributionControl: false, zoomControl: !phone.matches }).setView(ll, 18);
-        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(reportMap);
+        L.maplibreGL({ style: MAP_STYLE }).addTo(reportMap);
         reportMap.on("moveend", onReportMapMoved);
         reportMap.on("dragstart", () => setReportNote(""));
     }

@@ -87,8 +87,6 @@ button:disabled { opacity: 0.5; cursor: default; }
 #map { position: absolute; inset: 0; background: #e9eef4; }
 #map.picking { cursor: crosshair; }
 .leaflet-container { font-family: var(--font); }
-/* Calmer base map, so the route, the person and the barriers stand out. */
-.leaflet-tile-pane { filter: saturate(0.6) brightness(1.05) contrast(0.95); }
 .leaflet-top.leaflet-right { top: 8px; right: 8px; }
 .leaflet-control-zoom { border: 0 !important; box-shadow: var(--shadow-sm) !important; border-radius: 14px !important; overflow: hidden; }
 .leaflet-control-zoom a { width: 44px !important; height: 44px !important; line-height: 44px !important; font-size: 22px !important; color: var(--text) !important; }
