@@ -4,7 +4,8 @@
 
 The custom Valhalla runtime now runs locally at **http://127.0.0.1:8003**. Setup,
 data provenance and commands are in [`../runtime/valhalla/README.md`](../runtime/valhalla/README.md).
-The rest of this document is the earlier pre-setup baseline, kept as a record. See the "Core 1 verified" section at the end for the integrated check.
+The rest of this document is the earlier pre-setup baseline, kept as a record. See the "Core 1 verified" section at the end for the integrated check
+and "Core 2 verified" for the slope-cap validation, which **corrects the slope units below**.
 
 | Item | Verified result |
 |---|---|
@@ -35,7 +36,11 @@ The cap is enforced and monotonic. `trace_attributes` `max_upward_grade` /
 `max_downward_grade` are in **degrees** (4° ≈ 7 %); the app already converts them
 with `degreesToPercent`.
 
-**Still open (not fixed):**
+> **Corrected by Core 2:** edge slopes are stored as **percent**, not degrees, so this
+> conversion made every cap about twice as strict as labelled. The table above reflects
+> that bug. The costing now compares percent directly; see "Core 2 verified".
+
+**Still open at the time (see Core 2 for the current status):**
 - The origin and destination partial edges are not checked against the cap (Aliados has
   11° end edges and still routes at 8 %).
 - Missing elevation is stored as slope 0, so unknown segments pass any cap.
@@ -332,3 +337,91 @@ phone or second laptop must join; it exposes the broker beyond loopback, so it i
 - Retained barriers do not survive a broker restart (durability off by default): re-seed before the demo.
 - `access/barriers/<id>/feedback` (non-retained, published by the app) is missing from the topic map.
 - The default 6 % cap blocks the Aliados pair: Core 2 needs a demo pair where a stricter cap changes the route.
+
+## Core 2 verified (24 October 2026, ~11:30 UTC)
+
+Accessible route validation against the custom Valhalla at `http://127.0.0.1:8003`, image
+`passolivre-valhalla:9f6f67e` ID `14d5aa490f12` (rebuilt from commit `f47093b`; tiles unchanged).
+`setup.sh smoke` passes all 23 checks. Probes are reproducible with `smoke.py`.
+
+### Slope units: percent, not degrees (fixed)
+
+`DirectedEdge::max_up_slope()`/`max_down_slope()` are documented as degrees, but
+`mjolnir/elevationbuilder.cc` feeds them `skadi::weighted_grade`, which returns
+`Δh × 100 / 60 m`: percent over a 60 m posting, rounded up when stored. Replicating that
+formula with `/height` matched 92 of 95 Porto edges (±1, integer DEM), against 50 of 95 for
+the degree reading. The Core 1 conversion (`atan(max_grade)` in degrees) therefore made a 6 %
+cap admit only edges ≤ 3. Commit `f47093b` compares `max_grade` with the stored values directly.
+`/trace_attributes` `max_upward_grade`/`max_downward_grade` are the same stored values, so
+**they are already percent**.
+
+### Downhill applies in the direction of travel
+
+Footway way 1302664398 climbs 13 % northbound (48 m). South point (41.141857,-8.614406),
+north point (41.142476,-8.614126):
+
+| Direction | No cap | Cap 15 % | Cap 12 % |
+|---|---|---|---|
+| South → north (uphill) | 0.073 km, up 13 | 0.073 km, up 13 | 0.130 km detour, max 10 |
+| North → south (downhill) | 0.118 km, down 15 | 0.118 km, down 15 | 0.130 km detour, max 10 |
+
+The same results come from the default search, `date_time` type 1 (depart_at →
+`timedep_forward`, only `Allowed`) and type 2 (arrive_by → `timedep_reverse`, only
+`AllowedReverse`, which checks `opp_edge`, the edge in the direction of travel). The two
+paths agree. Both magnitudes are compared with the same cap, so a steep edge is closed in both
+directions.
+
+### Demo route: São Bento → Batalha
+
+Origin (41.1455,-8.6105), Estação de São Bento; destination (41.1459,-8.6064), Batalha.
+Options as the app sends them (`type: wheelchair`, `step_penalty: 43200` when capped):
+
+| Cap | Length | Steepest interior edge |
+|---|---|---|
+| No limit (`foot`) | 0.49 km | 20 % |
+| 10 % | 0.97 km | 10 % |
+| 8 % | 1.04 km | 8 % |
+| 6 % (wheelchair profile) | 1.30 km | 6 % |
+
+The stricter cap changes the route and never removes it. In the locally served app the
+wheelchair profile draws the 1.3 km / 21 min route. Before the units fix, São Bento → Sé
+(0.38 → 0.60 km) played this role; with correct units its wheelchair route is the direct one.
+
+**App display bug (for Ben, not changed here):** `degreesToPercent` in `app/app.js` applies
+`tan()` to values that are already percent. The same route therefore shows "Subida mais
+inclinada: 11 %" and flags 7 segments in orange as steeper than requested, although none
+exceeds 6 %. Fix: make it the identity (keep the 32768 no-elevation check), and in the same
+commit update the contract line in `CLAUDE.md` ("Grades are read as degrees") and
+`app/README.md`.
+
+### Missing elevation: measured, explicit policy
+
+- **DEM:** 0 void cells (−32768) in about 4.2 M samples of `N40W009`/`N41W009` inside the bbox.
+  All 13 tiles have the elevation flag. Today no edge gets a "no data" slope.
+- **What counts as flat without being measured** (directed edges found by `/locate` on a 40 m grid over central
+  Porto: 3,682 edges, 196 km):
+  - edges shorter than 10 m are stored as 0 by design (`kMinimumInterval`): 593 edges (16 %),
+    but only 1.6 % of length;
+  - bridges and tunnels are interpolated between their ends and clamped to ±3: 93 edges (2.5 %).
+- **Short edges are underestimated:** edges under 60 m get only end samples but are still divided by
+  60 m, so their grade is scaled by L/60 (a 20 m ramp at 15 % is stored as 5 %): 52 % of
+  edges, 32 % of length. Steeper stretches above 15 are stored in 4-point steps.
+
+**Agreed policy:** under a cap (`max_grade` below 90), edges in tiles built without elevation are
+**rejected** (fail closed; commit `f47093b`). This guards against a graph built without a DEM. Edges
+under 10 m, bridges/tunnels and the L/60 underestimate are **accepted and disclosed** as known
+limits. The 60 m window also smooths a 30 m, integer-metre DEM, and using the true spacing would
+make short edges noisy (±1 m over 10 m = ±10 %). The fail-closed branch was not exercised
+end to end: every tile here has elevation, and testing it needs a separate tileset built without
+a DEM.
+
+### Still open
+
+- **Origin/destination partial edges are not capped.** Example: Sta Catarina → Bolhão at 6 % has
+  a 16 % end edge. The app's trace-based warning flags such edges (after the display fix
+  above, with correct numbers).
+- No route is returned when a cap cannot be met; the app offers +2 % and never relaxes it itself.
+- Valhalla minimises cost, not length, so a stricter cap can occasionally give a *shorter* route
+  than a looser one. The demo pair is monotonic.
+- An image rebuild is a full C++ compile (~40 min, two workers). A ccache mount would make later
+  costing changes take minutes.

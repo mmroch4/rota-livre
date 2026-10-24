@@ -2,11 +2,15 @@
 
 Custom Valhalla built from `projects/valhalla` at repository revision `9f6f67e`.
 The image includes one costing fix in `src/sif/pedestriancost.cc`: `max_grade`
-(percent) is converted to degrees, the unit of edge slopes, and both uphill and
-downhill magnitudes are compared against it. Before the fix, comparing the
-negative `int` downhill slope with the unsigned cap rejected every edge with any
-downhill, so pedestrian routes failed with error 442. The image tag still names
-the base revision; rebuild with `setup.sh image` after pulling the fix.
+(percent) is compared with each edge's uphill and downhill slope in the direction
+of travel, and under a cap (below the foot default of 90) edges in tiles built
+without elevation are rejected. Edge slopes are labelled degrees in Valhalla's
+headers but are stored as percent (rise over a 60 m posting, rounded up); see
+"Core 2 verified" in `hackathon/docs/runtime-baseline.md`. Before the fix,
+comparing the negative `int` downhill slope with the unsigned cap rejected every
+edge with any downhill, so pedestrian routes failed with error 442. The image tag
+still names the base revision; rebuild with `setup.sh image` after pulling a
+costing change (a full C++ build: ~40 min with two workers).
 
 The service publishes **http://127.0.0.1:8003**. Its container listens on 8002;
 Compose maps host 8003 to that port. It is deliberately local to this machine.
@@ -69,10 +73,14 @@ bash hackathon/runtime/valhalla/setup.sh smoke
 docker compose -f hackathon/runtime/valhalla/compose.yml logs --tail 50 valhalla
 ```
 
-The smoke check tests a Porto pedestrian route, `/trace_attributes` using its
-returned geometry, and one known slope-cap case (Aliados: `max_grade` 8 allowed,
-6 blocked). It does not validate wheelchair safety, barrier avoidance, the
-frontend, or broker integration. Costing changes need only `image` and a
+The smoke check tests a Porto pedestrian route and `/trace_attributes` on its
+geometry, then the slope cap on known cases: a gentle route unchanged at its own
+steepest grade, one ~13 % footway used above the cap and detoured below it both
+uphill and downhill (default, forward-only and reverse-only searches), and the
+São Bento → Batalha demo detour growing as the cap tightens. It asserts the cap on
+interior edges only, because the origin and destination partial edges are not
+capped. It does not validate wheelchair safety, barrier avoidance, the frontend,
+or broker integration. Costing changes need only `image` and a
 container restart; tiles are rebuilt only when the data or elevation changes.
 
 To stop just this routing service without deleting data:
