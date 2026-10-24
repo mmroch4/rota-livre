@@ -1,0 +1,1443 @@
+/*
+MIT License
+
+Copyright (c) 2025 Alex Emirov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+#include <gtest/gtest.h>
+
+#include <limits>
+#include <stdexcept>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+#include "flatbush.h"
+
+using ::testing::Test;
+using ::testing::Types;
+
+struct ThrowingNumber {
+  ThrowingNumber(double) {}
+};
+
+struct MoveOnlyFilter {
+  MoveOnlyFilter() = default;
+  MoveOnlyFilter(const MoveOnlyFilter&) = delete;
+  MoveOnlyFilter& operator=(const MoveOnlyFilter&) = delete;
+  MoveOnlyFilter(MoveOnlyFilter&&) = default;
+  MoveOnlyFilter& operator=(MoveOnlyFilter&&) = default;
+
+  bool operator()(size_t iValue, const flatbush::Box<double>&) const { return iValue % 2UL == 0UL; }
+};
+
+struct MoveOnlyDistance {
+  MoveOnlyDistance() = default;
+  MoveOnlyDistance(const MoveOnlyDistance&) = delete;
+  MoveOnlyDistance& operator=(const MoveOnlyDistance&) = delete;
+  MoveOnlyDistance(MoveOnlyDistance&&) = default;
+  MoveOnlyDistance& operator=(MoveOnlyDistance&&) = default;
+
+  double operator()(const flatbush::Point<double>& iPoint, const flatbush::Box<double>& iBox) const {
+    return flatbush::detail::computeDistanceSquared(iPoint, iBox);
+  }
+};
+
+#if __cplusplus >= 201402L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201402L)
+constexpr bool canMutateSpanAtCompileTime() {
+  int wValues[] = { 1, 2 };
+  flatbush::span<int> wView(wValues, 2);
+  wView[0] = 3;
+  *wView.begin() = 4;
+  *(wView.end() - 1) = 5;
+  return wView[0] == 4 && wView[1] == 5;
+}
+
+constexpr bool canUpdateBoundsAtCompileTime() {
+  flatbush::Box<int> wBounds { 2, 3, 4, 5 };
+  flatbush::detail::updateBounds(wBounds, flatbush::Box<int> { 1, 4, 6, 7 });
+  return wBounds.mMinX == 1 && wBounds.mMinY == 3 && wBounds.mMaxX == 6 && wBounds.mMaxY == 7;
+}
+
+constexpr bool canCalculateDataSizeAtCompileTime() {
+  size_t wDataSize = 0;
+  return flatbush::detail::tryCalculateDataSize<uint8_t>(2, 16, wDataSize) && wDataSize == 26;
+}
+
+static_assert(flatbush::detail::Interleave(3) == 5, "Bit interleaving must be constant-evaluable");
+static_assert(flatbush::detail::HilbertXYToIndex(0, 0) == 0, "Hilbert mapping must be constant-evaluable");
+static_assert(flatbush::detail::axisDistance(5, 0, 3) == 2.0, "Axis distance must be constant-evaluable");
+static_assert(flatbush::detail::computeDistanceSquared(flatbush::Point<int64_t> { 3, 4 },
+                                                       flatbush::Box<int64_t> { 0, 0, 1, 1 }) == 13.0,
+              "Squared distance must be constant-evaluable");
+static_assert(canCalculateDataSizeAtCompileTime(), "Serialized size calculation must be constant-evaluable");
+#endif
+
+static_assert(
+    !noexcept(std::declval<flatbush::FlatbushBuilder<double>&>().add(std::declval<const flatbush::Box<double>&>())),
+    "Builder insertion can allocate");
+static_assert(
+    !noexcept(std::declval<flatbush::FlatbushBuilder<double>&>().add(std::declval<const flatbush::Point<double>&>())),
+    "Point insertion can allocate");
+static_assert(
+    !noexcept(std::declval<const flatbush::Flatbush<double>&>().search(std::declval<const flatbush::Box<double>&>())),
+    "Search can allocate and invoke callbacks");
+static_assert(!noexcept(std::declval<const flatbush::Flatbush<double>&>().neighbors(
+                  std::declval<const flatbush::Point<double>&>())),
+              "Neighbor search can allocate and invoke callbacks");
+static_assert(!noexcept(static_cast<flatbush::Box<ThrowingNumber>>(std::declval<const flatbush::Box<double>&>())),
+              "Box coordinate conversion can invoke user code");
+static_assert(!noexcept(static_cast<flatbush::Point<ThrowingNumber>>(std::declval<const flatbush::Point<double>&>())),
+              "Point coordinate conversion can invoke user code");
+static_assert(std::is_same<decltype(std::declval<const flatbush::Flatbush<double>&>().bounds()),
+                           const flatbush::Box<double>&>::value,
+              "Bounds must be exposed as a read-only reference");
+static_assert(noexcept(std::declval<const flatbush::Flatbush<double>&>().bounds()),
+              "Reading cached bounds cannot fail");
+static_assert(flatbush::detail::acceptAllFilter(0, flatbush::Box<int> { 0, 0, 0, 0 }),
+              "Accept-all filter must be constant-evaluable");
+
+static constexpr std::array<double, 400> gData {
+  8,  62, 11, 66, 57, 17, 57, 19, 76, 26, 79, 29, 36, 56, 38, 56, 92, 77, 96, 80, 87, 70, 90, 74, 43, 41, 47, 43, 0,
+  58, 2,  62, 76, 86, 80, 89, 27, 13, 27, 15, 71, 63, 75, 67, 25, 2,  27, 2,  87, 6,  88, 6,  22, 90, 23, 93, 22, 89,
+  22, 93, 57, 11, 61, 13, 61, 55, 63, 56, 17, 85, 21, 87, 33, 43, 37, 43, 6,  1,  7,  3,  80, 87, 80, 87, 23, 50, 26,
+  52, 58, 89, 58, 89, 12, 30, 15, 34, 32, 58, 36, 61, 41, 84, 44, 87, 44, 18, 44, 19, 13, 63, 15, 67, 52, 70, 54, 74,
+  57, 59, 58, 59, 17, 90, 20, 92, 48, 53, 52, 56, 92, 68, 92, 72, 26, 52, 30, 52, 56, 23, 57, 26, 88, 48, 88, 48, 66,
+  13, 67, 15, 7,  82, 8,  86, 46, 68, 50, 68, 37, 33, 38, 36, 6,  15, 8,  18, 85, 36, 89, 38, 82, 45, 84, 48, 12, 2,
+  16, 3,  26, 15, 26, 16, 55, 23, 59, 26, 76, 37, 79, 39, 86, 74, 90, 77, 16, 75, 18, 78, 44, 18, 45, 21, 52, 67, 54,
+  71, 59, 78, 62, 78, 24, 5,  24, 8,  64, 80, 64, 83, 66, 55, 70, 55, 0,  17, 2,  19, 15, 71, 18, 74, 87, 57, 87, 59,
+  6,  34, 7,  37, 34, 30, 37, 32, 51, 19, 53, 19, 72, 51, 73, 55, 29, 45, 30, 45, 94, 94, 96, 95, 7,  22, 11, 24, 86,
+  45, 87, 48, 33, 62, 34, 65, 18, 10, 21, 14, 64, 66, 67, 67, 64, 25, 65, 28, 27, 4,  31, 6,  84, 4,  85, 5,  48, 80,
+  50, 81, 1,  61, 3,  61, 71, 89, 74, 92, 40, 42, 43, 43, 27, 64, 28, 66, 46, 26, 50, 26, 53, 83, 57, 87, 14, 75, 15,
+  79, 31, 45, 34, 45, 89, 84, 92, 88, 84, 51, 85, 53, 67, 87, 67, 89, 39, 26, 43, 27, 47, 61, 47, 63, 23, 49, 25, 53,
+  12, 3,  14, 5,  16, 50, 19, 53, 63, 80, 64, 84, 22, 63, 22, 64, 26, 66, 29, 66, 2,  15, 3,  15, 74, 77, 77, 79, 64,
+  11, 68, 11, 38, 4,  39, 8,  83, 73, 87, 77, 85, 52, 89, 56, 74, 60, 76, 63, 62, 66, 65, 67
+};
+
+static const std::array<uint8_t, 518> gFlatbush {
+  251, 56, 16, 0, 14, 0,   0,  0,  0, 0, 0, 0, 0, 0,   32, 64, 0, 0, 0, 0, 0, 0,   79, 64, 0, 0, 0, 0, 0,  0,   38, 64,
+  0,   0,  0,  0, 0,  128, 80, 64, 0, 0, 0, 0, 0, 128, 76, 64, 0, 0, 0, 0, 0, 0,   49, 64, 0, 0, 0, 0, 0,  128, 76, 64,
+  0,   0,  0,  0, 0,  0,   51, 64, 0, 0, 0, 0, 0, 0,   83, 64, 0, 0, 0, 0, 0, 0,   58, 64, 0, 0, 0, 0, 0,  192, 83, 64,
+  0,   0,  0,  0, 0,  0,   61, 64, 0, 0, 0, 0, 0, 0,   66, 64, 0, 0, 0, 0, 0, 0,   76, 64, 0, 0, 0, 0, 0,  0,   67, 64,
+  0,   0,  0,  0, 0,  0,   76, 64, 0, 0, 0, 0, 0, 0,   87, 64, 0, 0, 0, 0, 0, 64,  83, 64, 0, 0, 0, 0, 0,  0,   88, 64,
+  0,   0,  0,  0, 0,  0,   84, 64, 0, 0, 0, 0, 0, 192, 85, 64, 0, 0, 0, 0, 0, 128, 81, 64, 0, 0, 0, 0, 0,  128, 86, 64,
+  0,   0,  0,  0, 0,  128, 82, 64, 0, 0, 0, 0, 0, 128, 69, 64, 0, 0, 0, 0, 0, 128, 68, 64, 0, 0, 0, 0, 0,  128, 71, 64,
+  0,   0,  0,  0, 0,  128, 69, 64, 0, 0, 0, 0, 0, 0,   0,  0,  0, 0, 0, 0, 0, 0,   77, 64, 0, 0, 0, 0, 0,  0,   0,  64,
+  0,   0,  0,  0, 0,  0,   79, 64, 0, 0, 0, 0, 0, 0,   83, 64, 0, 0, 0, 0, 0, 128, 85, 64, 0, 0, 0, 0, 0,  0,   84, 64,
+  0,   0,  0,  0, 0,  64,  86, 64, 0, 0, 0, 0, 0, 0,   59, 64, 0, 0, 0, 0, 0, 0,   42, 64, 0, 0, 0, 0, 0,  0,   59, 64,
+  0,   0,  0,  0, 0,  0,   46, 64, 0, 0, 0, 0, 0, 192, 81, 64, 0, 0, 0, 0, 0, 128, 79, 64, 0, 0, 0, 0, 0,  192, 82, 64,
+  0,   0,  0,  0, 0,  192, 80, 64, 0, 0, 0, 0, 0, 0,   57, 64, 0, 0, 0, 0, 0, 0,   0,  64, 0, 0, 0, 0, 0,  0,   59, 64,
+  0,   0,  0,  0, 0,  0,   0,  64, 0, 0, 0, 0, 0, 192, 85, 64, 0, 0, 0, 0, 0, 0,   24, 64, 0, 0, 0, 0, 0,  0,   86, 64,
+  0,   0,  0,  0, 0,  0,   24, 64, 0, 0, 0, 0, 0, 0,   54, 64, 0, 0, 0, 0, 0, 128, 86, 64, 0, 0, 0, 0, 0,  0,   55, 64,
+  0,   0,  0,  0, 0,  64,  87, 64, 0, 0, 0, 0, 0, 0,   0,  0,  0, 0, 0, 0, 0, 0,   0,  64, 0, 0, 0, 0, 0,  0,   88, 64,
+  0,   0,  0,  0, 0,  64,  87, 64, 0, 0, 1, 0, 2, 0,   3,  0,  4, 0, 5, 0, 6, 0,   7,  0,  8, 0, 9, 0, 10, 0,   11, 0,
+  12,  0,  13, 0, 0,  0
+};
+
+flatbush::Flatbush<double> createIndex() {
+  auto wNumItems = gData.size() / 4;
+  flatbush::FlatbushBuilder<double> wBuilder;
+
+  for (size_t wIdx = 0; wIdx < gData.size(); wIdx += 4) {
+    wBuilder.add({ gData[wIdx], gData[wIdx + 1], gData[wIdx + 2], gData[wIdx + 3] });
+  }
+  auto wIndex = wBuilder.finish();
+
+  EXPECT_EQ(wIndex.numItems(), wNumItems);
+  EXPECT_EQ(wIndex.nodeSize(), flatbush::gDefaultNodeSize);
+
+  return wIndex;
+}
+
+flatbush::Flatbush<double> createSmallIndex(uint32_t iNumItems, uint16_t iNodeSize) {
+  flatbush::FlatbushBuilder<double> wBuilder(iNumItems, iNodeSize);
+
+  auto wSize = static_cast<size_t>(iNumItems) * 4;
+  for (size_t wIdx = 0; wIdx < wSize; wIdx += 4) {
+    wBuilder.add({ gData[wIdx], gData[wIdx + 1], gData[wIdx + 2], gData[wIdx + 3] });
+  }
+  auto wIndex = wBuilder.finish();
+
+  EXPECT_EQ(wIndex.numItems(), iNumItems);
+  EXPECT_EQ(wIndex.nodeSize(), iNodeSize);
+
+  return wIndex;
+}
+
+TEST(FlatbushTest, IndexBunchOfRectangles) {
+  auto wIndex = createIndex();
+  EXPECT_EQ(wIndex.indexSize() * 4 + wIndex.indexSize(), 540);
+
+  const auto& wBounds = wIndex.bounds();
+  EXPECT_EQ(wBounds.mMinX, 0);
+  EXPECT_EQ(wBounds.mMinY, 1);
+  EXPECT_EQ(wBounds.mMaxX, 96);
+  EXPECT_EQ(wBounds.mMaxY, 95);
+
+  auto wData = wIndex.data();
+  auto wBoxes = flatbush::detail::bit_cast<const double*>(&wData[flatbush::gHeaderByteSize]);
+  size_t wBoxLen = wIndex.indexSize() * 4;
+  EXPECT_EQ(wBoxes[wBoxLen - 4], 0);
+  EXPECT_EQ(wBoxes[wBoxLen - 3], 1);
+  EXPECT_EQ(wBoxes[wBoxLen - 2], 96);
+  EXPECT_EQ(wBoxes[wBoxLen - 1], 95);
+
+  auto wIndices = flatbush::detail::bit_cast<const flatbush::NarrowIndexType*>(&wBoxes[wBoxLen]);
+  EXPECT_EQ(wIndices[wIndex.indexSize() - 1], 400);
+}
+
+TEST(FlatbushTest, SkipSortingLessThanNodeSizeRectangles) {
+  uint32_t wNumItems = 14;
+  uint16_t wNodeSize = 16;
+  auto wIndex = createSmallIndex(wNumItems, wNodeSize);
+
+  // compute expected root box extents
+  auto wRootMinX = std::numeric_limits<double>::max();
+  auto wRootMinY = std::numeric_limits<double>::max();
+  auto wRootMaxX = std::numeric_limits<double>::lowest();
+  auto wRootMaxY = std::numeric_limits<double>::lowest();
+
+  auto wSize = static_cast<size_t>(wNumItems);
+  for (size_t wIdx = 0; wIdx < wSize * 4; wIdx += 4) {
+    if (gData[wIdx] < wRootMinX) wRootMinX = gData[wIdx];
+    if (gData[wIdx + 1] < wRootMinY) wRootMinY = gData[wIdx + 1];
+    if (gData[wIdx + 2] > wRootMaxX) wRootMaxX = gData[wIdx + 2];
+    if (gData[wIdx + 3] > wRootMaxY) wRootMaxY = gData[wIdx + 3];
+  }
+
+  auto wData = wIndex.data();
+  auto wBoxes = flatbush::detail::bit_cast<const double*>(&wData[flatbush::gHeaderByteSize]);
+  size_t wBoxLen = wIndex.indexSize() * 4;
+
+  auto wIndices = flatbush::detail::bit_cast<const flatbush::NarrowIndexType*>(&wBoxes[wBoxLen]);
+  // sort should be skipped, ordered progressing indices expected
+  for (size_t wIdx = 0; wIdx < wSize; ++wIdx) {
+    EXPECT_EQ(wIndices[wIdx], wIdx);
+  }
+  EXPECT_EQ(wIndices[wSize], 0);
+
+  EXPECT_EQ(wBoxLen, (wSize + 1) * 4);
+  EXPECT_EQ(wBoxes[wBoxLen - 4], wRootMinX);
+  EXPECT_EQ(wBoxes[wBoxLen - 3], wRootMinY);
+  EXPECT_EQ(wBoxes[wBoxLen - 2], wRootMaxX);
+  EXPECT_EQ(wBoxes[wBoxLen - 1], wRootMaxY);
+}
+
+TEST(FlatbushTest, SkipSortingEqualHilbertValues) {
+  static constexpr auto kNumItems = 64U;
+  flatbush::FlatbushBuilder<double> wBuilder(kNumItems);
+
+  for (auto wIdx = 0U; wIdx < kNumItems; ++wIdx) {
+    wBuilder.add({ 42.0, 42.0, 42.0, 42.0 });
+  }
+
+  const auto wIndex = wBuilder.finish();
+  const auto wData = wIndex.data();
+  const auto wBoxes = flatbush::detail::bit_cast<const flatbush::Box<double>*>(&wData[flatbush::gHeaderByteSize]);
+  const auto wIndices = flatbush::detail::bit_cast<const flatbush::NarrowIndexType*>(wBoxes + wIndex.indexSize());
+
+  for (auto wIdx = 0U; wIdx < kNumItems; ++wIdx) {
+    EXPECT_EQ(wIndices[wIdx], wIdx);
+  }
+}
+
+TEST(FlatbushTest, SkipSortingIncreasingHilbertValues) {
+  static constexpr auto kNumItems = 64U;
+  auto wBoxes = std::vector<flatbush::Box<double>> {};
+  auto wOrder = std::vector<size_t> {};
+  wBoxes.reserve(kNumItems);
+  wOrder.reserve(kNumItems);
+
+  for (auto wIdx = 0U; wIdx < kNumItems; ++wIdx) {
+    const auto wX = static_cast<double>(wIdx);
+    const auto wY = static_cast<double>((wIdx * 17U) % kNumItems);
+    wBoxes.push_back({ wX, wY, wX, wY });
+    wOrder.push_back(wIdx);
+  }
+
+  const auto wHilbertValues = flatbush::detail::computeHilbertValues(wBoxes.size(),
+                                                                     { 0.0,
+                                                                       0.0,
+                                                                       static_cast<double>(kNumItems - 1U),
+                                                                       static_cast<double>(kNumItems - 1U) },
+                                                                     flatbush::span<flatbush::Box<double>> {
+                                                                         wBoxes.data(), wBoxes.size() });
+  std::sort(wOrder.begin(), wOrder.end(), [&wHilbertValues](size_t iLeft, size_t iRight) {
+    return wHilbertValues[iLeft] < wHilbertValues[iRight];
+  });
+  ASSERT_LT(wHilbertValues[wOrder.front()], wHilbertValues[wOrder.back()]);
+
+  flatbush::FlatbushBuilder<double> wBuilder(kNumItems);
+  for (const auto wIdx : wOrder) {
+    wBuilder.add(wBoxes[wIdx]);
+  }
+
+  const auto wIndex = wBuilder.finish();
+  const auto wData = wIndex.data();
+  const auto wPackedBoxes = flatbush::detail::bit_cast<const flatbush::Box<double>*>(&wData[flatbush::gHeaderByteSize]);
+  const auto wIndices = flatbush::detail::bit_cast<const flatbush::NarrowIndexType*>(wPackedBoxes + wIndex.indexSize());
+
+  for (auto wIdx = 0U; wIdx < kNumItems; ++wIdx) {
+    EXPECT_EQ(wIndices[wIdx], wIdx);
+  }
+}
+
+TEST(FlatbushTest, PerformBoxSearch) {
+  auto wIndex = createIndex();
+  flatbush::Box<double> box { 40, 40, 60, 60 };
+  auto wIds = wIndex.search(box);
+  std::vector<double> wExpected = { 57, 59, 58, 59, 48, 53, 52, 56, 40, 42, 43, 43, 43, 41, 47, 43 };
+  std::vector<double> wResults;
+
+  for (const auto wId : wIds) {
+    wResults.push_back(gData[4 * wId]);
+    wResults.push_back(gData[4 * wId + 1]);
+    wResults.push_back(gData[4 * wId + 2]);
+    wResults.push_back(gData[4 * wId + 3]);
+  }
+
+  EXPECT_EQ(wExpected.size(), wResults.size());
+  std::sort(wExpected.begin(), wExpected.end());
+  std::sort(wResults.begin(), wResults.end());
+
+  EXPECT_TRUE(std::equal(wExpected.begin(), wExpected.end(), wResults.begin()));
+}
+
+TEST(FlatbushTest, ReconstructIndexFromArrayBuffer) {
+  auto wIndex = createIndex();
+  auto wIndexBuffer = wIndex.data();
+  auto wIndex2 = flatbush::FlatbushBuilder<double>::from(wIndexBuffer.data(), wIndexBuffer.size());
+  auto wIndex2Buffer = wIndex2.data();
+
+  EXPECT_EQ(wIndexBuffer.size(), wIndex2Buffer.size());
+
+  EXPECT_TRUE(std::equal(wIndexBuffer.begin(), wIndexBuffer.end(), wIndex2Buffer.begin()));
+}
+
+TEST(FlatbushTest, DoesNotFreezeOnZeroNumItems) {
+  EXPECT_THROW(
+      {
+        flatbush::FlatbushBuilder<double> wBuilder;
+        static_cast<void>(wBuilder.finish());
+      },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, PerformNeighborsQuery) {
+  auto wIndex = createIndex();
+  auto wIds = wIndex.neighbors({ 50, 50 }, 3);
+  std::vector<size_t> wExpected = { 31, 6, 75 };
+
+  EXPECT_EQ(wExpected.size(), wIds.size());
+  std::sort(wExpected.begin(), wExpected.end());
+  std::sort(wIds.begin(), wIds.end());
+
+  EXPECT_TRUE(std::equal(wExpected.begin(), wExpected.end(), wIds.begin()));
+}
+
+TEST(FlatbushTest, NeighborsQueryAllItems) {
+  auto wIndex = createIndex();
+  auto wIds = wIndex.neighbors({ 50, 50 });
+
+  EXPECT_EQ(wIds.size(), wIndex.numItems());
+}
+
+TEST(FlatbushTest, NeighborsQueryMaxDistance) {
+  auto wIndex = createIndex();
+  auto wIds = wIndex.neighbors({ 50, 50 }, flatbush::gMaxResults, 12);
+  std::vector<size_t> wExpected = { 6, 29, 31, 75, 85 };
+
+  EXPECT_EQ(wExpected.size(), wIds.size());
+  std::sort(wExpected.begin(), wExpected.end());
+  std::sort(wIds.begin(), wIds.end());
+
+  EXPECT_TRUE(std::equal(wExpected.begin(), wExpected.end(), wIds.begin()));
+}
+
+TEST(FlatbushTest, NeighborsQueryFilterFunc) {
+  auto wIndex = createIndex();
+  auto wIds = wIndex.neighbors({ 50, 50 }, 6, flatbush::gMaxDistance, [](size_t iValue, const flatbush::Box<double>&) {
+    return iValue % 2 == 0;
+  });
+  std::vector<size_t> wExpected = { 6, 16, 18, 24, 54, 80 };
+
+  EXPECT_EQ(wExpected.size(), wIds.size());
+  std::sort(wExpected.begin(), wExpected.end());
+  std::sort(wIds.begin(), wIds.end());
+
+  EXPECT_TRUE(std::equal(wExpected.begin(), wExpected.end(), wIds.begin()));
+}
+
+TEST(FlatbushTest, NeighborsDistanceCallbackIsInvoked) {
+  auto wIndex = createIndex();
+  size_t wCalls = 0;
+  auto wIds = wIndex.neighbors({ 50, 50 },
+                               3,
+                               flatbush::gMaxDistance,
+                               flatbush::detail::acceptAllFilter<double>,
+                               [&wCalls](const flatbush::Point<double>& iPoint, const flatbush::Box<double>& iBox) {
+                                 ++wCalls;
+                                 return flatbush::detail::computeDistanceSquared(iPoint, iBox);
+                               });
+
+  EXPECT_EQ(wIds.size(), 3UL);
+  EXPECT_GT(wCalls, 0UL);
+  // Pruning means the traversal stops well short of measuring every node
+  EXPECT_LT(wCalls, wIndex.indexSize());
+}
+
+TEST(FlatbushTest, QueryCallbackDefaults) {
+  flatbush::FlatbushBuilder<double> wBuilder(3, 2);
+  wBuilder.add(flatbush::Point<double> { 3.0, 4.0 });
+  wBuilder.add(flatbush::Point<double> { 6.0, 8.0 });
+  wBuilder.add(flatbush::Point<double> { 1.0, 1.0 });
+  const auto wIndex = wBuilder.finish();
+  const auto& wFilter = flatbush::detail::acceptAllFilter<double>;
+  const auto wSearchIds = wIndex.search(wIndex.bounds());
+  ASSERT_EQ(wSearchIds.size(), wIndex.numItems());
+  EXPECT_EQ(wIndex.search(wIndex.bounds(), wFilter, 1), (std::vector<size_t> { wSearchIds.front() }));
+  EXPECT_TRUE(wIndex.search(wIndex.bounds(), wFilter, 0).empty());
+
+  const flatbush::Point<double> wPoint { 0.0, 0.0 };
+  const auto wFarFilter = +[](size_t iId, const flatbush::Box<double>&) noexcept {
+    return iId == 1UL;
+  };
+  const auto wLinearDistance = [](const flatbush::Point<double>& iPoint, const flatbush::Box<double>& iBox) noexcept {
+    return std::sqrt(flatbush::detail::computeDistanceSquared(iPoint, iBox));
+  };
+  const std::vector<size_t> wWithinRadius { 2UL, 0UL };
+  EXPECT_EQ(wIndex.neighbors(wPoint, 3, 6), wWithinRadius);
+  EXPECT_EQ(wIndex.neighbors(wPoint, 3, 6, wFilter, wLinearDistance), wWithinRadius);
+  EXPECT_EQ(wIndex.neighbors(wPoint, 1, flatbush::gMaxDistance, wFarFilter), (std::vector<size_t> { 1UL }));
+}
+
+TEST(FlatbushTest, QueryCallbacksCanBeMoveOnly) {
+  auto wIndex = createIndex();
+  const auto wSearchIds = wIndex.search({ 0.0, 0.0, 100.0, 100.0 }, MoveOnlyFilter {});
+  const auto wNeighborIds = wIndex.neighbors({ 50.0, 50.0 },
+                                             6,
+                                             flatbush::gMaxDistance,
+                                             MoveOnlyFilter {},
+                                             MoveOnlyDistance {});
+
+  EXPECT_EQ(wSearchIds.size(), wIndex.numItems() / 2UL);
+  for (const auto wId : wSearchIds) {
+    EXPECT_EQ(wId % 2UL, 0UL);
+  }
+
+  std::vector<size_t> wExpected { 6, 16, 18, 24, 54, 80 };
+  auto wSortedNeighborIds = wNeighborIds;
+  std::sort(wExpected.begin(), wExpected.end());
+  std::sort(wSortedNeighborIds.begin(), wSortedNeighborIds.end());
+  EXPECT_EQ(wSortedNeighborIds, wExpected);
+}
+
+TEST(FlatbushTest, SearchFilterExceptionsPropagate) {
+  auto wIndex = createIndex();
+
+  EXPECT_THROW(
+      {
+        static_cast<void>(wIndex.search({ 0.0, 0.0, 100.0, 100.0 }, [](size_t, const flatbush::Box<double>&) -> bool {
+          throw std::runtime_error("filter failure");
+        }));
+      },
+      std::runtime_error);
+  EXPECT_EQ(wIndex.search({ 0.0, 0.0, 100.0, 100.0 }).size(), wIndex.numItems());
+}
+
+TEST(FlatbushTest, NeighborsFilterExceptionsPropagate) {
+  auto wIndex = createIndex();
+
+  EXPECT_THROW(
+      {
+        static_cast<void>(wIndex.neighbors({ 50.0, 50.0 },
+                                           3,
+                                           flatbush::gMaxDistance,
+                                           [](size_t, const flatbush::Box<double>&) -> bool {
+                                             throw std::runtime_error("filter failure");
+                                           }));
+      },
+      std::runtime_error);
+  EXPECT_EQ(wIndex.neighbors({ 50.0, 50.0 }, 3).size(), 3UL);
+}
+
+TEST(FlatbushTest, NeighborsDistanceExceptionsPropagate) {
+  auto wIndex = createIndex();
+  size_t wCalls = 0UL;
+
+  EXPECT_THROW(
+      {
+        static_cast<void>(wIndex.neighbors({ 50.0, 50.0 },
+                                           3,
+                                           flatbush::gMaxDistance,
+                                           flatbush::detail::acceptAllFilter<double>,
+                                           [&wCalls](const flatbush::Point<double>& iPoint,
+                                                     const flatbush::Box<double>& iBox) -> double {
+                                             if (++wCalls > 1UL) throw std::runtime_error("distance failure");
+                                             return flatbush::detail::computeDistanceSquared(iPoint, iBox);
+                                           }));
+      },
+      std::runtime_error);
+  EXPECT_GT(wCalls, 1UL);
+  EXPECT_EQ(wIndex.neighbors({ 50.0, 50.0 }, 3).size(), 3UL);
+}
+
+TEST(FlatbushTest, ReturnIndexOfNewlyAddedRectangle) {
+  flatbush::FlatbushBuilder<double> wBuilder;
+
+  for (size_t wIdx = 0; wIdx < 5; ++wIdx) {
+    EXPECT_EQ(wIdx, wBuilder.add({ gData[wIdx], gData[wIdx + 1], gData[wIdx + 2], gData[wIdx + 3] }));
+  }
+}
+
+TEST(FlatbushTest, AddPointAsZeroAreaBox) {
+  flatbush::FlatbushBuilder<double> wBuilder(1);
+  const flatbush::Point<double> wPoint { 10.0, 20.0 };
+
+  EXPECT_EQ(wBuilder.add(wPoint), 0UL);
+  const auto wIndex = wBuilder.finish();
+
+  EXPECT_EQ(wIndex.search({ 10.0, 20.0, 10.0, 20.0 }), std::vector<size_t> { 0UL });
+  EXPECT_TRUE(wIndex.search({ 10.0, 21.0, 10.0, 21.0 }).empty());
+}
+
+TEST(FlatbushTest, FinishConsumesBuilderItems) {
+  flatbush::FlatbushBuilder<int32_t> wBuilder(1);
+  EXPECT_EQ(wBuilder.add({ 1, 1, 1, 1 }), 0UL);
+  const auto wFirst = wBuilder.finish();
+
+  EXPECT_EQ(wBuilder.add({ 2, 2, 2, 2 }), 0UL);
+  const auto wSecond = wBuilder.finish();
+
+  EXPECT_EQ(wFirst.numItems(), 1UL);
+  EXPECT_EQ(wSecond.numItems(), 1UL);
+  EXPECT_EQ(wFirst.search({ 1, 1, 1, 1 }), std::vector<size_t> { 0UL });
+  EXPECT_EQ(wSecond.search({ 2, 2, 2, 2 }), std::vector<size_t> { 0UL });
+}
+
+TEST(FlatbushTest, ClearDiscardsBuilderItems) {
+  flatbush::FlatbushBuilder<int32_t> wBuilder(2);
+  wBuilder.add({ 1, 1, 1, 1 });
+  wBuilder.clear();
+  EXPECT_EQ(wBuilder.add({ 2, 2, 2, 2 }), 0UL);
+
+  const auto wIndex = wBuilder.finish();
+  EXPECT_TRUE(wIndex.search({ 1, 1, 1, 1 }).empty());
+  EXPECT_EQ(wIndex.search({ 2, 2, 2, 2 }), std::vector<size_t> { 0UL });
+}
+
+TEST(FlatbushTest, SearchQueryFilterFunc) {
+  auto wIndex = createIndex();
+  auto wIds = wIndex.search({ 40, 40, 60, 60 }, [](size_t iValue, const flatbush::Box<double>&) {
+    return iValue % 2 == 0;
+  });
+  EXPECT_EQ(wIds.size(), 1);
+  EXPECT_EQ(wIds.front(), 6);
+}
+
+TEST(FlatbushTest, ReconstructIndexFromJSArrayBuffer) {
+  auto wIndex = flatbush::FlatbushBuilder<double>::from(gFlatbush.data(), gFlatbush.size());
+  auto wIndexBuffer = wIndex.data();
+
+  EXPECT_EQ(wIndexBuffer.size(), gFlatbush.size());
+
+  EXPECT_TRUE(std::equal(wIndexBuffer.begin(), wIndexBuffer.end(), gFlatbush.begin()));
+}
+
+TEST(FlatbushTest, BuildMatchesJSArrayBuffer) {
+  const auto wIndex = createSmallIndex(14, 16);
+  auto wData = wIndex.data();
+
+  EXPECT_EQ(wData.size(), gFlatbush.size());
+  EXPECT_TRUE(std::equal(wData.begin(), wData.end(), gFlatbush.begin()));
+}
+
+TEST(FlatbushTest, ReconstructIndexFromJSUint8ClampedArray) {
+  flatbush::FlatbushBuilder<uint8_t> wBuilder(2);
+  wBuilder.add({ 10, 20, 10, 20 });
+  wBuilder.add({ 30, 40, 30, 40 });
+  const auto wIndex = wBuilder.finish();
+  auto wData = std::vector<uint8_t> { wIndex.data().begin(), wIndex.data().end() };
+
+  EXPECT_EQ(wData[1] & 0x0fU, 1U);
+  wData[1] = static_cast<uint8_t>((flatbush::gVersion << 4U) | 2U);
+
+  const auto wClampedIndex = flatbush::FlatbushBuilder<uint8_t>::from(wData.data(), wData.size());
+  EXPECT_EQ(wClampedIndex.search({ 0, 0, 255, 255 }), wIndex.search({ 0, 0, 255, 255 }));
+  EXPECT_THROW(
+      { static_cast<void>(flatbush::FlatbushBuilder<int8_t>::from(wData.data(), wData.size())); },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromNull) {
+  EXPECT_THROW(
+      { static_cast<void>(flatbush::FlatbushBuilder<double>::from(nullptr, flatbush::gHeaderByteSize)); },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromWrongMagic) {
+  EXPECT_THROW(
+      {
+        static_cast<void>(
+            flatbush::FlatbushBuilder<double>::from(std::vector<uint8_t> { 0xf1 }.data(), flatbush::gHeaderByteSize));
+      },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromWrongVersion) {
+  EXPECT_THROW(
+      {
+        static_cast<void>(flatbush::FlatbushBuilder<double>::from(std::vector<uint8_t> { 0xfb, 2 << 4 }.data(),
+                                                                  flatbush::gHeaderByteSize));
+      },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromWrongEncodedType) {
+  EXPECT_THROW(
+      { static_cast<void>(flatbush::FlatbushBuilder<int>::from(gFlatbush.data(), gFlatbush.size())); },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromInvalidHeaderSize) {
+  EXPECT_THROW(
+      { static_cast<void>(flatbush::FlatbushBuilder<double>::from(std::vector<uint8_t> { 251, 56, 0, 0 }.data(), 4)); },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromInvalidNodeSize) {
+  EXPECT_THROW(
+      {
+        static_cast<void>(
+            flatbush::FlatbushBuilder<double>::from(std::vector<uint8_t> { 251, 56, 0, 0, 0, 0, 0, 0 }.data(),
+                                                    flatbush::gHeaderByteSize));
+      },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromInvalidNumItems) {
+  EXPECT_THROW(
+      {
+        static_cast<void>(
+            flatbush::FlatbushBuilder<double>::from(std::vector<uint8_t> { 251, 56, 16, 0, 14, 0, 0, 0 }.data(),
+                                                    flatbush::gHeaderByteSize));
+      },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromZeroNumItems) {
+  const auto wData = std::vector<uint8_t> { 251, 56, 16, 0, 0, 0, 0, 0 };
+
+  EXPECT_THROW(
+      { static_cast<void>(flatbush::FlatbushBuilder<double>::from(wData.data(), wData.size())); },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, DataReportsPackedSizeNotCapacity) {
+  auto wIndex = createIndex();
+  auto wVector = std::vector<uint8_t> {};
+  wVector.reserve(wIndex.data().size() + 1024);
+  wVector.assign(wIndex.data().begin(), wIndex.data().end());
+
+  ASSERT_GT(wVector.capacity(), wVector.size());
+
+  auto wIndex2 = flatbush::FlatbushBuilder<double>::from(std::move(wVector));
+
+  EXPECT_EQ(wIndex.data().size(), wIndex2.data().size());
+}
+
+TEST(FlatbushTest, FromOversizedBuffer) {
+  auto wIndex = createIndex();
+  auto wVector = std::vector<uint8_t> { wIndex.data().begin(), wIndex.data().end() };
+  wVector.resize(wVector.size() + 512, 0xAB);
+
+  EXPECT_THROW(
+      { static_cast<void>(flatbush::FlatbushBuilder<double>::from(wVector.data(), wVector.size())); },
+      std::invalid_argument);
+  EXPECT_THROW(
+      { static_cast<void>(flatbush::FlatbushBuilder<double>::from(std::move(wVector))); }, std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromInvalidInternalNodeIndex) {
+  static constexpr auto kNumItems = 5U;
+  flatbush::FlatbushBuilder<uint32_t> wBuilder(kNumItems, 2U);
+  for (uint32_t wIdx = 0U; wIdx < kNumItems; ++wIdx) {
+    wBuilder.add({ wIdx, wIdx, wIdx, wIdx });
+  }
+
+  auto wIndex = wBuilder.finish();
+  const auto wData = std::vector<uint8_t> { wIndex.data().begin(), wIndex.data().end() };
+  const auto wIndicesOffset = flatbush::gHeaderByteSize + wIndex.indexSize() * sizeof(flatbush::Box<uint32_t>);
+
+  for (auto wPosition = wIndex.numItems(); wPosition < wIndex.indexSize(); ++wPosition) {
+    auto wCorruptData = wData;
+    flatbush::NarrowIndexType wIndexValue;
+    std::memcpy(&wIndexValue,
+                wCorruptData.data() + wIndicesOffset + wPosition * sizeof(wIndexValue),
+                sizeof(wIndexValue));
+    wIndexValue = static_cast<flatbush::NarrowIndexType>(wIndexValue ^ 4U);
+    std::memcpy(wCorruptData.data() + wIndicesOffset + wPosition * sizeof(wIndexValue),
+                &wIndexValue,
+                sizeof(wIndexValue));
+
+    EXPECT_THROW(
+        { static_cast<void>(flatbush::FlatbushBuilder<uint32_t>::from(wCorruptData.data(), wCorruptData.size())); },
+        std::invalid_argument);
+  }
+}
+
+TEST(FlatbushTest, FromInvalidWideInternalNodeIndex) {
+  static constexpr auto kNumItems = 20000U;
+  flatbush::FlatbushBuilder<uint32_t> wBuilder(kNumItems);
+  for (uint32_t wIdx = 0U; wIdx < kNumItems; ++wIdx) {
+    wBuilder.add({ wIdx, wIdx, wIdx, wIdx });
+  }
+
+  auto wIndex = wBuilder.finish();
+  auto wData = std::vector<uint8_t> { wIndex.data().begin(), wIndex.data().end() };
+  const auto wRootPosition = wIndex.indexSize() - 1UL;
+  const auto wIndicesOffset = flatbush::gHeaderByteSize + wIndex.indexSize() * sizeof(flatbush::Box<uint32_t>);
+
+  ASSERT_GT(wIndex.indexSize(), flatbush::gMaxNumNodes);
+  const auto wRestored = flatbush::FlatbushBuilder<uint32_t>::from(wData.data(), wData.size());
+  EXPECT_EQ(wRestored.numItems(), kNumItems);
+
+  const flatbush::WideIndexType wWrongRootIndex = 0U;
+  std::memcpy(wData.data() + wIndicesOffset + wRootPosition * sizeof(wWrongRootIndex),
+              &wWrongRootIndex,
+              sizeof(wWrongRootIndex));
+  EXPECT_THROW(
+      { static_cast<void>(flatbush::FlatbushBuilder<uint32_t>::from(wData.data(), wData.size())); },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromSupportsIndexWidthBoundary) {
+  for (const auto wNumItems : { 15358U, 15359U }) {
+    flatbush::FlatbushBuilder<uint32_t> wBuilder(wNumItems);
+    for (uint32_t wIdx = 0U; wIdx < wNumItems; ++wIdx) {
+      wBuilder.add({ wIdx, wIdx, wIdx, wIdx });
+    }
+
+    const auto wIndex = wBuilder.finish();
+    const auto wExpectedNodes = wNumItems == 15358U ? flatbush::gMaxNumNodes : flatbush::gMaxNumNodes + 1UL;
+    ASSERT_EQ(wIndex.indexSize(), wExpectedNodes);
+
+    const auto wRestored = flatbush::FlatbushBuilder<uint32_t>::from(wIndex.data().data(), wIndex.data().size());
+    EXPECT_EQ(wRestored.indexSize(), wExpectedNodes);
+    EXPECT_EQ(wRestored.search({ wNumItems - 1U, wNumItems - 1U, wNumItems - 1U, wNumItems - 1U }),
+              std::vector<size_t> { wNumItems - 1UL });
+  }
+}
+
+TEST(FlatbushTest, FromMisalignedBuffer) {
+  for (const auto wNumItems : { 15358U, 15359U }) {
+    flatbush::FlatbushBuilder<uint32_t> wBuilder(wNumItems);
+    for (uint32_t wIdx = 0U; wIdx < wNumItems; ++wIdx) {
+      wBuilder.add({ wIdx, wIdx, wIdx, wIdx });
+    }
+
+    const auto wIndex = wBuilder.finish();
+    const auto wIsWideIndex = wIndex.indexSize() > flatbush::gMaxNumNodes;
+    ASSERT_EQ(wIsWideIndex, wNumItems == 15359U);
+    const auto wIndexByteSize = wIsWideIndex ? sizeof(flatbush::WideIndexType) : sizeof(flatbush::NarrowIndexType);
+    const auto wRootIndexOffset = flatbush::gHeaderByteSize + wIndex.indexSize() * sizeof(flatbush::Box<uint32_t>) +
+                                  (wIndex.indexSize() - 1UL) * wIndexByteSize;
+    auto wVector = std::vector<uint8_t>(wIndex.data().size() + alignof(uint32_t));
+
+    for (size_t wOffset = 1UL; wOffset < alignof(uint32_t); ++wOffset) {
+      std::memcpy(wVector.data() + wOffset, wIndex.data().data(), wIndex.data().size());
+      const auto wBytes = flatbush::span<const uint8_t> { wVector.data() + wOffset, wIndex.data().size() };
+      const auto wRestored = flatbush::FlatbushBuilder<uint32_t>::from(wBytes.data(), wBytes.size());
+
+      EXPECT_FALSE(wRestored.isView());
+      EXPECT_NE(wRestored.data().data(), wBytes.data());
+      EXPECT_EQ(wRestored.numItems(), wNumItems);
+      EXPECT_EQ(wRestored.nodeSize(), wIndex.nodeSize());
+      EXPECT_EQ(wRestored.indexSize(), wIndex.indexSize());
+      ASSERT_EQ(wRestored.data().size(), wBytes.size());
+      EXPECT_TRUE(std::equal(wBytes.begin(), wBytes.end(), wRestored.data().begin()));
+      EXPECT_EQ(wRestored.search({ wNumItems - 1U, wNumItems - 1U, wNumItems - 1U, wNumItems - 1U }),
+                std::vector<size_t> { wNumItems - 1UL });
+      EXPECT_EQ(wRestored.neighbors({ wNumItems - 1U, wNumItems - 1U }, 1UL), std::vector<size_t> { wNumItems - 1UL });
+      EXPECT_THROW(
+          { static_cast<void>(flatbush::FlatbushBuilder<uint32_t>::fromView(wBytes)); }, std::invalid_argument);
+
+      wVector[wOffset + wRootIndexOffset] ^= 1U;
+      EXPECT_THROW(
+          { static_cast<void>(flatbush::FlatbushBuilder<uint32_t>::from(wBytes.data(), wBytes.size())); },
+          std::invalid_argument);
+    }
+  }
+}
+
+TEST(FlatbushTest, FromMisalignedInvalidHeader) {
+  for (const auto wFieldOffset : { 2UL, 4UL }) {
+    auto wVector = std::vector<uint8_t>(gFlatbush.size() + 1UL);
+    auto* const wData = wVector.data() + 1UL;
+    std::memcpy(wData, gFlatbush.data(), gFlatbush.size());
+    const auto wFieldSize = wFieldOffset == 2UL ? sizeof(uint16_t) : sizeof(uint32_t);
+    std::memset(wData + wFieldOffset, 0, wFieldSize);
+
+    EXPECT_THROW(
+        { static_cast<void>(flatbush::FlatbushBuilder<double>::from(wData, gFlatbush.size())); },
+        std::invalid_argument);
+  }
+}
+
+TEST(FlatbushTest, FromSupportsSingleItemIndex) {
+  flatbush::FlatbushBuilder<double> wBuilder(1U);
+  wBuilder.add({ 1.0, 2.0, 3.0, 4.0 });
+  const auto wIndex = wBuilder.finish();
+
+  const auto wRestored = flatbush::FlatbushBuilder<double>::from(wIndex.data().data(), wIndex.data().size());
+  EXPECT_EQ(wRestored.search({ 1.0, 2.0, 3.0, 4.0 }), std::vector<size_t> { 0UL });
+}
+
+TEST(FlatbushTest, FromMovedVectorDoesNotCopy) {
+  auto wIndex = createIndex();
+  auto wVector = std::vector<uint8_t> { wIndex.data().begin(), wIndex.data().end() };
+  const auto* const wBefore = wVector.data();
+  auto wIndex2 = flatbush::FlatbushBuilder<double>::from(std::move(wVector));
+
+  EXPECT_EQ(wBefore, wIndex2.data().data());
+}
+
+TEST(FlatbushTest, FromViewAliasesSourceBytes) {
+  auto wIndex = createIndex();
+  auto wVector = std::vector<uint8_t> { wIndex.data().begin(), wIndex.data().end() };
+  const auto wBytes = flatbush::span<const uint8_t> { wVector.data(), wVector.size() };
+  auto wView = flatbush::FlatbushBuilder<double>::fromView(wBytes);
+
+  EXPECT_TRUE(wView.isView());
+  EXPECT_FALSE(wIndex.isView());
+  EXPECT_EQ(wVector.data(), wView.data().data());
+  EXPECT_EQ(wVector.size(), wView.data().size());
+  EXPECT_EQ(wIndex.numItems(), wView.numItems());
+  EXPECT_EQ(wIndex.nodeSize(), wView.nodeSize());
+  EXPECT_EQ(wIndex.search({ 40, 40, 60, 60 }), wView.search({ 40, 40, 60, 60 }));
+}
+
+TEST(FlatbushTest, FromViewSurvivesMove) {
+  auto wIndex = createIndex();
+  auto wVector = std::vector<uint8_t> { wIndex.data().begin(), wIndex.data().end() };
+  const auto wBytes = flatbush::span<const uint8_t> { wVector.data(), wVector.size() };
+  auto wView = flatbush::FlatbushBuilder<double>::fromView(wBytes);
+  auto wMoved = std::move(wView);
+
+  EXPECT_EQ(wVector.data(), wMoved.data().data());
+  EXPECT_EQ(wIndex.search({ 40, 40, 60, 60 }), wMoved.search({ 40, 40, 60, 60 }));
+}
+
+TEST(FlatbushTest, FromViewSharesOneBufferBetweenIndices) {
+  auto wIndex = createIndex();
+  auto wVector = std::vector<uint8_t> { wIndex.data().begin(), wIndex.data().end() };
+  const auto wBytes = flatbush::span<const uint8_t> { wVector.data(), wVector.size() };
+  auto wFirst = flatbush::FlatbushBuilder<double>::fromView(wBytes);
+  auto wSecond = flatbush::FlatbushBuilder<double>::fromView(wBytes);
+
+  EXPECT_EQ(wFirst.data().data(), wSecond.data().data());
+  EXPECT_EQ(wFirst.search({ 40, 40, 60, 60 }), wSecond.search({ 40, 40, 60, 60 }));
+}
+
+TEST(FlatbushTest, FromViewMisalignedBuffer) {
+  auto wIndex = createIndex();
+  auto wVector = std::vector<uint8_t>(wIndex.data().size() + 1);
+  std::memcpy(wVector.data() + 1, wIndex.data().data(), wIndex.data().size());
+  const auto wBytes = flatbush::span<const uint8_t> { wVector.data() + 1, wIndex.data().size() };
+
+  EXPECT_THROW({ static_cast<void>(flatbush::FlatbushBuilder<double>::fromView(wBytes)); }, std::invalid_argument);
+}
+
+TEST(FlatbushTest, FromHostileNumItemsDoesNotAllocate) {
+  // Header claims ~4.29e9 items, which would otherwise size a ~164 GB allocation
+  auto wHeader = std::vector<uint8_t> { 251, 56, 16, 0, 0xff, 0xff, 0xff, 0xff };
+
+  EXPECT_THROW(
+      { static_cast<void>(flatbush::FlatbushBuilder<double>::from(wHeader.data(), flatbush::gHeaderByteSize)); },
+      std::invalid_argument);
+}
+
+TEST(FlatbushTest, TryCalculateDataSizeRejectsUnrepresentableLayout) {
+  size_t wDataSize;
+  EXPECT_FALSE(flatbush::detail::tryCalculateDataSize<uint8_t>(std::numeric_limits<size_t>::max(), 16U, wDataSize));
+
+  if (sizeof(size_t) > sizeof(uint32_t)) {
+    EXPECT_TRUE(flatbush::detail::tryCalculateDataSize<uint8_t>(1006632960UL, 16U, wDataSize));
+    EXPECT_FALSE(flatbush::detail::tryCalculateDataSize<uint8_t>(1006632961UL, 16U, wDataSize));
+  }
+}
+
+TEST(FlatbushTest, BuilderRejectsUnrepresentableReservation) {
+  EXPECT_THROW({ flatbush::FlatbushBuilder<uint8_t> wBuilder(std::numeric_limits<size_t>::max()); }, std::length_error);
+}
+
+TEST(FlatbushTest, AdjustedNodeSize) {
+  flatbush::FlatbushBuilder<int> wBuilder0(1, 0);
+  wBuilder0.add({ 0, 0, 0, 0 });
+  auto wIndex0 = wBuilder0.finish();
+  EXPECT_EQ(wIndex0.numItems(), 1);
+  EXPECT_EQ(wIndex0.nodeSize(), 2);
+
+  flatbush::FlatbushBuilder<int> wBuilder1(1, 1);
+  wBuilder1.add({ 0, 0, 0, 0 });
+  auto wIndex1 = wBuilder1.finish();
+  EXPECT_EQ(wIndex1.numItems(), 1);
+  EXPECT_EQ(wIndex1.nodeSize(), 2);
+}
+
+TEST(FlatbushTest, SearchQuerySinglePointSmallNumItems) {
+  flatbush::FlatbushBuilder<int> wBuilder;
+  wBuilder.add({ 0, 0, 0, 0 });
+  auto wIndex = wBuilder.finish();
+
+  EXPECT_EQ(wIndex.numItems(), 1);
+  EXPECT_EQ(wIndex.nodeSize(), flatbush::gDefaultNodeSize);
+
+  auto wIds = wIndex.search({ 0, 0, 0, 0 });
+  EXPECT_EQ(wIds.size(), 1);
+  EXPECT_EQ(wIds.front(), 0);
+}
+
+TEST(FlatbushTest, SearchQuerySinglePointLargeNumItems) {
+  uint32_t wNumItems = 5;
+  uint16_t wNodeSize = 4;
+
+  flatbush::FlatbushBuilder<int> wBuilder(wNumItems, wNodeSize);
+  wBuilder.add({ 0, 0, 0, 0 });
+  wBuilder.add({ 0, 1, 0, 1 });
+  wBuilder.add({ 1, 0, 1, 0 });
+  wBuilder.add({ 1, 1, 1, 1 });
+  wBuilder.add({ 1, 2, 3, 4 });
+  auto wIndex = wBuilder.finish();
+
+  EXPECT_EQ(wIndex.numItems(), wNumItems);
+  EXPECT_EQ(wIndex.nodeSize(), wNodeSize);
+
+  auto wIds = wIndex.search({ 0, 0, 0, 0 });
+  EXPECT_EQ(wIds.size(), 1);
+  EXPECT_EQ(wIds.front(), 0);
+}
+
+TEST(FlatbushTest, SearchQueryMultiPointSmallNumItems) {
+  uint32_t wNumItems = 5;
+
+  flatbush::FlatbushBuilder<int> wBuilder;
+  wBuilder.add({ 0, 0, 0, 0 });
+  wBuilder.add({ 0, 1, 0, 1 });
+  wBuilder.add({ 1, 0, 1, 0 });
+  wBuilder.add({ 1, 1, 1, 1 });
+  wBuilder.add({ 1, 2, 3, 4 });
+  auto wIndex = wBuilder.finish();
+
+  EXPECT_EQ(wIndex.numItems(), wNumItems);
+  EXPECT_EQ(wIndex.nodeSize(), flatbush::gDefaultNodeSize);
+
+  auto wIds = wIndex.search({ 0, 0, 1, 1 });
+  EXPECT_EQ(wIds.size(), 4);
+  EXPECT_EQ(wIds.front(), 0);
+  EXPECT_EQ(wIds.back(), 3);
+}
+
+TEST(FlatbushTest, SearchQueryMultiPointLargeNumItems) {
+  uint32_t wNumItems = 9;
+  uint16_t wNodeSize = 4;
+
+  flatbush::FlatbushBuilder<int> wBuilder(wNumItems, wNodeSize);
+  wBuilder.add({ 0, 0, 0, 0 });
+  wBuilder.add({ 0, 1, 0, 1 });
+  wBuilder.add({ 1, 0, 1, 0 });
+  wBuilder.add({ 1, 1, 1, 1 });
+  wBuilder.add({ 1, 2, 3, 4 });
+  wBuilder.add({ 5, 6, 7, 8 });
+  wBuilder.add({ 1, 3, 5, 7 });
+  wBuilder.add({ 2, 4, 6, 8 });
+  wBuilder.add({ 9, 9, 9, 9 });
+  auto wIndex = wBuilder.finish();
+
+  EXPECT_EQ(wIndex.numItems(), wNumItems);
+  EXPECT_EQ(wIndex.nodeSize(), wNodeSize);
+
+  auto wIds = wIndex.search({ 0, 0, 1, 1 });
+  EXPECT_EQ(wIds.size(), 4);
+  EXPECT_EQ(wIds.front(), 0);
+  EXPECT_EQ(wIds.back(), 1);
+}
+
+TEST(FlatbushTest, TestOneMillionItems) {
+  flatbush::FlatbushBuilder<uint32_t> wBuilder;
+  uint32_t wNumItems = 1000000;
+
+  for (uint32_t wIdx = 0; wIdx < wNumItems; ++wIdx) {
+    wBuilder.add({ wIdx, wIdx, wIdx, wIdx });
+  }
+
+  auto wIndex = wBuilder.finish();
+  EXPECT_EQ(wIndex.numItems(), wNumItems);
+  EXPECT_EQ(wIndex.nodeSize(), flatbush::gDefaultNodeSize);
+
+  auto wIds = wIndex.search({ 0, 0, 0, 0 });
+  EXPECT_EQ(wIds.size(), 1);
+  EXPECT_EQ(wIds.front(), 0);
+
+  auto wIds2 = wIndex.search({ 0, 0, wNumItems, wNumItems });
+  EXPECT_EQ(wIds2.size(), wNumItems);
+}
+
+TEST(FlatbushTest, QuickSortImbalancedDataset) {
+  static const auto linspace = [](double wStart, double wStop, uint32_t wNum) {
+    const auto wStep = (wStop - wStart) / (wNum - 1);
+    std::vector<double> wItems(wNum);
+    for (uint32_t wIndex = 0; wIndex < wNum; ++wIndex) {
+      wItems.at(wIndex) = wStart + wStep * static_cast<double>(wIndex);
+    }
+    return wItems;
+  };
+
+  EXPECT_NO_THROW({
+    flatbush::FlatbushBuilder<double> wBuilder;
+    uint32_t wNumItems = 15000;
+    const auto& wItems = linspace(0, 1000, wNumItems);
+
+    for (uint32_t wCount = 0; wCount < 10; ++wCount) {
+      for (const auto wItem : wItems) {
+        wBuilder.add({ wItem, 0, wItem, 0 });
+      }
+    }
+    static_cast<void>(wBuilder.finish());
+  });
+}
+
+TEST(FlatbushTest, QuickSortWorksOnDuplicates) {
+  uint32_t wNumItems = 55000 + 5500 + 7700;
+  flatbush::FlatbushBuilder<double> wBuilder(wNumItems);
+  auto wX = 0.0;
+
+  for (uint32_t wCount = 0; wCount < 55000; ++wCount, ++wX) {
+    wBuilder.add({ wX, 3.0, wX, 3.0 });
+  }
+
+  for (uint32_t wCount = 0; wCount < 5500; ++wCount, ++wX) {
+    wBuilder.add({ wX, 4.0, wX, 4.0 });
+  }
+
+  for (uint32_t wCount = 0; wCount < 7700; ++wCount, ++wX) {
+    wBuilder.add({ wX, 5.0, wX, 5.0 });
+  }
+
+  const auto wIndex = wBuilder.finish();
+
+  const auto wIds = wIndex.search({ 0.5, -1, 6.5, 1 });
+  EXPECT_EQ(wIds.size(), 0);
+
+  const auto wIds2 = wIndex.search({ 55000, 4.0, 55000, 4.0 });
+  EXPECT_EQ(wIds2.size(), 1);
+}
+
+TEST(FlatbushTest, DegenerateBoundsMapToZeroHilbertCoordinates) {
+  static constexpr auto kNumItems = 17UL;
+  const auto wExpected = flatbush::detail::HilbertXYToIndex(0U, 0U);
+
+  auto wDoubleBoxes = std::vector<flatbush::Box<double>>(kNumItems, flatbush::Box<double> { 42.0, 42.0, 42.0, 42.0 });
+  const auto wDoubleValues = flatbush::detail::computeHilbertValues(kNumItems,
+                                                                    wDoubleBoxes.front(),
+                                                                    flatbush::span<flatbush::Box<double>> {
+                                                                        wDoubleBoxes.data(), wDoubleBoxes.size() });
+
+  for (const auto wValue : wDoubleValues) {
+    EXPECT_EQ(wValue, wExpected);
+  }
+
+  auto wIntBoxes = std::vector<flatbush::Box<int32_t>>(kNumItems,
+                                                       flatbush::Box<int32_t> {
+                                                           1500000000, 1500000000, 1500000000, 1500000000 });
+  const auto wIntValues = flatbush::detail::computeHilbertValues(kNumItems,
+                                                                 wIntBoxes.front(),
+                                                                 flatbush::span<flatbush::Box<int32_t>> {
+                                                                     wIntBoxes.data(), wIntBoxes.size() });
+
+  for (const auto wValue : wIntValues) {
+    EXPECT_EQ(wValue, wExpected);
+  }
+}
+
+TEST(FlatbushTest, IntegralHilbertCoordinatesAreTranslationInvariant) {
+  static constexpr auto kNumItems = 17U;
+  static constexpr auto kOffset = 4000000000U;
+  auto wBaseBoxes = std::vector<flatbush::Box<uint32_t>> {};
+  auto wTranslatedBoxes = std::vector<flatbush::Box<uint32_t>> {};
+
+  for (uint32_t wIdx = 0U; wIdx < kNumItems; ++wIdx) {
+    wBaseBoxes.push_back({ wIdx, 0U, wIdx, 0U });
+    wTranslatedBoxes.push_back({ kOffset + wIdx, 0U, kOffset + wIdx, 0U });
+  }
+
+  const auto wBaseValues = flatbush::detail::computeHilbertValues(kNumItems,
+                                                                  flatbush::Box<uint32_t> {
+                                                                      0U, 0U, kNumItems - 1U, 0U },
+                                                                  flatbush::span<flatbush::Box<uint32_t>> {
+                                                                      wBaseBoxes.data(), wBaseBoxes.size() });
+  const auto wTranslatedValues = flatbush::detail::computeHilbertValues(kNumItems,
+                                                                        flatbush::Box<uint32_t> {
+                                                                            kOffset, 0U, kOffset + kNumItems - 1U, 0U },
+                                                                        flatbush::span<flatbush::Box<uint32_t>> {
+                                                                            wTranslatedBoxes.data(),
+                                                                            wTranslatedBoxes.size() });
+
+  EXPECT_EQ(wTranslatedValues, wBaseValues);
+}
+
+TEST(FlatbushTest, DoubleHilbertCoordinatesUseTruncation) {
+  auto wBoxes = std::vector<flatbush::Box<double>> { { 0.0, 0.0, 1.0, 2.0 },
+                                                     { 1.0, 3.0, 3.0, 6.0 },
+                                                     { 3.0, 6.0, 5.0, 11.0 },
+                                                     { 5.0, 9.0, 7.0, 15.0 },
+                                                     { 7.0, 14.0, 8.0, 16.0 } };
+  const auto wValues = flatbush::detail::computeHilbertValues(wBoxes.size(),
+                                                              flatbush::Box<double> { 0.0, 0.0, 8.0, 16.0 },
+                                                              flatbush::span<flatbush::Box<double>> { wBoxes.data(),
+                                                                                                      wBoxes.size() });
+  EXPECT_EQ(wValues,
+            (flatbush::detail::HilbertValues { flatbush::detail::HilbertXYToIndex(4095U, 4095U),
+                                               flatbush::detail::HilbertXYToIndex(16383U, 18431U),
+                                               flatbush::detail::HilbertXYToIndex(32767U, 34815U),
+                                               flatbush::detail::HilbertXYToIndex(49151U, 49151U),
+                                               flatbush::detail::HilbertXYToIndex(61439U, 61439U) }));
+}
+
+TEST(FlatbushTest, LargeFiniteDoubleBoundsAvoidIntermediateOverflow) {
+  auto wExtremeBoxes = std::vector<flatbush::Box<double>> { { -8e307, 0.0, -8e307, 0.0 },
+                                                            { -4e307, 0.0, -4e307, 0.0 },
+                                                            { 0.0, 0.0, 0.0, 0.0 },
+                                                            { 4e307, 0.0, 4e307, 0.0 },
+                                                            { 8e307, 0.0, 8e307, 0.0 } };
+  const auto wExtremeValues = flatbush::detail::computeHilbertValues(wExtremeBoxes.size(),
+                                                                     flatbush::Box<double> { -8e307, 0.0, 8e307, 0.0 },
+                                                                     flatbush::span<flatbush::Box<double>> {
+                                                                         wExtremeBoxes.data(), wExtremeBoxes.size() });
+  EXPECT_EQ(wExtremeValues,
+            (flatbush::detail::HilbertValues { flatbush::detail::HilbertXYToIndex(0U, 0U),
+                                               flatbush::detail::HilbertXYToIndex(16383U, 0U),
+                                               flatbush::detail::HilbertXYToIndex(32767U, 0U),
+                                               flatbush::detail::HilbertXYToIndex(49151U, 0U),
+                                               flatbush::detail::HilbertXYToIndex(65535U, 0U) }));
+}
+
+TEST(FlatbushTest, ExtremeFloatBoundsPreserveHilbertRange) {
+  const auto wFloatMax = std::numeric_limits<float>::max();
+  auto wFloatBoxes = std::vector<flatbush::Box<float>> { { -wFloatMax, 0.0F, -wFloatMax, 0.0F },
+                                                         { -wFloatMax, 0.0F, -wFloatMax, 0.0F },
+                                                         { 0.0F, 0.0F, 0.0F, 0.0F },
+                                                         { wFloatMax, 0.0F, wFloatMax, 0.0F },
+                                                         { wFloatMax, 0.0F, wFloatMax, 0.0F } };
+  const auto wFloatValues = flatbush::detail::computeHilbertValues(wFloatBoxes.size(),
+                                                                   flatbush::Box<float> {
+                                                                       -wFloatMax, 0.0F, wFloatMax, 0.0F },
+                                                                   flatbush::span<flatbush::Box<float>> {
+                                                                       wFloatBoxes.data(), wFloatBoxes.size() });
+  const auto wZero = flatbush::detail::HilbertXYToIndex(0U, 0U);
+  const auto wMiddle = flatbush::detail::HilbertXYToIndex(32767U, 0U);
+  const auto wMaximum = flatbush::detail::HilbertXYToIndex(65535U, 0U);
+  EXPECT_EQ(wFloatValues, (flatbush::detail::HilbertValues { wZero, wZero, wMiddle, wMaximum, wMaximum }));
+}
+
+TEST(FlatbushTest, ReconstructIndexFromMovedVector) {
+  auto wIndex = createIndex();
+  auto wIndexBuffer = wIndex.data();
+  auto wIndexVector = std::vector<uint8_t> { wIndexBuffer.begin(), wIndexBuffer.end() };
+  auto wIndex2 = flatbush::FlatbushBuilder<double>::from(std::move(wIndexVector));
+  auto wIndex2Buffer = wIndex2.data();
+
+  EXPECT_EQ(wIndexBuffer.size(), wIndex2Buffer.size());
+
+  EXPECT_TRUE(std::equal(wIndexBuffer.begin(), wIndexBuffer.end(), wIndex2Buffer.begin()));
+}
+
+TEST(FlatbushTest, SearchQueryNaNBoundsReturnsEmpty) {
+  auto wIndex = createIndex();
+  const auto wNaN = std::numeric_limits<double>::quiet_NaN();
+  const auto wIds = wIndex.search({ wNaN, 0.0, 10.0, 10.0 });
+  EXPECT_TRUE(wIds.empty());
+}
+
+TEST(FlatbushTest, NeighborsGuardPathsReturnEmpty) {
+  auto wIndex = createIndex();
+  const auto wNaN = std::numeric_limits<double>::quiet_NaN();
+
+  EXPECT_TRUE(wIndex.neighbors({ wNaN, 50.0 }, 10).empty());
+  EXPECT_TRUE(wIndex.neighbors({ 50.0, 50.0 }, 0).empty());
+  EXPECT_TRUE(wIndex.neighbors({ 50.0, 50.0 }, 10, wNaN).empty());
+  EXPECT_TRUE(wIndex.neighbors({ 50.0, 50.0 }, 10, 0.0).empty());
+  EXPECT_TRUE(wIndex.neighbors({ 50.0, 50.0 }, 10, -1.0).empty());
+}
+
+TEST(FlatbushTest, NeighborsSupportsUnboundedAndSubnormalDistance) {
+  flatbush::FlatbushBuilder<double> wBuilder(1);
+  wBuilder.add({ 0.0, 0.0, 0.0, 0.0 });
+  const auto wIndex = wBuilder.finish();
+
+  EXPECT_EQ(wIndex.neighbors({ 0.0, 0.0 }, 1, std::numeric_limits<double>::infinity()), std::vector<size_t> { 0UL });
+  EXPECT_EQ(wIndex.neighbors({ 0.0, 0.0 }, 1, std::numeric_limits<double>::denorm_min()), std::vector<size_t> { 0UL });
+  EXPECT_EQ(wIndex.neighbors({ 0.0, 0.0 },
+                             1,
+                             std::numeric_limits<double>::infinity(),
+                             flatbush::detail::acceptAllFilter<double>,
+                             [](const flatbush::Point<double>&, const flatbush::Box<double>&) {
+                               return std::numeric_limits<double>::infinity();
+                             }),
+            std::vector<size_t> { 0UL });
+
+  flatbush::FlatbushBuilder<double> wFarBuilder(1);
+  wFarBuilder.add({ 1.0e200, 0.0, 1.0e200, 0.0 });
+  const auto wFarIndex = wFarBuilder.finish();
+  EXPECT_EQ(wFarIndex.neighbors({ 0.0, 0.0 }, 1, 1.0e200), std::vector<size_t> { 0UL });
+  EXPECT_EQ(wFarIndex.neighbors({ 0.0, 0.0 }, 1), std::vector<size_t> { 0UL });
+}
+
+TEST(FlatbushTest, NeighborsDoNotOverflowTheMetric) {
+  constexpr size_t kNumItems = 64;
+  flatbush::FlatbushBuilder<float> wBuilder(kNumItems, 4);
+
+  for (size_t wIdx = 0; wIdx < kNumItems; ++wIdx) {
+    const auto wValue = -1e30F + static_cast<float>(wIdx) * (2e30F / kNumItems);
+    wBuilder.add({ wValue, wValue, wValue, wValue });
+  }
+
+  const auto wIndex = wBuilder.finish();
+  const auto wCorner = static_cast<double>(-1e30F);
+
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(flatbush::Point<float> { 0.0F, 0.0F },
+                                                            flatbush::Box<float> { -1e30F, -1e30F, -1e30F, -1e30F }),
+                   2.0 * wCorner * wCorner);
+  EXPECT_EQ(wIndex.neighbors({ 0.0F, 0.0F }, kNumItems, 2e30).size(), kNumItems);
+}
+
+TEST(FlatbushTest, SignedIntegerMetricKeepsFullPrecision) {
+  const flatbush::Point<int32_t> wPoint { 0, 0 };
+  const flatbush::Box<int32_t> wNear { 2147483585, 0, 2147483585, 0 };
+  const flatbush::Box<int32_t> wFar { 2147483647, 0, 2147483647, 0 };
+
+  EXPECT_EQ(static_cast<float>(wNear.mMinX), static_cast<float>(wFar.mMinX));
+  EXPECT_LT(flatbush::detail::computeDistanceSquared(wPoint, wNear),
+            flatbush::detail::computeDistanceSquared(wPoint, wFar));
+}
+
+TEST(FlatbushTest, UnsignedIntegerMetricKeepsFullPrecision) {
+  const auto wMax = std::numeric_limits<uint32_t>::max();
+  const flatbush::Point<uint32_t> wPoint { 0U, 0U };
+  const flatbush::Box<uint32_t> wNear { wMax - 62U, 0U, wMax - 62U, 0U };
+  const flatbush::Box<uint32_t> wFar { wMax, 0U, wMax, 0U };
+
+  EXPECT_EQ(static_cast<float>(wNear.mMinX), static_cast<float>(wFar.mMinX));
+  EXPECT_LT(flatbush::detail::computeDistanceSquared(wPoint, wNear),
+            flatbush::detail::computeDistanceSquared(wPoint, wFar));
+}
+
+TEST(FlatbushTest, NarrowIntegerMetricWidensCorrectly) {
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(flatbush::Point<int8_t> { -128, -128 },
+                                                            flatbush::Box<int8_t> { 127, 127, 127, 127 }),
+                   2.0 * 255.0 * 255.0);
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(flatbush::Point<uint8_t> { 0U, 0U },
+                                                            flatbush::Box<uint8_t> { 255U, 255U, 255U, 255U }),
+                   2.0 * 255.0 * 255.0);
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(flatbush::Point<int16_t> { -32768, -32768 },
+                                                            flatbush::Box<int16_t> { 32767, 32767, 32767, 32767 }),
+                   2.0 * 65535.0 * 65535.0);
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(flatbush::Point<uint16_t> { 0U, 0U },
+                                                            flatbush::Box<uint16_t> { 65535U, 65535U, 65535U, 65535U }),
+                   2.0 * 65535.0 * 65535.0);
+}
+
+TEST(FlatbushTest, SearchOutsideGlobalBoundsReturnsEmpty) {
+  auto wIndex = createIndex();
+  const auto wIds = wIndex.search({ 1000.0, 1000.0, 1010.0, 1010.0 });
+  EXPECT_TRUE(wIds.empty());
+}
+
+TEST(FlatbushTest, ApproximateResultsSizeEdgeCases) {
+  const flatbush::Box<double> wDegenerateIndex { 1.0, 1.0, 1.0, 10.0 };
+  const flatbush::Box<double> wValidSearch { 0.0, 0.0, 2.0, 2.0 };
+  EXPECT_EQ(flatbush::detail::approximateResultsSize(wDegenerateIndex, wValidSearch, 100), 0UL);
+
+  const flatbush::Box<double> wValidIndex { 0.0, 0.0, 10.0, 10.0 };
+  const flatbush::Box<double> wDegenerateSearch { 1.0, 1.0, 1.0, 3.0 };
+  EXPECT_EQ(flatbush::detail::approximateResultsSize(wValidIndex, wDegenerateSearch, 100), 0UL);
+
+  const flatbush::Box<double> wNegativeDimensionSearch { 6.0, 1.0, 5.0, 3.0 };
+  EXPECT_EQ(flatbush::detail::approximateResultsSize(wValidIndex, wNegativeDimensionSearch, 100), 0UL);
+
+  const auto wInf = std::numeric_limits<double>::infinity();
+  const auto wNaN = std::numeric_limits<double>::quiet_NaN();
+  const flatbush::Box<double> wInfiniteSearch { 0.0, 0.0, wInf, 2.0 };
+  const flatbush::Box<double> wNanSearch { 0.0, 0.0, wNaN, 2.0 };
+  EXPECT_EQ(flatbush::detail::approximateResultsSize(wValidIndex, wInfiniteSearch, 100), 0UL);
+  EXPECT_EQ(flatbush::detail::approximateResultsSize(wValidIndex, wNanSearch, 100), 0UL);
+
+  const flatbush::Box<double> wBiggerSearch { -5.0, -5.0, 15.0, 15.0 };
+  EXPECT_EQ(flatbush::detail::approximateResultsSize(wValidIndex, wBiggerSearch, 100), 100UL);
+
+  const flatbush::Box<double> wQuarterSearch { 0.0, 0.0, 5.0, 5.0 };
+  EXPECT_EQ(flatbush::detail::approximateResultsSize(wValidIndex, wQuarterSearch, 100), 37UL);
+}
+
+TEST(FlatbushTest, NeighborsUsesBothStrategyBranches) {
+  static constexpr size_t kMergeThreshold = 131072UL;
+  const uint32_t wNumItems = kMergeThreshold + 2UL;
+  flatbush::FlatbushBuilder<double> wBuilder(wNumItems);
+  for (uint32_t wIdx = 0; wIdx < wNumItems; ++wIdx) {
+    const auto wVal = static_cast<double>(wIdx);
+    wBuilder.add({ wVal, wVal, wVal, wVal });
+  }
+  const auto wIndex = wBuilder.finish();
+
+  const auto wSmallLimit = wIndex.neighbors({ 50.0, 50.0 }, kMergeThreshold - 1UL);
+  auto wLargeLimit = wIndex.neighbors({ 50.0, 50.0 }, kMergeThreshold + 1UL);
+
+  EXPECT_EQ(wSmallLimit.size(), kMergeThreshold - 1UL);
+  EXPECT_EQ(wLargeLimit.size(), kMergeThreshold + 1UL);
+
+  std::sort(wLargeLimit.begin(), wLargeLimit.end());
+  for (const auto wId : wSmallLimit) {
+    EXPECT_TRUE(std::binary_search(wLargeLimit.begin(), wLargeLimit.end(), wId));
+  }
+}
+
+TEST(FlatbushTest, WideIndexSupportsSearchAndNeighbors) {
+  const uint32_t wNumItems = 20000;
+  flatbush::FlatbushBuilder<uint32_t> wBuilder(wNumItems);
+  for (uint32_t wIdx = 0; wIdx < wNumItems; ++wIdx) {
+    wBuilder.add({ wIdx, wIdx, wIdx, wIdx });
+  }
+  const auto wIndex = wBuilder.finish();
+
+  const auto wSearch = wIndex.search({ 12345U, 12345U, 12345U, 12345U });
+  EXPECT_EQ(wSearch.size(), 1UL);
+  EXPECT_EQ(wSearch.front(), 12345UL);
+
+  const auto wNeighbors = wIndex.neighbors({ 12345U, 12345U }, 10);
+  EXPECT_EQ(wNeighbors.size(), 10UL);
+  EXPECT_NE(std::find(wNeighbors.begin(), wNeighbors.end(), 12345UL), wNeighbors.end());
+}
+
+template <typename T>
+class FlatbushTypedTest : public Test {};
+
+using TypesToTest = Types<int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, float, double>;
+TYPED_TEST_SUITE(FlatbushTypedTest, TypesToTest);
+
+TYPED_TEST(FlatbushTypedTest, BasicIndexCreationAndSearch) {
+  using ArrayType = TypeParam;
+
+  // Test basic index creation and search
+  flatbush::FlatbushBuilder<ArrayType> wBuilder;
+  for (size_t wIdx = 0; wIdx < 100; wIdx++) {
+    ArrayType wVal = static_cast<ArrayType>(wIdx);
+    wBuilder.add({ wVal, wVal, static_cast<ArrayType>(wVal + 10), static_cast<ArrayType>(wVal + 10) });
+  }
+  auto wIndex = wBuilder.finish();
+  EXPECT_EQ(wIndex.numItems(), 100);
+
+  // Item at index i has box [i, i, i+10, i+10]
+  // Search [45, 45, 55, 55] should overlap items 35-55
+  auto wIds = wIndex.search({ static_cast<ArrayType>(45),
+                              static_cast<ArrayType>(45),
+                              static_cast<ArrayType>(55),
+                              static_cast<ArrayType>(55) });
+  EXPECT_EQ(wIds.size(), 21);
+}
+
+TYPED_TEST(FlatbushTypedTest, NeighborsQuery) {
+  using ArrayType = TypeParam;
+
+  flatbush::FlatbushBuilder<ArrayType> wBuilder;
+  for (size_t wIdx = 0; wIdx < 100; wIdx++) {
+    ArrayType wVal = static_cast<ArrayType>(wIdx);
+    wBuilder.add({ wVal, wVal, static_cast<ArrayType>(wVal + 10), static_cast<ArrayType>(wVal + 10) });
+  }
+  auto wIndex = wBuilder.finish();
+
+  auto wNeighbors = wIndex.neighbors({ static_cast<ArrayType>(50), static_cast<ArrayType>(50) }, 5);
+  EXPECT_EQ(wNeighbors.size(), 5);
+}
+
+TYPED_TEST(FlatbushTypedTest, UpdateBounds) {
+  using ArrayType = TypeParam;
+
+  flatbush::Box<ArrayType> wBounds {
+    static_cast<ArrayType>(5), static_cast<ArrayType>(40), static_cast<ArrayType>(10), static_cast<ArrayType>(60)
+  };
+  flatbush::Box<ArrayType> wIncoming {
+    static_cast<ArrayType>(3), static_cast<ArrayType>(50), static_cast<ArrayType>(12), static_cast<ArrayType>(55)
+  };
+
+  flatbush::detail::updateBounds(wBounds, wIncoming);
+
+  EXPECT_EQ(wBounds.mMinX, static_cast<ArrayType>(3));
+  EXPECT_EQ(wBounds.mMinY, static_cast<ArrayType>(40));
+  EXPECT_EQ(wBounds.mMaxX, static_cast<ArrayType>(12));
+  EXPECT_EQ(wBounds.mMaxY, static_cast<ArrayType>(60));
+}
+
+TYPED_TEST(FlatbushTypedTest, BoxesIntersect) {
+  using ArrayType = TypeParam;
+
+  const flatbush::Box<ArrayType> wQuery {
+    static_cast<ArrayType>(10), static_cast<ArrayType>(10), static_cast<ArrayType>(20), static_cast<ArrayType>(20)
+  };
+  const flatbush::Box<ArrayType> wOverlap {
+    static_cast<ArrayType>(15), static_cast<ArrayType>(15), static_cast<ArrayType>(25), static_cast<ArrayType>(25)
+  };
+  const flatbush::Box<ArrayType> wDisjoint {
+    static_cast<ArrayType>(21), static_cast<ArrayType>(21), static_cast<ArrayType>(30), static_cast<ArrayType>(30)
+  };
+
+  EXPECT_TRUE(flatbush::detail::boxesIntersect(wQuery, wOverlap));
+  EXPECT_FALSE(flatbush::detail::boxesIntersect(wQuery, wDisjoint));
+  const flatbush::Box<ArrayType> wTouchEdge {
+    static_cast<ArrayType>(20), static_cast<ArrayType>(12), static_cast<ArrayType>(25), static_cast<ArrayType>(18)
+  };
+  const flatbush::Box<ArrayType> wTouchCorner {
+    static_cast<ArrayType>(20), static_cast<ArrayType>(20), static_cast<ArrayType>(25), static_cast<ArrayType>(25)
+  };
+
+  EXPECT_TRUE(flatbush::detail::boxesIntersect(wQuery, wTouchEdge));
+  EXPECT_TRUE(flatbush::detail::boxesIntersect(wQuery, wTouchCorner));
+}
+
+TYPED_TEST(FlatbushTypedTest, ComputeDistanceSquared) {
+  using ArrayType = TypeParam;
+
+  const flatbush::Box<ArrayType> wBox {
+    static_cast<ArrayType>(2), static_cast<ArrayType>(3), static_cast<ArrayType>(5), static_cast<ArrayType>(7)
+  };
+
+  const flatbush::Point<ArrayType> wInside { static_cast<ArrayType>(3), static_cast<ArrayType>(4) };
+  const flatbush::Point<ArrayType> wOutside { static_cast<ArrayType>(0), static_cast<ArrayType>(10) };
+
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(wInside, wBox), 0.0);
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(wOutside, wBox), 13.0);
+  const flatbush::Point<ArrayType> wOnBoundary { static_cast<ArrayType>(2), static_cast<ArrayType>(5) };
+  const flatbush::Point<ArrayType> wOutsideX { static_cast<ArrayType>(1), static_cast<ArrayType>(5) };
+  const flatbush::Point<ArrayType> wOutsideY { static_cast<ArrayType>(4), static_cast<ArrayType>(8) };
+
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(wOnBoundary, wBox), 0.0);
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(wOutsideX, wBox), 1.0);
+  EXPECT_DOUBLE_EQ(flatbush::detail::computeDistanceSquared(wOutsideY, wBox), 1.0);
+}

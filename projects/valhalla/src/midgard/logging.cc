@@ -1,0 +1,384 @@
+#include "midgard/logging.h"
+#include "midgard/util.h"
+
+#include <boost/property_tree/ptree.hpp>
+
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <memory>
+#include <stdexcept>
+
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
+namespace {
+
+// append current timestamp formatted as: "year-mo-dy hr:mn:sc.xxxxxxxxx"
+void append_timestamp(std::string& buffer) {
+  std::format_to(std::back_inserter(buffer), "{0:%F} {0:%T}", std::chrono::system_clock::now());
+}
+
+// the Log levels we support
+struct EnumHasher {
+  template <typename T> std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
+};
+const std::unordered_map<valhalla::midgard::logging::LogLevel, std::string, EnumHasher>
+    uncolored{{valhalla::midgard::logging::LogLevel::LogError, " [ERROR] "},
+              {valhalla::midgard::logging::LogLevel::LogWarn, " [WARN] "},
+              {valhalla::midgard::logging::LogLevel::LogInfo, " [INFO] "},
+              {valhalla::midgard::logging::LogLevel::LogDebug, " [DEBUG] "},
+              {valhalla::midgard::logging::LogLevel::LogTrace, " [TRACE] "}};
+const std::unordered_map<valhalla::midgard::logging::LogLevel, std::string, EnumHasher>
+    colored{{valhalla::midgard::logging::LogLevel::LogError, " \x1b[31;1m[ERROR]\x1b[0m "},
+            {valhalla::midgard::logging::LogLevel::LogWarn, " \x1b[33;1m[WARN]\x1b[0m "},
+            {valhalla::midgard::logging::LogLevel::LogInfo, " \x1b[32;1m[INFO]\x1b[0m "},
+            {valhalla::midgard::logging::LogLevel::LogDebug, " \x1b[34;1m[DEBUG]\x1b[0m "},
+            {valhalla::midgard::logging::LogLevel::LogTrace, " \x1b[37;1m[TRACE]\x1b[0m "}};
+#ifdef __ANDROID__
+const std::unordered_map<valhalla::midgard::logging::LogLevel, android_LogPriority, EnumHasher>
+    android_levels{{valhalla::midgard::logging::LogLevel::LogError, ANDROID_LOG_ERROR},
+                   {valhalla::midgard::logging::LogLevel::LogWarn, ANDROID_LOG_WARN},
+                   {valhalla::midgard::logging::LogLevel::LogInfo, ANDROID_LOG_INFO},
+                   {valhalla::midgard::logging::LogLevel::LogDebug, ANDROID_LOG_DEBUG},
+                   {valhalla::midgard::logging::LogLevel::LogTrace, ANDROID_LOG_VERBOSE}};
+#endif
+
+} // namespace
+
+namespace valhalla {
+namespace midgard {
+
+namespace logging {
+
+// a factory that can create loggers (that derive from 'logger') via function pointers
+// this way you could make your own logger that sends log messages to who knows where
+Logger* LoggerFactory::Produce(const LoggingConfig& config) const {
+  // grab the type
+  auto type = config.find("type");
+  if (type == config.end()) {
+    throw std::runtime_error("Logging factory configuration requires a type of logger");
+  }
+
+  // grab the logger
+  auto found = find(type->second);
+  if (found != end()) {
+    return found->second(config);
+  }
+
+  // couldn't get a logger
+  throw std::runtime_error("Couldn't produce logger for type: " + type->second);
+}
+
+// statically get a factory
+LoggerFactory& GetFactory() {
+  static LoggerFactory factory_singleton{};
+  return factory_singleton;
+}
+
+// register your custom loggers here
+bool RegisterLogger(const std::string& name, LoggerCreator function_ptr) {
+  auto success = GetFactory().emplace(name, function_ptr);
+  return success.second;
+}
+
+// logger base class, not pure virtual so you can use as a null logger if you want
+Logger::Logger(const LoggingConfig& /*config*/){};
+Logger::~Logger(){};
+void Logger::Log(const std::string&, const LogLevel){};
+void Logger::Log(const std::string&, const std::string&){};
+bool logger_registered = RegisterLogger("", [](const LoggingConfig& config) {
+  Logger* l = new Logger(config);
+  return l;
+});
+
+// logger that writes to standard out
+class StdOutLogger : public Logger {
+public:
+  StdOutLogger() = delete;
+  StdOutLogger(const LoggingConfig& config)
+      : Logger(config),
+        levels(config.find("color") != config.end() && config.find("color")->second == "true"
+                   ? colored
+                   : uncolored) {
+  }
+  virtual void Log(const std::string& message, const LogLevel level) {
+#ifdef __ANDROID__
+    __android_log_print(android_levels.find(level)->second, "valhalla", "%s", message.c_str());
+#else
+    Log(message, levels.find(level)->second);
+#endif
+  }
+  virtual void Log(const std::string& message, const std::string& custom_directive = " [TRACE] ") {
+#ifdef __ANDROID__
+    std::string tmp = custom_directive; // to prevent -Wunused-parameter
+    __android_log_print(ANDROID_LOG_INFO, "valhalla", "%s", message.c_str());
+#else
+    std::string output;
+    output.reserve(message.length() + 64);
+    append_timestamp(output);
+    output.append(custom_directive);
+    output.append(message);
+    output.push_back('\n');
+    // cout is thread safe, to avoid multiple threads interleaving on one line
+    // though, we make sure to only call the << operator once on std::cout
+    // otherwise the << operators from different threads could interleave
+    // obviously we dont care if flushes interleave
+    std::cout << output;
+    std::cout.flush();
+#endif
+  }
+
+protected:
+  const std::unordered_map<LogLevel, std::string, EnumHasher> levels;
+};
+bool std_out_logger_registered = RegisterLogger("std_out", [](const LoggingConfig& config) {
+  Logger* l = new StdOutLogger(config);
+  return l;
+});
+
+class StdErrLogger : public StdOutLogger {
+  using StdOutLogger::StdOutLogger;
+  virtual void Log(const std::string& message, const std::string& custom_directive = " [TRACE] ") {
+#ifdef __ANDROID__
+    std::string tmp = custom_directive; // to prevent -Wunused-parameter
+    __android_log_print(ANDROID_LOG_ERROR, "valhalla", "%s", message.c_str());
+#else
+    std::string output;
+    output.reserve(message.length() + 64);
+    append_timestamp(output);
+    output.append(custom_directive);
+    output.append(message);
+    output.push_back('\n');
+    std::cerr << output;
+    std::cerr.flush();
+#endif
+  }
+};
+bool std_err_logger_registered = RegisterLogger("std_err", [](const LoggingConfig& config) {
+  Logger* l = new StdErrLogger(config);
+  return l;
+});
+
+// File logger with log rolling support
+class FileLogger : public Logger {
+public:
+  FileLogger() = delete;
+  FileLogger(const LoggingConfig& config) : Logger(config) {
+    // grab the file name
+    auto name = config.find("file_name");
+    if (name == config.end()) {
+      throw std::runtime_error("No output file provided to file logger");
+    }
+    file_name = name->second;
+
+    // if we specify an interval
+    reopen_interval = std::chrono::seconds(300);
+    auto interval = config.find("reopen_interval");
+    if (interval != config.end()) {
+      try {
+        reopen_interval = std::chrono::seconds(std::stoul(interval->second));
+      } catch (...) {
+        throw std::runtime_error(interval->second + " is not a valid reopen interval");
+      }
+    }
+
+    // Configure log rolling - default to disabled
+    auto size_config = config.find("max_file_size");
+    auto archive_config = config.find("max_archived_files");
+
+    if (size_config != config.end() && !size_config->second.empty()) {
+      try {
+        max_file_size = std::stol(size_config->second);
+        if (max_file_size < 0) {
+          throw std::runtime_error("max_file_size must be greater than 0");
+        }
+      } catch (...) {
+        throw std::runtime_error(size_config->second + " is not a valid max_file_size");
+      }
+    }
+
+    if (archive_config != config.end() && !archive_config->second.empty()) {
+      try {
+        max_archived_files = midgard::to_int(archive_config->second);
+        if (max_archived_files < 0) {
+          throw std::runtime_error("max_archived_files must be greater than 0");
+        }
+      } catch (...) {
+        throw std::runtime_error(archive_config->second + " is not a valid max_archived_files");
+      }
+    }
+
+    // Enable log rolling only if both values are provided and valid
+    log_rolling_enabled = (max_file_size > 0) && (max_archived_files > 0);
+
+    // crack the file open
+    ReOpen();
+  }
+  virtual void Log(const std::string& message, const LogLevel level) {
+    Log(message, uncolored.find(level)->second);
+  }
+  virtual void Log(const std::string& message, const std::string& custom_directive = " [TRACE] ") {
+    if (log_rolling_enabled) {
+      CheckRollLog();
+    }
+
+    std::string output;
+    output.reserve(message.length() + 64);
+    append_timestamp(output);
+    output.append(custom_directive);
+    output.append(message);
+    output.push_back('\n');
+    lock.lock();
+    file << output;
+    file.flush();
+    lock.unlock();
+    ReOpen();
+  }
+
+protected:
+  void CheckRollLog() {
+    std::lock_guard<std::mutex> lock_guard(lock);
+    if (file.is_open()) {
+      std::streampos current_size = file.tellp();
+      if (current_size > static_cast<std::streampos>(max_file_size)) {
+        RollLog();
+        return;
+      }
+    }
+  }
+
+  void RollLog() {
+    if (file.is_open()) {
+      file.close();
+    }
+
+    // Find the highest existing archive file
+    int highest = 0;
+    for (int i = 1; i <= static_cast<int>(max_archived_files) - 1; ++i) {
+      std::string f = file_name + "." + std::to_string(i);
+      if (std::filesystem::exists(f)) {
+        highest = i;
+      } else {
+        break; // stop at first gap
+      }
+    }
+
+    // Roll existing files (archive.2 -> archive.3, archive.1 -> archive.2, etc.)
+    for (int i = highest; i > 0; --i) {
+      std::string old_file = file_name + "." + std::to_string(i);
+      std::string new_file = file_name + "." + std::to_string(i + 1);
+
+      if (std::filesystem::exists(new_file)) {
+        std::filesystem::remove(new_file);
+      }
+      std::filesystem::rename(old_file, new_file);
+    }
+
+    // Rename current to .1 if it exists
+    if (std::filesystem::exists(file_name)) {
+      std::filesystem::rename(file_name, file_name + ".1");
+    }
+
+    // Reopen the log file
+    EnsureDirectoryExists();
+    file.open(file_name, std::ofstream::out | std::ofstream::app);
+    if (file.fail()) {
+      throw std::runtime_error("Cannot create log file: " + file_name);
+    }
+    last_reopen = std::chrono::system_clock::now();
+  }
+
+  void ReOpen() {
+    // TODO: use CLOCK_MONOTONIC_COARSE
+    // check if it should be closed and reopened
+    auto now = std::chrono::system_clock::now();
+    lock.lock();
+    if (now - last_reopen > reopen_interval) {
+      last_reopen = now;
+      try {
+        file.close();
+      } catch (...) {}
+      try {
+        // Ensure directory for log file exists. Otherwise, log file creation is silently skipped.
+        // e.g. if "mjolnir.logging.file_name" points to location inside "mjolnir.tile_dir"
+        EnsureDirectoryExists();
+        file.open(file_name, std::ofstream::out | std::ofstream::app);
+        if (file.fail()) {
+          throw std::runtime_error("Cannot create log file: " + file_name);
+        }
+        last_reopen = std::chrono::system_clock::now();
+      } catch (std::exception& e) {
+        try {
+          file.close();
+        } catch (...) {}
+        throw e;
+      }
+    }
+    lock.unlock();
+  }
+
+  void EnsureDirectoryExists() {
+    const auto parent_dir = std::filesystem::path(file_name).parent_path();
+    if (!parent_dir.empty() && !std::filesystem::is_directory(parent_dir)) {
+      if (!std::filesystem::create_directories(parent_dir)) {
+        throw std::runtime_error("Cannot create directory for log file: " + parent_dir.string());
+      }
+    }
+  }
+
+  std::string file_name;
+  std::ofstream file;
+  std::chrono::seconds reopen_interval;
+  std::chrono::system_clock::time_point last_reopen;
+  bool log_rolling_enabled = false;
+  std::int64_t max_file_size = 0;
+  std::int32_t max_archived_files = 0;
+};
+bool file_logger_registered = RegisterLogger("file", [](const LoggingConfig& config) {
+  Logger* l = new FileLogger(config);
+  return l;
+});
+
+} // namespace logging
+
+// statically get a logger using the factory
+logging::Logger& logging::GetLogger(const LoggingConfig& config) {
+  static std::unique_ptr<Logger> singleton(GetFactory().Produce(config));
+  return *singleton;
+}
+
+// statically log manually
+void logging::Log(const std::string& message, const logging::LogLevel level) {
+  GetLogger().Log(message, level);
+}
+
+// statically log manually
+void logging::Log(const std::string& message, const std::string& custom_directive) {
+  GetLogger().Log(message, custom_directive);
+}
+
+// statically configure logging
+void logging::Configure(const LoggingConfig& config) {
+  GetLogger(config);
+}
+
+// configure logging from the top-level "logging" section of a boost property tree config
+// if the section is missing, uses the default logger (std_out with color)
+void logging::ConfigureFromPtree(const boost::property_tree::ptree& config) {
+  auto logging_subtree = config.get_child_optional("logging");
+  if (logging_subtree) {
+    Configure(ToMap<const boost::property_tree::ptree&, std::unordered_map<std::string, std::string>>(
+        logging_subtree.get()));
+    return;
+  }
+  LOG_WARN("No top-level 'logging' section in config, using default logger.");
+}
+
+} // namespace midgard
+} // namespace valhalla

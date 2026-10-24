@@ -1,0 +1,50 @@
+file(GLOB headers ${VALHALLA_SOURCE_DIR}/valhalla/loki/*.h)
+
+set(sources
+  worker.cc
+  height_action.cc
+  reach.cc
+  matrix_action.cc
+  status_action.cc
+  transit_available_action.cc
+  polygon_search.cc
+  linear_cost_factors.cc
+  isochrone_action.cc
+  height_action.cc
+  locate_action.cc
+  node_search.cc
+  route_action.cc
+  search.cc
+  tile_action.cc
+  trace_route_action.cc
+  worker.cc)
+
+set(system_includes
+  ${date_include_dir}
+  $<$<BOOL:${WIN32}>:${dirent_include_dir}>)
+
+valhalla_module(NAME loki
+  SOURCES ${sources}
+  HEADERS ${headers}
+  INCLUDE_DIRECTORIES
+    PUBLIC
+      ${VALHALLA_SOURCE_DIR}
+      ${VALHALLA_SOURCE_DIR}/valhalla
+    PRIVATE
+      ${rapidjson_include_dir}
+      ${CMAKE_BINARY_DIR}
+  SYSTEM_INCLUDE_DIRECTORIES
+    PUBLIC
+      ${system_includes}
+    PRIVATE
+      ${unordered_dense_include_dir}
+      ${vtzero_include_dirs}
+      ${flatbush_include_dir}
+  DEPENDS
+    valhalla::meili
+    valhalla::skadi
+    valhalla::sif
+    valhalla::proto
+    ${valhalla_protobuf_targets}
+    Boost::boost
+    ${libprime_server_targets})

@@ -1,0 +1,21 @@
+BasedOnStyle: Google
+
+AlignTrailingComments:
+  Kind:            Always
+  OverEmptyLines:  1
+AllowShortLambdasOnASingleLine: Empty
+BinPackArguments: false
+BinPackParameters: false
+ColumnLimit: 120
+Cpp11BracedListStyle: false
+DerivePointerAlignment: false
+IndentWidth: 2
+IncludeBlocks: Preserve
+Language: Cpp
+PenaltyBreakAssignment: 1150
+PenaltyBreakBeforeFirstCallParameter: 1150
+PointerAlignment: Left
+SpaceBeforeCpp11BracedList: true
+Standard: c++11
+TabWidth: 2
+UseTab: Never

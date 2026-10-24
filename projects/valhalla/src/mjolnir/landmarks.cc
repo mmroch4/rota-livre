@@ -1,0 +1,570 @@
+#include "mjolnir/landmarks.h"
+#include "baldr/graphreader.h"
+#include "baldr/location.h"
+#include "baldr/tilehierarchy.h"
+#include "loki/search.h"
+#include "midgard/sequence.h"
+#include "midgard/util.h"
+#include "mjolnir/graphtilebuilder.h"
+#include "mjolnir/sqlite3.h"
+#include "mjolnir/util.h"
+#include "sif/nocost.h"
+
+#include <boost/property_tree/ptree.hpp>
+#include <osmium/io/pbf_input.hpp>
+#ifdef HAVE_EXPAT
+#include <osmium/io/xml_input.hpp>
+#endif
+#include <sqlite3.h>
+
+#include <filesystem>
+#include <future>
+#include <string_view>
+#include <thread>
+#include <tuple>
+
+using namespace valhalla::baldr;
+using namespace valhalla::mjolnir;
+using namespace valhalla::midgard;
+using namespace valhalla;
+
+namespace {
+
+void apply_location_defaults(Location& location) {
+
+  if (!location.has_search_filter() || !location.search_filter().has_min_road_class_case())
+    location.mutable_search_filter()->set_min_road_class(valhalla::RoadClass::kServiceOther);
+  if (!location.search_filter().has_max_road_class_case())
+    location.mutable_search_filter()->set_max_road_class(valhalla::RoadClass::kMotorway);
+  if (!location.search_filter().has_exclude_closures_case())
+    location.mutable_search_filter()->set_exclude_closures(true);
+  if (!location.search_filter().has_exclude_closures_case())
+    location.mutable_search_filter()->set_exclude_closures(true);
+  if (!location.search_filter().has_level())
+    location.mutable_search_filter()->set_level(kMaxLevel);
+  if (!location.has_street_side_cutoff_case())
+    location.set_street_side_cutoff(valhalla::RoadClass::kServiceOther);
+
+  if (!location.has_node_snap_tolerance())
+    location.set_node_snap_tolerance(5.f);
+
+  if (!location.has_heading_tolerance())
+    location.set_heading_tolerance(60.f);
+
+  if (!location.has_street_side_tolerance())
+    location.set_street_side_tolerance(5);
+
+  if (!location.has_street_side_max_distance())
+    location.set_street_side_max_distance(1000);
+
+  if (!location.has_search_cutoff_case())
+    location.set_search_cutoff(kDefaultSearchCutoff);
+}
+// a 25m radius used to associate edges to landmarks, which allows us to only keep the close edges in
+// the tight cities
+constexpr unsigned long kLandmarkRadius = 25;
+// a 75m search cutoff used to associate edges to landmarks, which should allow us to get gas stations
+// that are off the road a bit (for parking)
+constexpr float kLandmarkSearchCutoff = 75.;
+// a slight buffer to add to landmark queries to avoid near misses in the data due to precision
+constexpr double kLandmarkQueryBuffer = .000001;
+
+// sort a sequence file to put the edges in the same tile together
+bool sort_seq_file(const std::pair<GraphId, uint64_t>& a, const std::pair<GraphId, uint64_t>& b) {
+  if (a.first.tile_base() == b.first.tile_base()) {
+    return a.first.id() < b.first.id();
+  }
+  return a.first.tile_base() < b.first.tile_base();
+}
+} // namespace
+
+namespace valhalla {
+namespace mjolnir {
+// TODO: this can be a utility and be more generic with a few more options, we could make the prepared
+//  statements on the fly and retrievable by the caller, then anything in the code base that wants to
+//  use sqlite can make use of this utility class. for now its ok to be specific to landmarks though
+struct LandmarkDatabase::db_pimpl {
+  std::optional<Sqlite3> db;
+  sqlite3_stmt* insert_stmt;
+  sqlite3_stmt* bounding_box_stmt;
+  std::shared_ptr<void> spatial_lite;
+  bool vacuum_analyze = false;
+
+  db_pimpl(const std::string& db_name, bool read_only)
+      : insert_stmt(nullptr), bounding_box_stmt(nullptr) {
+    // create parent directory if it doesn't exist
+    const std::filesystem::path parent_dir = std::filesystem::path(db_name).parent_path();
+    if (!std::filesystem::exists(parent_dir) && !std::filesystem::create_directories(parent_dir)) {
+      throw std::runtime_error("Can't create parent directory " + parent_dir.string());
+    }
+
+    // figure out if we need to create database or can just open it up
+    const auto flags = read_only ? SQLITE_OPEN_READONLY : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+    if (!std::filesystem::exists(db_name)) {
+      if (read_only)
+        throw std::logic_error("Cannot open sqlite database in read-only mode if it does not exist");
+    } else if (!read_only) {
+      std::filesystem::remove(db_name);
+      LOG_INFO("deleting existing landmark database " + db_name + ", creating a new one");
+    }
+
+    // get a connection to the database
+    db = Sqlite3::open(db_name, flags);
+    if (!db) {
+      throw std::runtime_error("Failed to open sqlite database: " + db_name);
+    }
+
+    // if the db was empty we need to initialize the schema
+    char* err_msg = nullptr;
+    if (flags & SQLITE_OPEN_CREATE) {
+      // make the table
+      const char* table =
+          "SELECT InitSpatialMetaData(1); CREATE TABLE IF NOT EXISTS landmarks (id INTEGER PRIMARY KEY, name TEXT, type TEXT)";
+      auto ret = sqlite3_exec(db->get(), table, NULL, NULL, &err_msg);
+      if (ret != SQLITE_OK) {
+        sqlite3_free(err_msg);
+        throw std::runtime_error("Sqlite table creation error: " + std::string(err_msg));
+      }
+
+      // add geom column
+      const char* geom = "SELECT AddGeometryColumn('landmarks', 'geom', 4326, 'POINT', 2)";
+      ret = sqlite3_exec(db->get(), geom, NULL, NULL, &err_msg);
+      if (ret != SQLITE_OK) {
+        sqlite3_free(err_msg);
+        throw std::runtime_error("Sqlite geom column creation error: " + std::string(err_msg));
+      }
+
+      // make the index
+      const char* index = "SELECT CreateSpatialIndex('landmarks', 'geom')";
+      ret = sqlite3_exec(db->get(), index, NULL, NULL, &err_msg);
+      if (ret != SQLITE_OK) {
+        sqlite3_free(err_msg);
+        throw std::runtime_error("Sqlite spatial index creation error: " + std::string(err_msg));
+      }
+
+      // prep the insert statement
+      const char* insert =
+          "INSERT INTO landmarks (name, type, geom) VALUES (?, ?, MakePoint(?, ?, 4326))";
+      ret = sqlite3_prepare_v2(db->get(), insert, strlen(insert), &insert_stmt, NULL);
+      if (ret != SQLITE_OK)
+        throw std::runtime_error("Sqlite prepared insert statement error: " +
+                                 std::string(sqlite3_errmsg(db->get())));
+    }
+
+    // prep the select statement
+    const char* select =
+        "SELECT id, name, type, X(geom), Y(geom) FROM landmarks WHERE ST_Covers(BuildMbr(?, ?, ?, ?, 4326), geom)";
+    auto ret = sqlite3_prepare_v2(db->get(), select, strlen(select), &bounding_box_stmt, NULL);
+    if (ret != SQLITE_OK) {
+      throw std::runtime_error("Sqlite prepared select statement error: " +
+                               std::string(sqlite3_errmsg(db->get())));
+    }
+  }
+  ~db_pimpl() {
+    char* err_msg = nullptr;
+    if (vacuum_analyze && sqlite3_exec(db->get(), "VACUUM", NULL, NULL, &err_msg) != SQLITE_OK) {
+      sqlite3_free(err_msg);
+      LOG_ERROR("Sqlite vacuum error: " + std::string(err_msg));
+    }
+
+    if (vacuum_analyze && sqlite3_exec(db->get(), "ANALYZE", NULL, NULL, &err_msg) != SQLITE_OK) {
+      sqlite3_free(err_msg);
+      LOG_ERROR("Sqlite analyze error: " + std::string(err_msg));
+    }
+
+    sqlite3_finalize(insert_stmt);
+    sqlite3_finalize(bounding_box_stmt);
+  }
+  std::string last_error() {
+    return std::string(sqlite3_errmsg(db->get()));
+  }
+};
+
+LandmarkDatabase::LandmarkDatabase(const std::string& db_name, bool read_only)
+    : pimpl(new db_pimpl(db_name, read_only)) {
+}
+
+void LandmarkDatabase::insert_landmark(const std::string& name,
+                                       const LandmarkType& type,
+                                       const double lng,
+                                       const double lat) {
+  auto* insert_stmt = pimpl->insert_stmt;
+  if (!insert_stmt)
+    throw std::logic_error("Sqlite database connection is read-only");
+
+  sqlite3_reset(insert_stmt);
+  sqlite3_clear_bindings(insert_stmt);
+
+  sqlite3_bind_text(insert_stmt, 1, name.c_str(), name.length(), SQLITE_STATIC);
+  sqlite3_bind_int(insert_stmt, 2, static_cast<int>(type));
+  sqlite3_bind_double(insert_stmt, 3, lng);
+  sqlite3_bind_double(insert_stmt, 4, lat);
+
+  LOG_TRACE(sqlite3_expanded_sql(insert_stmt));
+  if (sqlite3_step(insert_stmt) != SQLITE_DONE)
+    throw std::runtime_error("Sqlite could not insert landmark: " + pimpl->last_error());
+  pimpl->vacuum_analyze = true;
+}
+
+// get multiple landmarks by their ids
+/** TODO: Currently this function dynamically creates query statement based on
+ *  the number of provided primary keys.
+ *  In the future, we may consider implementing a fix-sized batch retrieval approach, where
+ *  multiple landmarks are retrieved in batches using a prepared SQL statement with a fixed
+ *  number of placeholders (e.g., 10 question marks) to be filled with corresponding inputs.
+ *  If the caller provides more than the fixed number of inputs, the function will automatically
+ *  perform multiple batch retrieves.
+ */
+std::vector<Landmark> LandmarkDatabase::get_landmarks_by_ids(const std::vector<int64_t>& pkeys) {
+  // create the sql statement with inputs
+  std::string sql = "SELECT id, name, type, X(geom), Y(geom) FROM landmarks WHERE id IN (";
+  for (size_t i = 0; i < pkeys.size(); ++i) {
+    if (i > 0) {
+      sql += ", ";
+    }
+    sql += std::to_string(static_cast<int>(pkeys[i]));
+  }
+  sql += ")";
+
+  // callback for the sql query
+  auto populate_landmarks = [](void* data, int /*argc*/, char** argv, char** /*col_names*/) {
+    std::vector<Landmark>* landmarks = static_cast<std::vector<Landmark>*>(data);
+
+    int64_t landmark_id = static_cast<int64_t>(valhalla::midgard::to_int(argv[0]));
+    const char* landmark_name = argv[1];
+    int landmark_type = valhalla::midgard::to_int(argv[2]);
+    double lng = valhalla::midgard::to_float<double>(argv[3]);
+    double lat = valhalla::midgard::to_float<double>(argv[4]);
+
+    landmarks->emplace_back(
+        Landmark(landmark_id, landmark_name, static_cast<LandmarkType>(landmark_type), lng, lat));
+    return 0;
+  };
+
+  std::vector<Landmark> landmarks;
+  char* err_msg = nullptr;
+  // execute query
+  int ret = sqlite3_exec(pimpl->db->get(), sql.c_str(), populate_landmarks, &landmarks, &err_msg);
+
+  // check for errors in the sql execution
+  if (ret != SQLITE_OK) {
+    throw std::runtime_error("Sqlite execution error: " + std::string(err_msg));
+  }
+
+  return landmarks;
+}
+
+std::vector<Landmark> LandmarkDatabase::get_landmarks_by_bbox(const double minlng,
+                                                              const double minlat,
+                                                              const double maxlng,
+                                                              const double maxlat) {
+  std::vector<Landmark> landmarks;
+
+  auto* bounding_box_stmt = pimpl->bounding_box_stmt;
+  sqlite3_reset(bounding_box_stmt);
+  sqlite3_clear_bindings(bounding_box_stmt);
+
+  sqlite3_bind_double(bounding_box_stmt, 1, minlng);
+  sqlite3_bind_double(bounding_box_stmt, 2, minlat);
+  sqlite3_bind_double(bounding_box_stmt, 3, maxlng);
+  sqlite3_bind_double(bounding_box_stmt, 4, maxlat);
+
+  LOG_TRACE(sqlite3_expanded_sql(bounding_box_stmt));
+
+  int ret = sqlite3_step(bounding_box_stmt);
+  while (ret == SQLITE_ROW) {
+    auto landmark_id = static_cast<int64_t>(sqlite3_column_int64(bounding_box_stmt, 0));
+    const char* name = reinterpret_cast<const char*>(sqlite3_column_text(bounding_box_stmt, 1));
+    int landmark_type = sqlite3_column_int(bounding_box_stmt, 2);
+    double lng = sqlite3_column_double(bounding_box_stmt, 3);
+    double lat = sqlite3_column_double(bounding_box_stmt, 4);
+
+    landmarks.emplace_back(
+        Landmark(landmark_id, name, static_cast<LandmarkType>(landmark_type), lng, lat));
+
+    ret = sqlite3_step(bounding_box_stmt);
+  }
+
+  if (ret != SQLITE_DONE && ret != SQLITE_OK) {
+    throw std::runtime_error("Sqlite could not query landmarks in bounding box: " +
+                             pimpl->last_error());
+  }
+
+  return landmarks;
+}
+
+bool BuildLandmarkFromPBF(const boost::property_tree::ptree& pt,
+                          const std::vector<std::string>& input_files) {
+  // parse pbf to get landmark nodes
+  const std::string db_name = pt.get<std::string>("landmarks", "");
+  valhalla::mjolnir::LandmarkDatabase db(db_name, false);
+
+  LOG_INFO("Parsing nodes and storing landmarks...");
+  for (auto& file : input_files) {
+    osmium::io::Reader reader(file, osmium::osm_entity_bits::node);
+    while (const osmium::memory::Buffer buffer = reader.read()) {
+      for (const osmium::memory::Item& item : buffer) {
+        const osmium::Node& node = static_cast<const osmium::Node&>(item);
+
+        std::string amenity, name;
+        for (const auto& tag : node.tags()) {
+          std::string_view key = tag.key();
+          if (key == "amenity") {
+            amenity = tag.value();
+          } else if (key == "name") {
+            name = tag.value();
+          }
+        }
+
+        if (!amenity.empty()) {
+          try {
+            db.insert_landmark(name, string_to_landmark_type(amenity), node.location().lon(),
+                               node.location().lat());
+          } catch (...) {}
+        }
+      }
+    }
+    reader.close(); // Explicit close to get an exception in case of an error.
+  }
+
+  LOG_INFO("Successfully built landmark database from PBF");
+  return true;
+}
+
+// Find landmarks in the tiles and the edges correlated to each landmark,
+// and return the sequence file name where we wrote the correlations
+void FindLandmarkEdges(const boost::property_tree::ptree& pt,
+                       const std::vector<GraphId>& tileset,
+                       const size_t& thread_number,
+                       const size_t& total_threads,
+                       std::promise<std::string>& seq_file_name) {
+  // Open the database and create a graph reader
+  const std::string db_name = pt.get<std::string>("landmarks", "");
+
+  LandmarkDatabase db(db_name, true);
+  GraphReader reader(pt);
+  loki::Search search(reader);
+  // create the sequence file
+  std::string file_name = "landmark_dump_" + std::to_string(thread_number);
+  midgard::sequence<std::pair<GraphId, uint64_t>> seq_file(file_name, true);
+
+  for (size_t i = 0; i < tileset.size(); ++i) {
+    // every i'th thread works on every i'th tile
+    if (i % total_threads == thread_number) {
+      // get landmarks in the tile
+      midgard::AABB2<PointLL> bbox = baldr::TileHierarchy::GetGraphIdBoundingBox(tileset[i]);
+
+      std::vector<Landmark> landmarks = db.get_landmarks_by_bbox(bbox.minx() - kLandmarkQueryBuffer,
+                                                                 bbox.miny() - kLandmarkQueryBuffer,
+                                                                 bbox.maxx() + kLandmarkQueryBuffer,
+                                                                 bbox.maxy() + kLandmarkQueryBuffer);
+
+      // find and collect all nearby path locations for the landmarks
+      for (const auto& landmark : landmarks) {
+        google::protobuf::RepeatedPtrField<Location> landmark_locs;
+        auto* landmark_loc = landmark_locs.Add();
+        landmark_loc->mutable_ll()->set_lat(landmark.lat);
+        landmark_loc->mutable_ll()->set_lng(landmark.lng);
+        landmark_loc->set_type(Location_Type_kBreak);
+        landmark_loc->set_radius(kLandmarkRadius);
+        landmark_loc->set_search_cutoff(kLandmarkSearchCutoff);
+        apply_location_defaults(*landmark_loc);
+
+        // call loki::Search to get nearby edges to each landmark
+        search.search(landmark_locs, sif::CreateNoCost({}));
+        search.clear();
+
+        // we only have one landmark as input so the return size should be no more than one
+
+        // for each edge insert edgeid - landmark_pkey pair into the sequence file
+        // TODO: maybe do some filtering and only keep some of the edges it finds? (now we have the
+        //  75m search cutoff)
+        for (const auto& edge : landmark_loc->correlation().edges()) {
+          seq_file.push_back(std::make_pair(GraphId(edge.graph_id()), landmark.id));
+        }
+      }
+    }
+  }
+
+  seq_file_name.set_value(file_name);
+}
+
+// Update tiles to associate landmarks with edges, return some stats about the numbers of updated
+// tiles, edges, and landmarks. NOTE: the input sequence file seq_file is passed by reference, but
+// should not be modified by these threads.
+void UpdateTiles(midgard::sequence<std::pair<GraphId, uint64_t>>& seq_file,
+                 const std::string& tile_dir,
+                 const std::string& db_name,
+                 const size_t& thread_number,
+                 const size_t& total_threads,
+                 std::promise<std::tuple<size_t, size_t, size_t>>& stats) {
+  // open the database and initialize a unique pointer to graph tile builder
+  std::unique_ptr<GraphTileBuilder> tile_builder_ptr = nullptr;
+
+  LandmarkDatabase db(db_name, true);
+
+  // stats to record how many tiles, edges and landmarks are updated
+  size_t updated_tiles = 0, updated_edges = 0, updated_landmarks = 0;
+  GraphId last_edge, last_tile;
+
+  // store the current tile and refresh its data hash (the build id is recomputed once at the end)
+  auto store_tile = [&]() {
+    tile_builder_ptr->StoreTileData();
+    updated_tiles++;
+  };
+
+  size_t tile_count = static_cast<size_t>(-1);
+  // every i'th thread works on every i'th tile
+  for (auto it = seq_file.begin(); it != seq_file.end(); ++it) {
+    // if the current tile is not the same as the last one, increase counter by one
+    if ((*it).first.tile_base() != last_tile) {
+      last_tile = (*it).first.tile_base();
+      tile_count++;
+    }
+    // decide whether this tile is a "every i'th tile". if not, the thread should skip it
+    if (tile_count % total_threads != thread_number) {
+      continue;
+    }
+
+    // now this pair is on a "every i'th tile". the thread should process it.
+
+    // if this pair is on a new tile, then store the previous tile and move to the new tile
+    if (!tile_builder_ptr ||
+        tile_builder_ptr->header_builder().graphid().tile_base() != (*it).first.tile_base()) {
+      // store the previously updated tile
+      if (tile_builder_ptr) {
+        store_tile();
+      }
+      // reset the tile builder to this new tile
+      tile_builder_ptr = std::make_unique<GraphTileBuilder>(tile_dir, (*it).first.tile_base(), true);
+    }
+
+    // retrieve the landmark to be added
+    // TODO: in the future we can do batches of ids, though it will complicate the code it will likely
+    // speed up the processing
+    const std::vector<Landmark> landmark =
+        db.get_landmarks_by_ids({static_cast<int64_t>((*it).second)});
+    if (landmark.size() != 1) {
+      throw std::logic_error("Incorrect result size " + std::to_string(landmark.size()) +
+                             " of retrieved landmarks, which should be 1");
+    }
+    // add the landmark to the tile
+    GraphId edge_id = (*it).first;
+    tile_builder_ptr->AddLandmark(edge_id, landmark[0]);
+
+    // update the stats
+    updated_landmarks++;
+    // a single edge can have multiple landmarks
+    // record the number of unique edges updated (pairs with the same edge should appear consecutively
+    // in the sequence)
+    if (last_edge != (*it).first) {
+      updated_edges++;
+      last_edge = (*it).first;
+    }
+  }
+  // store the last updated tile
+  if (tile_builder_ptr) {
+    store_tile();
+  }
+
+  // set the stats
+  stats.set_value(std::make_tuple(updated_tiles, updated_edges, updated_landmarks));
+}
+
+// Add all landmarks to tiles
+bool AddLandmarks(const boost::property_tree::ptree& pt) {
+  LOG_INFO("Starting adding landmarks to tiles...");
+
+  const size_t num_threads = pt.get<size_t>("concurrency", std::thread::hardware_concurrency());
+  const std::string db_name = pt.get<std::string>("landmarks", "");
+
+  // get tile access
+  baldr::GraphReader reader(pt);
+
+  // get all tile ids and sort the tiles in descending order by size to balance the threads
+  // TODO: it is possible in a global tileset that we have coverage only at level 2 for some places
+  // and we'd still like to get landmarks there. we'll probably need to fix this.
+  auto tileset = reader.GetTileSet(1);
+  std::vector<GraphId> vec_tileset(tileset.begin(),
+                                   tileset.end()); // turn the unordered_set into a vector for sorting
+
+  std::sort(vec_tileset.begin(), vec_tileset.end(), [&](const auto id_a, const auto id_b) {
+    return reader.GetGraphTile(id_a)->header()->nodecount() >
+           reader.GetGraphTile(id_b)->header()->nodecount();
+  });
+
+  LOG_INFO("Finding landmarks and their correlated edges...");
+
+  std::vector<std::shared_ptr<std::thread>> threads(num_threads);
+  std::vector<std::promise<std::string>> sequence_file_names(num_threads);
+  for (size_t i = 0; i < num_threads; ++i) {
+    threads[i] =
+        std::make_shared<std::thread>(FindLandmarkEdges, std::cref(pt), std::cref(vec_tileset), i,
+                                      num_threads, std::ref(sequence_file_names[i]));
+  }
+
+  // join all the threads and collect the sequence file names
+  for (auto& thread : threads) {
+    thread->join();
+  }
+
+  std::vector<std::string> seq_names{};
+  seq_names.reserve(sequence_file_names.size());
+  for (std::promise<std::string>& s : sequence_file_names) {
+    seq_names.push_back(s.get_future().get());
+  }
+
+  LOG_INFO("Sorting landmark edge pairs by tile...");
+
+  // concatenate all sequence files and sort the merged sequence file
+  std::string merged_seq_file = seq_names.back();
+  seq_names.pop_back();
+
+  std::ofstream seq_file(merged_seq_file, std::ios_base::binary | std::ios_base::app);
+  for (std::string& s : seq_names) {
+    std::ifstream seq(s, std::ios_base::binary);
+    seq_file << seq.rdbuf();
+  }
+  seq_file.close();
+
+  midgard::sequence<std::pair<GraphId, uint64_t>> merged_sequence_file(merged_seq_file, false);
+  merged_sequence_file.sort(sort_seq_file, num_threads);
+
+  LOG_INFO("Updating tiles...");
+
+  // re-open the thread pool to update tiles
+  std::vector<std::promise<std::tuple<size_t, size_t, size_t>>> stats_info(
+      num_threads); // tiles, edges, landmarks
+
+  const std::string tile_dir = reader.tile_dir();
+  for (size_t i = 0; i < num_threads; ++i) {
+    // assume the data size that each thread processes doesn't affect performance a lot
+    threads[i] = std::make_shared<std::thread>(UpdateTiles, std::ref(merged_sequence_file), tile_dir,
+                                               db_name, i, num_threads, std::ref(stats_info[i]));
+  }
+
+  for (auto& thread : threads) {
+    thread->join();
+  }
+
+  // collect and log the stats
+  [[maybe_unused]] size_t tiles = 0, edges = 0, landmarks = 0;
+  for (std::promise<std::tuple<size_t, size_t, size_t>>& s : stats_info) {
+    std::tuple<size_t, size_t, size_t> data = s.get_future().get();
+    tiles += std::get<0>(data);
+    edges += std::get<1>(data);
+    landmarks += std::get<2>(data);
+  }
+
+  LOG_INFO("Updated " + std::to_string(tiles) + " unique tiles, " + std::to_string(edges) +
+           " unique directed edges, and wrote " + std::to_string(landmarks) +
+           " landmarks (including repeated ones)");
+
+  // the tileset changed, so refresh the build id from the now-current per-tile hashes
+  set_tileset_build_id(tile_dir);
+
+  return true;
+}
+
+} // end namespace mjolnir
+} // end namespace valhalla
