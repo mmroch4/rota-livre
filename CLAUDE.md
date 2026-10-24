@@ -100,7 +100,8 @@ topic map in `hackathon/README.md` in the same commit.
   (`hackathon/lot/city_alerts.lotnb`) imports the Câmara's active road works near the demo route as `city-<id>`
   barriers (`kind: "works"`, `expires_at` = the alert's end, extra field `source: "cm-porto"`).
   Retained `access/city/alerts/enabled` = `off` retires all of them the same way and pauses the import; `on` resumes it
-  and republishes them at once (no flag counts as `on`).
+  and republishes them at once (no flag counts as `on`). What was imported is kept in the internal retained topic
+  `access/state/city_alerts` (broker only). Broker durability is on: every retained message above survives a restart.
 - Valhalla rejects more than `max_exclude_polygons_vertices` (default 100 = 20 barriers, error 176). The custom
   instance allows 1000 (`hackathon/runtime/valhalla/setup.sh`); the public FOSSGIS one does not.
 - Not sent to the broker (device-only for now): the report's photo (≤ 800 px JPEG data URL) and the address text.

@@ -35,6 +35,7 @@ validation of the custom slope cap; correct enforcement still needs runtime veri
 | `access/city/alerts/raw` (not retained) | broker: `PortoUrbanPlatform` | broker: `ImportCityAlerts` | FIWARE NGSI v2 `Alert` entities (keyValues), or `{"success": false, ...}` on an HTTP error |
 | `access/city/alerts/last_ok`, `.../last_error` (retained) | broker: `ImportCityAlerts` | team, demo checks | ISO time of the latest successful import / failed fetch |
 | `access/city/alerts/enabled` (retained, QoS 1) | team (demo switch) | broker: `SwitchCityAlerts`, `ImportCityAlerts` | `on` or `off`. `off` retires every imported `city-*` barrier (`expires_at` = now) and makes the import ignore fetches; `on` fetches at once and republishes them. Missing = `on` |
+| `access/state/city_alerts` (internal, retained, QoS 1) | broker: `ImportCityAlerts`, `SwitchCityAlerts` | broker: the same two Actions | `{<barrier id>: barrier}` of the `city-*` barriers imported last time (`{}` after `off`); what `off` retires and what the next import compares against. Retained so it survives a restart with the barriers |
 
 ## 4. Demo
 
@@ -72,6 +73,8 @@ docker compose up -d
 | Broker MCP server (AI agents) | <http://localhost:6278/mcp> (`/health` without a token) | bearer token, see [`AI.md`](AI.md) |
 
 - `docker compose down` stops and keeps the data; `docker compose down -v` **wipes everything, including the licence**.
+- Durability is on (`COREFLUX_DURABILITY_*` in `docker-compose.yml`): retained messages (barriers, feedback, the city
+  switch) survive a restart. The log lives on the `broker-data` volume, so `down -v` wipes it too.
 - The HUB connects to `broker` (the Docker service name), not `localhost`.
 - Port taken? Change the host port number in `docker-compose.yml` (e.g. `"127.0.0.1:3001:3000"`).
 

@@ -37,6 +37,11 @@ services:
       # 127.0.0.1 is unreachable from the host); the port mapping above keeps it on localhost.
       - COREFLUX_MCP_ENABLED=true
       - COREFLUX_MCP_BIND_IP=0.0.0.0
+      # Durability: retained messages (barriers, feedback, the city switch) and persistent sessions
+      # survive a restart. The write-ahead log lives on the broker-data volume, so `down` keeps it
+      # and `down -v` wipes it. Changing these needs `up -d broker` (recreate), not `docker restart`.
+      - COREFLUX_DURABILITY_ENABLED=true
+      - COREFLUX_DURABILITY_DATA_DIR=/etc/project/mqttwal
 
   hub:
     image: ${HUB_IMAGE:-coreflux/coreflux-hub:2.12.0}

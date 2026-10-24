@@ -62,6 +62,17 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
   `IF`, and later top-level lines run only inside that branch. `validate_lot` and `deploy_lot` accept it (a bare
   `UNTIL` directly followed by `ELSE` fails to parse). Keep a statement at the `REPEAT`'s own level after `UNTIL`.
   `REPEAT` is do-while (the body runs once even when the condition is already true).
+- **A broker boot reloads the broker's own copy of the project, not what you deployed (verified 24/10).** Project `lot`
+  is a git copy inside the `broker-data` volume (only `barrier_feedback` and `city_alerts`, older than ac5ec1f).
+  `deploy_lot` / `add_python` over an entity that came from that copy change it only until the next restart or
+  recreate; Actions first deployed ad hoc (e.g. `SwitchCityAlerts`) do survive. So **after every broker restart**,
+  re-run `add_python` (`CityAlerts` cell) and `deploy_lot` (`ImportCityAlerts` cell) from `lot/city_alerts.lotnb`,
+  then check that the live code in `$SYS/Coreflux/Actions/<Name>` matches the notebook. No project swap: Ben's
+  `10-barriers-db.lotnb` must stay unloaded.
+- **`KEEP TOPIC` is memory only; retained topics survive a restart (durability on, verified 24/10).** State that must
+  outlive a restart goes in a retained `PUBLISH TOPIC`; `GET TOPIC` reads the retained value after a boot.
+  Right after a restart (seconds after `/health` is healthy) one subscriber got no retained messages at all; 5 s
+  later everything was there. Reload clients that connected during a restart.
 - `GET TOPIC {var}` and `GET TOPIC {a} + "/x" AS INT` work with a computed topic; an unknown topic reads as `""`
   (`0` with `AS INT`), so it can be used to skip duplicates.
 - **REST connector:** `WITH ENDPOINT "...?date={payload.json.date}"` works. A non-2xx answer is published to

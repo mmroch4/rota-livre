@@ -452,7 +452,8 @@ python3 hackathon/runtime/demo/barriers.py seed      # list / clear likewise
 ```
 
 Caveats:
-- Retained barriers are lost on a broker restart and expire after 24 h: seed again before the demo.
+- Seeded barriers expire after 24 h: seed again before the demo. (They used to be lost on a broker restart too;
+  durability is on since 12:40, see "Broker durability verified".)
 - The script uses the default broker login over plain MQTT on loopback (Community tier, no per-user rules).
 - The slope warning in the app still overstates grades (the `degreesToPercent` bug above): the detour screenshot
   showed orange "steeper than asked" segments although every edge is within 6 %.
@@ -484,8 +485,8 @@ Caveats:
   them). The demo sequence needs new demo barrier positions on the 2.164 km route, or the city import off.
 - These are works registered by the Câmara, not confirmed obstacles. A barrier is a ±15 m square at the polygon's
   vertex centroid, so a long street polygon ("Ambos os lados, em toda a sua extensão") is only partly covered.
-- Retained city barriers are lost on a broker restart until the next import (at most 10 min, or publish to
-  `access/city/alerts/fetch`).
+- ~~Retained city barriers are lost on a broker restart until the next import.~~ Superseded: durability is on and the
+  import snapshot is retained (see "Broker durability verified").
 
 ## City alerts switch verified (24 October 2026, ~12:30 UTC)
 
@@ -521,10 +522,48 @@ python3 -c "import sys; sys.path.insert(0,'hackathon/runtime/demo'); from barrie
 `connect()` reads `BROKER_USERNAME` / `BROKER_PASSWORD` like `barriers.py`.
 
 Caveats:
-- The flag is a retained message, so it is lost on a broker restart (durability off) and the import resumes on the
-  next 10-minute fetch. Send `off` again after any restart.
+- ~~The flag is lost on a broker restart (durability off).~~ Superseded: the flag survives a restart now (see
+  "Broker durability verified"), but the switch needed the snapshot fix recorded there.
 - While `off`, the connector keeps polling FIWARE every 10 min; only the import is skipped.
 - That a fetch actually produced a FIWARE answer while `off` was not observed directly: the proof is that nothing
   was imported and `last_ok` did not move, while the same manual fetch while `on` did advance it.
 - The city barriers are retired, not deleted: 24 expired retained messages stay on `access/barriers/city-*` until the
   next `on` overwrites them. The app hides them, and `barriers.py list` still shows them with a past `expires_at`.
+
+## Broker durability verified (24 October 2026, ~12:40–12:55 UTC)
+
+`broker/docker-compose.yml` sets `COREFLUX_DURABILITY_ENABLED=true` and `COREFLUX_DURABILITY_DATA_DIR=/etc/project/mqttwal`
+(write-ahead log on the `broker-data` volume, defaults: JSON codec, fsync every 50 ms). Applied with a recreate:
+`docker compose -f docker-compose.yml -f docker-compose.ws.yml up -d broker`. Every port still on 127.0.0.1
+(`docker port o1n-broker`). `/metrics`: `coreflux_durability_enabled 1`. The recreate itself dropped the 27 retained
+`access/*` messages (durability was off until then); the switch was set back to `on`, which re-imported 24 barriers.
+
+**Restart 1 (`docker restart o1n-broker`, 12:43).** Before: 24 `city-*` + 2 `demo-*` barriers, `enabled`, `last_ok`,
+and one test answer on `access/barriers/zz-test/feedback` (stored as `answers/zz-fb-1`, `gone_count` 1,
+`last_answered_at`): 31 retained `access/*`. After: the same 31, byte for byte. After the restart a second answer took
+`gone_count` to 2 and a resend of `zz-fb-1` was ignored. `zz-test` topics then cleared.
+
+**The off switch broke on that restart (fixed).** Codex then published `off` and nothing was retired: the import
+snapshot `access/state/city_alerts` was a `KEEP TOPIC`, memory only, so it came back empty while the barriers
+survived. It is now a retained internal topic (QoS 1, topic map in `README.md`), written by both `ImportCityAlerts`
+and `SwitchCityAlerts`. The live state was repaired with one `on` → `off` cycle (24 imported, 24 retired).
+
+**Restart 2 (12:53), the snapshot fix.** `on` (24 active, snapshot with 24 entries) → restart → redeploy (below) →
+manual fetch: **0** barriers republished and `last_ok` advanced, so the import compared against the restored snapshot
+(an empty one republishes all 24) → `off`: all 24 retired (`expires_at` = now), snapshot `{}`. `diagnose` clean.
+Broker log: "RetainedStore: recovered 49 retained message(s) from WAL".
+
+**Every boot restores stale code (now in `AGENTS.md`).** The broker's copy of project `lot` predates ac5ec1f. After
+both the recreate and each restart, the live `ImportCityAlerts` was the old one (no `enabled` gate, `UNTIL` bug), and
+`CityAlerts` was redeployed too since its live source cannot be read back; `SwitchCityAlerts` (deployed ad hoc)
+survived. After each boot `add_python CityAlerts` + `deploy_lot ImportCityAlerts` from `lot/city_alerts.lotnb`,
+then the live `$SYS/Coreflux/Actions/*` sources were compared with the notebook: identical. Ben's notebook is not in
+the broker's project copy, so a boot does not load it.
+
+Caveats:
+- **After any broker restart, redeploy `CityAlerts` and `ImportCityAlerts`** (see above) before using the switch;
+  the stale `ImportCityAlerts` ignores `off` and uses the old buggy loop.
+- On restart 2, a client that subscribed ~4 s after `/health` turned healthy got no retained messages at all;
+  5 s later all 27 were there. Reload browser tabs that were open during a restart.
+- Ended with `enabled = off` (as Codex's last demo check left it): 0 active `city-*`, no demo barriers.
+- Only retained messages were exercised; persistent sessions and queued QoS 1 were not tested (`durable_sessions 0`).
