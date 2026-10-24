@@ -1,6 +1,6 @@
-// Accessible route planner: the person says where they want to go, sees the route (blue line + the streets it
-// passes) and is guided along it with their live position. Routes come from Valhalla; barrier reports are shared
-// through the Coreflux broker (MQTT over WebSocket).
+// Rota Livre: the person says where they want to go, sees the route (blue line + the streets it passes) and is
+// guided along it with their live position. Routes come from Valhalla; barrier reports are shared through the
+// Coreflux broker (MQTT over WebSocket).
 "use strict";
 
 const config = window.APP_CONFIG;
@@ -12,16 +12,19 @@ const DEMO = params.has("demo"); // ?demo: fake position that walks along the ro
 // Needs. Valhalla's pedestrian costing has two types: "wheelchair" (only hard surfaces) and "foot". Kerb height
 // is not something Valhalla can filter on, so there is no option for it.
 
+const GRADE_LIMIT = 15; // the slider's top value, meaning "no slope limit"
+
 const PROFILES = {
-    wheelchair: { maxGrade: 6, avoidSteps: true, avoidRoughSurface: true },
-    walker: { maxGrade: 8, avoidSteps: true, avoidRoughSurface: true },
-    stroller: { maxGrade: 10, avoidSteps: true, avoidRoughSurface: false },
-    foot: { maxGrade: 8, avoidSteps: true, avoidRoughSurface: false },
+    wheelchair: { label: "Cadeira de rodas", icon: "accessibility", maxGrade: 6, avoidSteps: true, avoidRoughSurface: true },
+    walker: { label: "Andarilho ou canadianas", icon: "person-standing", maxGrade: 8, avoidSteps: true, avoidRoughSurface: true },
+    stroller: { label: "Carrinho de bebé", icon: "baby", maxGrade: 10, avoidSteps: true, avoidRoughSurface: false },
+    foot: { label: "A pé, com dificuldade em subidas", short: "Subidas difíceis", icon: "mountain", maxGrade: 8, avoidSteps: true, avoidRoughSurface: false },
+    none: { label: "Sem dificuldades de mobilidade", short: "Sem limitações", icon: "user", maxGrade: GRADE_LIMIT, avoidSteps: false, avoidRoughSurface: false },
 };
+const CUSTOM = { label: "Personalizado", icon: "sliders-horizontal" };
 const STORAGE_KEY = "access.needs";
 
 const MAX_STEP_PENALTY = 43200; // seconds: Valhalla's upper bound (12 h), so steps are used only as a last resort
-const GRADE_LIMIT = 15;         // highest slope the slider offers, in %
 const BARRIER_RADIUS_M = 15;    // half the side of the square excluded around each barrier
 const NO_ELEVATION = 32768;     // Valhalla's marker for "no elevation data" on an edge
 const OFF_ROUTE_M = 35;         // further than this from the line counts as off the route
@@ -29,12 +32,12 @@ const ARRIVED_M = 20;
 const REROUTE_EVERY_MS = 15000;
 
 const BARRIER_KINDS = {
-    works: "Obras ou andaime",
-    blocked_sidewalk: "Passeio bloqueado",
-    parked_car: "Carro em cima do passeio",
-    broken_lift: "Elevador ou rampa avariados",
-    damaged_pavement: "Piso danificado ou buraco",
-    other: "Outro obstáculo",
+    works: { label: "Obras ou andaime", icon: "construction" },
+    blocked_sidewalk: { label: "Passeio bloqueado", icon: "ban" },
+    parked_car: { label: "Carro no passeio", icon: "car" },
+    broken_lift: { label: "Elevador ou rampa avariados", icon: "arrow-up-down" },
+    damaged_pavement: { label: "Piso danificado", icon: "triangle-alert" },
+    other: { label: "Outro", icon: "info" },
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -46,24 +49,43 @@ const state = {
     to: null,
     position: null,    // last fix {lat, lon, accuracy}
     route: null,       // see routeService.route
+    screen: null,
     guiding: false,
     following: true,
     offRouteCount: 0,
     lastRerouteAt: 0,
     arrived: false,
-    mapPick: "to",     // what a tap on the map sets: "to" | "from" | "report" | null
-    pendingReport: null,
+    mapPick: null,     // what a tap on the map sets: "to" | "from" | "report" | null
+    searchMode: "to",
+    reportPoint: null,
     barriers: new Map(),
 };
 
 // ---------------------------------------------------------------------------------------------------------------
+// Icons (Lucide). Elements with data-lucide become SVGs; call refreshIcons() after adding new ones.
+
+function refreshIcons() {
+    try { window.lucide.createIcons({ attrs: { "aria-hidden": "true" } }); } catch { /* icons are decoration */ }
+}
+
+function iconHtml(name) {
+    return `<i data-lucide="${name}"></i>`;
+}
+
+function setIcon(el, name) {
+    el.innerHTML = iconHtml(name);
+    refreshIcons();
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Map and its layers
 
-const map = L.map("map", { zoomControl: true }).setView(config.center, config.zoom);
+const map = L.map("map", { zoomControl: false }).setView(config.center, config.zoom);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }).addTo(map);
+L.control.zoom({ position: "topright" }).addTo(map);
 
 const routeLayer = L.layerGroup().addTo(map);
 const barrierLayer = L.layerGroup().addTo(map);
@@ -76,15 +98,18 @@ let toMarker = null;
 const PERSON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="3"/>'
     + '<path d="M12 9c-2 0-3.5 1.2-3.5 3v4h2v6h3v-6h2v-4c0-1.8-1.5-3-3.5-3z"/></svg>';
 
-function pinIcon(text, cls) {
-    return L.divIcon({ className: `pin ${cls}`, html: text, iconSize: [30, 30], iconAnchor: [15, 15] });
-}
-
 map.on("click", (e) => {
     const point = { lat: e.latlng.lat, lon: e.latlng.lng };
-    if (state.mapPick === "report") openReportDialog(point);
-    else if (state.mapPick === "from") pickFromMap("from", point);
-    else if (state.mapPick === "to") pickFromMap("to", point);
+    if (state.mapPick === "report") {
+        setPick(null);
+        openReportDialog(point, "Sítio escolhido no mapa");
+    } else if (state.mapPick === "from" || state.mapPick === "to") {
+        const which = state.mapPick;
+        setPick(null);
+        chooseFromMap(which, point);
+    } else if (state.screen === "plan") {
+        chooseFromMap("to", point); // like a map app: tap a place to go there
+    }
 });
 
 map.on("dragstart", () => {
@@ -94,65 +119,129 @@ map.on("dragstart", () => {
 });
 
 $("recenter-btn").addEventListener("click", () => {
-    state.following = true;
-    $("recenter-btn").hidden = true;
-    if (state.position) map.setView([state.position.lat, state.position.lon], Math.max(map.getZoom(), 17));
+    if (!state.position) return;
+    if (state.guiding) {
+        state.following = true;
+        $("recenter-btn").hidden = true;
+    }
+    centerOn([state.position.lat, state.position.lon], Math.max(map.getZoom(), 17));
 });
+
+// The parts of the map hidden by floating panels, so routes and the person are shown in the free part.
+function mapInsets() {
+    const box = $("map").getBoundingClientRect();
+    const insets = { top: 0, left: 0, right: 0, bottom: 0 };
+    const tops = phone.matches ? ["topbar", "guide-banner", "pick-hint"] : ["guide-banner", "pick-hint"];
+    for (const id of tops) {
+        const el = $(id);
+        if (el.hidden || getComputedStyle(el).display === "none") continue;
+        insets.top = Math.max(insets.top, el.getBoundingClientRect().bottom - box.top);
+    }
+    if (!phone.matches) insets.left = Math.max(0, $("sheet").getBoundingClientRect().right - box.left);
+    return insets;
+}
+
+function centerOn(ll, zoom) {
+    const z = zoom ?? map.getZoom();
+    const i = mapInsets();
+    const p = map.project(ll, z).add([(i.right - i.left) / 2, (i.bottom - i.top) / 2]);
+    map.setView(map.unproject(p, z), z, { animate: true });
+}
+
+function fitRoute(shape) {
+    const i = mapInsets();
+    map.fitBounds(L.latLngBounds(shape), {
+        paddingTopLeft: [i.left + 40, i.top + 40],
+        paddingBottomRight: [i.right + 40, i.bottom + 40],
+    });
+}
+
+function pinIcon(cls) {
+    return L.divIcon({ className: `pin ${cls}`, html: "<span></span>", iconSize: [34, 42], iconAnchor: [17, 40] });
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Screens
 
 function showScreen(name) {
-    for (const s of ["welcome", "plan", "route", "guide"]) $(`screen-${s}`).hidden = s !== name;
-    $("report-section").hidden = name === "welcome";
-    $("layout").classList.toggle("guiding", name === "guide");
+    state.screen = name;
+    for (const s of ["plan", "route", "guide"]) $(`screen-${s}`).hidden = s !== name;
+    document.body.dataset.screen = name;
     $("guide-banner").hidden = name !== "guide";
-    if (name !== "guide") $("recenter-btn").hidden = true;
-    state.mapPick = name === "plan" ? "to" : null;
+    if (name !== "guide") $("recenter-btn").hidden = !state.position;
     setSheetExpanded(false);
 }
 
+function showToast(text, ms = 3500) {
+    const t = $("toast");
+    t.textContent = text;
+    t.hidden = false;
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => { t.hidden = true; }, ms);
+}
+
+function showNotice(el, text, action) {
+    el.replaceChildren();
+    const p = document.createElement("p");
+    p.textContent = text;
+    el.append(p);
+    if (action) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "secondary";
+        b.textContent = action.label;
+        b.addEventListener("click", action.onClick);
+        el.append(b);
+    }
+    el.hidden = false;
+}
+
+function setPick(which, text) {
+    state.mapPick = which;
+    $("pick-hint").hidden = !which;
+    $("pick-hint-text").textContent = text || "";
+    $("map").classList.toggle("picking", !!which);
+}
+
+$("pick-cancel").addEventListener("click", () => setPick(null));
+
 // ---------------------------------------------------------------------------------------------------------------
 // Phones: the panel is a bottom sheet over a full-screen map. Closed, it shows the top of the current screen
-// (down to the last [data-peek] element: the main button); open, it shows everything. The map's visible area
-// always ends where the closed sheet starts, so the route and the person are never hidden under it.
+// (down to the last [data-peek] element: the main button); open, it shows everything. The visible map ends
+// where the closed sheet starts, so the route and the person are never hidden under it.
 
 const phone = window.matchMedia("(max-width: 760px) and (orientation: portrait)");
 let sheetExpanded = false;
-const SHEET_GAP = 16;
-
-function currentScreen() {
-    return document.querySelector(".screen:not([hidden])");
-}
+const SHEET_GAP = 18;
 
 function setSheetExpanded(open) {
     sheetExpanded = open;
-    if (!open) $("panel").scrollTop = 0;
+    if (!open) $("sheet").scrollTop = 0;
     updateSheet();
 }
 
 function updateSheet() {
-    const panel = $("panel");
-    const layout = $("layout");
+    const sheet = $("sheet");
+    const root = document.documentElement;
     if (!phone.matches) {
-        layout.style.removeProperty("--sheet-h");
-        panel.classList.remove("expanded");
+        root.style.removeProperty("--sheet-h");
+        sheet.classList.remove("expanded");
+        $("sheet-handle").hidden = true;
         map.invalidateSize();
         return;
     }
-    const screen = currentScreen();
+    const screen = document.querySelector(".screen:not([hidden])");
     const peekEls = screen ? [...screen.querySelectorAll("[data-peek]")].filter((el) => el.offsetParent) : [];
     let peek = peekEls.length
         ? Math.max(...peekEls.map((el) => el.offsetTop + el.offsetHeight)) + SHEET_GAP
-        : panel.scrollHeight;
-    // Leave some map visible; a screen without a main button (welcome) may use the whole sheet.
-    peek = Math.min(peek, Math.round(window.innerHeight * (peekEls.length ? 0.7 : 0.88)));
-    const hasMore = panel.scrollHeight > peek + 4;
+        : sheet.scrollHeight;
+    peek = Math.min(peek, Math.round(window.innerHeight * 0.7));
+    const hasMore = sheet.scrollHeight > peek + 4;
     $("sheet-handle").hidden = !hasMore;
     $("sheet-handle").setAttribute("aria-expanded", String(sheetExpanded));
     $("sheet-handle-text").textContent = sheetExpanded ? "Ver menos" : (screen && screen.dataset.more) || "Ver mais";
-    panel.classList.toggle("expanded", sheetExpanded && hasMore);
-    layout.style.setProperty("--sheet-h", `${peek}px`);
+    sheet.classList.toggle("expanded", sheetExpanded && hasMore);
+    root.style.setProperty("--sheet-h", `${peek}px`);
     map.invalidateSize();
 }
 
@@ -177,23 +266,14 @@ $("sheet-handle").addEventListener("click", () => {
     setSheetExpanded(!sheetExpanded);
 });
 
-// Content changes (search results, messages, the street list) change how much the closed sheet shows.
+// Content changes (messages, the street list) change how much the closed sheet shows.
 const sheetObserver = new ResizeObserver(() => { if (!sheetExpanded) updateSheet(); });
 for (const s of document.querySelectorAll(".screen")) sheetObserver.observe(s);
 phone.addEventListener("change", () => setSheetExpanded(false));
 window.addEventListener("resize", () => updateSheet());
 
 // ---------------------------------------------------------------------------------------------------------------
-// Welcome: ask once how the person gets around, then remember it on this device.
-
-for (const b of document.querySelectorAll("[data-profile]")) {
-    b.addEventListener("click", () => {
-        applyNeeds({ profile: b.dataset.profile, ...PROFILES[b.dataset.profile], avoidBarriers: true });
-        saveNeeds();
-        showScreen("plan");
-        $("to-input").focus();
-    });
-}
+// Needs: welcome (first visit only), the profile chip and the settings dialog
 
 function loadNeeds() {
     try {
@@ -207,28 +287,75 @@ function saveNeeds() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.needs)); } catch { /* not remembered, still works */ }
 }
 
+function profileInfo(name) {
+    return PROFILES[name] || CUSTOM;
+}
+
 function applyNeeds(needs) {
     state.needs = needs;
-    $("profile-select").value = needs.profile;
-    $("profile-select").querySelector('option[value="custom"]').hidden = needs.profile !== "custom";
+    const info = profileInfo(needs.profile);
+    $("profile-chip-label").textContent = info.short || info.label;
+    setIcon($("profile-chip-icon"), info.icon);
     $("grade-input").value = needs.maxGrade;
-    $("grade-output").value = needs.maxGrade;
+    $("grade-output").value = gradeText(needs.maxGrade);
     $("steps-check").checked = needs.avoidSteps;
     $("surface-check").checked = needs.avoidRoughSurface;
     $("barriers-check").checked = needs.avoidBarriers;
+    for (const b of document.querySelectorAll("#settings-choices .choice")) {
+        b.setAttribute("aria-pressed", String(b.dataset.profile === needs.profile));
+    }
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// Advanced options
+function profileNeeds(name) {
+    const { maxGrade, avoidSteps, avoidRoughSurface } = PROFILES[name];
+    return { profile: name, maxGrade, avoidSteps, avoidRoughSurface, avoidBarriers: true };
+}
 
-$("profile-select").addEventListener("change", (e) => {
-    const p = PROFILES[e.target.value];
-    if (!p) return;
-    applyNeeds({ ...state.needs, profile: e.target.value, ...p });
+function gradeText(g) {
+    return g >= GRADE_LIMIT ? "sem limite" : `${g}%`;
+}
+
+function renderChoices(container, onPick) {
+    container.replaceChildren();
+    for (const [name, p] of Object.entries(PROFILES)) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "choice";
+        b.dataset.profile = name;
+        b.innerHTML = `<span class="choice-ic">${iconHtml(p.icon)}</span><span></span>`;
+        b.lastChild.textContent = p.label;
+        b.addEventListener("click", () => onPick(name));
+        container.append(b);
+    }
+    refreshIcons();
+}
+
+renderChoices($("welcome-choices"), (name) => {
+    applyNeeds(profileNeeds(name));
+    saveNeeds();
+    $("welcome").hidden = true;
+    $("where-btn").focus();
+});
+
+renderChoices($("settings-choices"), (name) => {
+    applyNeeds({ ...profileNeeds(name), avoidBarriers: state.needs.avoidBarriers });
     saveNeeds();
 });
 
-$("grade-input").addEventListener("input", (e) => { $("grade-output").value = e.target.value; });
+let needsWhenOpened = null;
+$("profile-chip").addEventListener("click", () => {
+    needsWhenOpened = JSON.stringify(state.needs);
+    applyNeeds(state.needs);
+    $("settings").showModal();
+});
+$("settings-close").addEventListener("click", () => $("settings").close());
+$("settings-done").addEventListener("click", () => $("settings").close());
+$("settings").addEventListener("close", () => {
+    // New needs: show the route that fits them.
+    if (JSON.stringify(state.needs) !== needsWhenOpened && state.to && state.screen === "route") planRoute();
+});
+
+$("grade-input").addEventListener("input", (e) => { $("grade-output").value = gradeText(Number(e.target.value)); });
 
 for (const id of ["grade-input", "steps-check", "surface-check", "barriers-check"]) {
     $(id).addEventListener("change", () => {
@@ -249,114 +376,101 @@ for (const id of ["grade-input", "steps-check", "surface-check", "barriers-check
 }
 
 function describeNeeds(needs) {
-    const parts = [`subidas até ${needs.maxGrade}%`];
+    const parts = [];
+    if (needs.maxGrade < GRADE_LIMIT) parts.push(`subidas até ${needs.maxGrade}%`);
     if (needs.avoidSteps) parts.push("sem escadas");
     if (needs.avoidRoughSurface) parts.push("piso regular");
+    if (parts.length === 0) return "";
     return parts.slice(0, -1).join(", ") + (parts.length > 1 ? " e " : "") + parts[parts.length - 1];
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Choosing the destination and the start
+// Search (full screen on phones). Nominatim, limited to the Porto area, only when the person presses search
+// (its usage policy allows light use, not search-as-you-type).
 
-$("to-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    search($("to-input").value.trim(), $("to-results"), (place) => setPlace("to", place));
-});
-
-$("from-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    search($("from-input").value.trim(), $("from-results"), (place) => setPlace("from", place));
-});
-
-$("from-change-btn").addEventListener("click", () => {
-    const editor = $("from-editor");
-    editor.hidden = !editor.hidden;
-    if (!editor.hidden) $("from-input").focus();
-});
-
-$("from-gps-btn").addEventListener("click", () => {
-    setPlace("from", null);
-    startWatchingPosition();
-});
-
-$("from-map-btn").addEventListener("click", () => {
-    state.mapPick = "from";
-    setPlanMessage("Toque no mapa no ponto de partida.");
-});
-
-async function pickFromMap(which, point) {
-    setPlace(which, { ...point, label: "Ponto escolhido no mapa" });
-    if (which === "from") state.mapPick = "to";
-    const label = await reverseGeocode(point);
-    if (label && state[which] && state[which].lat === point.lat) setPlace(which, { ...point, label });
-}
-
-function setPlace(which, place) {
-    state[which] = place;
-    const isFrom = which === "from";
-    if (isFrom) {
-        $("from-label").textContent = place ? place.label : "a sua localização";
-        $("from-results").hidden = true;
-        if (fromMarker) map.removeLayer(fromMarker);
-        fromMarker = place ? L.marker([place.lat, place.lon], { icon: pinIcon("A", "pin-from"), title: "Partida" }).addTo(map) : null;
-        $("from-editor").hidden = true;
-    } else {
-        $("to-results").hidden = true;
-        $("to-chosen").hidden = !place;
-        $("to-chosen").textContent = place ? `Destino: ${place.label}` : "";
-        if (toMarker) map.removeLayer(toMarker);
-        toMarker = place ? L.marker([place.lat, place.lon], { icon: pinIcon("●", "pin-to"), title: "Destino" }).addTo(map) : null;
-    }
-    hidePlanMessage();
-}
-
-// Nominatim, limited to the Porto area, only when the person asks (its usage policy allows light use).
 const PORTO_VIEWBOX = "-8.70,41.19,-8.54,41.13"; // left,top,right,bottom
 
-async function search(query, list, onPick) {
-    list.replaceChildren();
-    list.hidden = true;
-    if (!query) return;
-    const url = "https://nominatim.openstreetmap.org/search?" + new URLSearchParams({
-        q: query, format: "jsonv2", limit: "5", countrycodes: "pt",
-        viewbox: PORTO_VIEWBOX, bounded: "1", "accept-language": "pt-PT",
-    });
-    try {
-        const results = await (await fetch(url)).json();
-        if (results.length === 0) list.append(resultItem("Não encontrámos esse sítio no Porto. Tente outro nome.", null));
-        for (const r of results) {
-            const [name, ...rest] = r.display_name.split(", ");
-            list.append(resultItem(name, rest.slice(0, 2).join(", "), () => {
-                const place = { lat: Number(r.lat), lon: Number(r.lon), label: name };
-                onPick(place);
-                map.setView([place.lat, place.lon], 17);
-            }));
-        }
-    } catch {
-        list.append(resultItem("A pesquisa falhou. Tente de novo ou toque no mapa.", null));
-    }
-    list.hidden = false;
+$("where-btn").addEventListener("click", () => openSearch("to"));
+for (const b of document.querySelectorAll(".js-from-change")) b.addEventListener("click", () => openSearch("from"));
+
+function openSearch(mode) {
+    state.searchMode = mode;
+    const label = mode === "to" ? "Para onde quer ir?" : "De onde parte?";
+    $("search-input").placeholder = label;
+    $("search-label").textContent = label;
+    $("search-input").value = "";
+    $("search-results").replaceChildren();
+    $("search-status").textContent = "Escreva uma rua, praça ou local do Porto e carregue em pesquisar.";
+    $("quick-gps-item").hidden = mode !== "from";
+    $("search").hidden = false;
+    $("search-input").focus();
 }
 
-function resultItem(title, detail, onPick) {
-    const li = document.createElement("li");
-    if (!onPick) {
-        li.textContent = title;
-        return li;
+function closeSearch() {
+    $("search").hidden = true;
+}
+
+$("search-back").addEventListener("click", closeSearch);
+$("search").addEventListener("keydown", (e) => { if (e.key === "Escape") closeSearch(); });
+
+$("quick-gps").addEventListener("click", () => {
+    closeSearch();
+    setPlace("from", null);
+    startWatchingPosition();
+    if (state.to) planRoute();
+});
+
+$("quick-map").addEventListener("click", () => {
+    const which = state.searchMode;
+    closeSearch();
+    setPick(which, which === "to" ? "Toque no mapa para onde quer ir." : "Toque no mapa no ponto de partida.");
+});
+
+$("search-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const query = $("search-input").value.trim();
+    const list = $("search-results");
+    if (!query) return;
+    list.replaceChildren();
+    $("search-status").textContent = "A procurar…";
+    const url = "https://nominatim.openstreetmap.org/search?" + new URLSearchParams({
+        q: query, format: "jsonv2", limit: "6", countrycodes: "pt",
+        viewbox: PORTO_VIEWBOX, bounded: "1", "accept-language": "pt-PT",
+    });
+    let results;
+    try {
+        results = await (await fetch(url)).json();
+    } catch {
+        $("search-status").textContent = "A pesquisa falhou. Tente de novo, ou escolha no mapa.";
+        return;
     }
-    const b = document.createElement("button");
-    b.type = "button";
-    const strong = document.createElement("strong");
-    strong.textContent = title;
-    b.append(strong);
-    if (detail) {
-        const small = document.createElement("span");
-        small.textContent = detail;
-        b.append(small);
+    $("search-status").textContent = results.length ? "" : "Não encontrámos esse sítio no Porto. Tente outro nome.";
+    for (const r of results) {
+        const [name, ...rest] = r.display_name.split(", ");
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.type = "button";
+        b.innerHTML = `<span class="list-ic">${iconHtml("map-pin")}</span><span class="list-text"><strong></strong><small></small></span>`;
+        b.querySelector("strong").textContent = name;
+        b.querySelector("small").textContent = rest.slice(0, 2).join(", ");
+        b.addEventListener("click", () => {
+            closeSearch();
+            choosePlace(state.searchMode, { lat: Number(r.lat), lon: Number(r.lon), label: name });
+        });
+        li.append(b);
+        list.append(li);
     }
-    b.addEventListener("click", onPick);
-    li.append(b);
-    return li;
+    refreshIcons();
+});
+
+async function chooseFromMap(which, point) {
+    choosePlace(which, { ...point, label: "Ponto no mapa" });
+    const label = await reverseGeocode(point);
+    const place = state[which];
+    if (label && place && place.lat === point.lat) {
+        place.label = label;
+        updatePlaceLabels();
+    }
 }
 
 async function reverseGeocode(p) {
@@ -372,21 +486,29 @@ async function reverseGeocode(p) {
     return null;
 }
 
-function setPlanMessage(text, action) {
-    const el = $("plan-message");
-    el.replaceChildren(document.createTextNode(text));
-    if (action) {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.textContent = action.label;
-        b.addEventListener("click", action.onClick);
-        el.append(" ", b);
-    }
-    el.hidden = false;
+// Choosing a destination (or a new start once there is one) shows the route straight away.
+function choosePlace(which, place) {
+    setPlace(which, place);
+    if (state.to) planRoute();
 }
 
-function hidePlanMessage() {
-    $("plan-message").hidden = true;
+function setPlace(which, place) {
+    state[which] = place;
+    if (which === "from") {
+        if (fromMarker) map.removeLayer(fromMarker);
+        fromMarker = place ? L.marker([place.lat, place.lon], { icon: pinIcon("pin-from"), title: "Partida" }).addTo(map) : null;
+    } else {
+        if (toMarker) map.removeLayer(toMarker);
+        toMarker = place ? L.marker([place.lat, place.lon], { icon: pinIcon("pin-to"), title: "Destino" }).addTo(map) : null;
+    }
+    updatePlaceLabels();
+}
+
+function updatePlaceLabels() {
+    for (const el of document.querySelectorAll(".from-label")) {
+        el.textContent = state.from ? state.from.label : "a sua localização";
+    }
+    $("route-title").textContent = state.to ? state.to.label : "Destino";
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -432,11 +554,12 @@ function onPosition(p) {
     if (!personMarker) {
         accuracyCircle = L.circle(ll, { radius: p.accuracy || 10, className: "accuracy", interactive: false }).addTo(map);
         personMarker = L.marker(ll, {
-            icon: L.divIcon({ className: "person", html: PERSON_SVG, iconSize: [36, 36], iconAnchor: [18, 18] }),
+            icon: L.divIcon({ className: "person", html: PERSON_SVG, iconSize: [38, 38], iconAnchor: [19, 19] }),
             title: "Está aqui",
             zIndexOffset: 1000,
             keyboard: false,
         }).addTo(map);
+        if (!state.guiding) $("recenter-btn").hidden = false;
     } else {
         personMarker.setLatLng(ll);
         accuracyCircle.setLatLng(ll).setRadius(p.accuracy || 10);
@@ -497,6 +620,7 @@ const routeService = {
                 distanceKm: data.trip.summary.length,
                 timeS: data.trip.summary.time,
                 maneuvers: leg.maneuvers.map((m) => ({
+                    type: m.type,
                     instruction: fixPortuguese(m.instruction),
                     streets: m.street_names || [],
                     lengthKm: m.length,
@@ -534,10 +658,8 @@ const routeService = {
 };
 
 function valhallaCosting(needs) {
-    const pedestrian = {
-        type: needs.avoidRoughSurface ? "wheelchair" : "foot", // wheelchair = only hard surfaces
-        max_grade: needs.maxGrade,
-    };
+    const pedestrian = { type: needs.avoidRoughSurface ? "wheelchair" : "foot" }; // wheelchair = only hard surfaces
+    if (needs.maxGrade < GRADE_LIMIT) pedestrian.max_grade = needs.maxGrade;
     if (needs.avoidSteps) pedestrian.step_penalty = MAX_STEP_PENALTY;
     return { costing: "pedestrian", costing_options: { pedestrian } };
 }
@@ -556,65 +678,67 @@ function squareAround(lat, lon, meters) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Plan → route screen
+// Plan → route
 
-$("route-btn").addEventListener("click", planRoute);
-$("back-btn").addEventListener("click", () => {
+$("route-close").addEventListener("click", () => {
     clearRoute();
+    setPlace("to", null);
     showScreen("plan");
 });
 
 let routeRequestId = 0;
 
 async function planRoute() {
-    if (!state.to) {
-        setPlanMessage("Primeiro diga para onde quer ir: escreva o nome do sítio ou toque no mapa.");
-        $("to-input").focus();
-        return;
-    }
-    $("route-btn").disabled = true;
-    setPlanMessage(state.from ? "A procurar o melhor caminho…" : "A procurar onde está e o melhor caminho…");
-    const from = state.from || await currentPosition();
-    if (!from) {
-        $("route-btn").disabled = false;
-        setPlanMessage("Não conseguimos saber onde está. Escolha o ponto de partida.");
-        $("from-editor").hidden = false;
-        return;
-    }
+    if (!state.to) return;
     const myRequest = ++routeRequestId;
-    const result = await routeService.route(from, state.to, state.needs);
-    $("route-btn").disabled = false;
+    showToast(state.from ? "A procurar o melhor caminho…" : "A procurar onde está e o melhor caminho…", 8000);
+    const from = state.from || await currentPosition();
     if (myRequest !== routeRequestId) return;
-    if (!result.ok) {
-        showRouteProblem(result.reason, (text, action) => setPlanMessage(text, action));
+    if (!from) {
+        $("toast").hidden = true;
+        showScreen("plan");
+        showNotice($("plan-message"), "Não conseguimos saber onde está. Diga-nos de onde parte.", {
+            label: "Escolher a partida",
+            onClick: () => openSearch("from"),
+        });
         return;
     }
-    hidePlanMessage();
-    showRoute(result.route);
+    const result = await routeService.route(from, state.to, state.needs);
+    if (myRequest !== routeRequestId) return;
+    $("toast").hidden = true;
+    if (!result.ok) {
+        clearRoute();
+        showScreen("plan");
+        showRouteProblem(result.reason, (text, action) => showNotice($("plan-message"), text, action));
+        return;
+    }
+    $("plan-message").hidden = true;
     showScreen("route");
-    map.fitBounds(L.latLngBounds(result.route.shape), { padding: [40, 40] });
-    $("start-btn").focus();
+    showRoute(result.route);
+    fitRoute(result.route.shape);
 }
 
 // Never relax the person's limits on our own: explain and let them decide.
 function showRouteProblem(reason, show) {
     const needs = state.needs;
+    const where = state.to ? ` até ${state.to.label}` : "";
     if (reason === "no_route") {
         const higher = needs.maxGrade + 2;
-        const text = `Não encontrámos um caminho com ${describeNeeds(needs)}.`;
-        if (higher <= GRADE_LIMIT) {
+        const text = `Não encontrámos um caminho${where} com ${describeNeeds(needs) || "estas opções"}.`;
+        if (higher < GRADE_LIMIT) {
             show(text + " Se conseguir, pode aceitar subidas um pouco maiores.", {
                 label: `Tentar com subidas até ${higher}%`,
                 onClick: () => {
                     applyNeeds({ ...needs, maxGrade: higher, profile: "custom" });
+                    saveNeeds();
                     planRoute();
                 },
             });
         } else {
-            show(text + " Experimente outro destino ou mude as opções avançadas.");
+            show(text + " Experimente outro destino ou mude as opções em \"Como se desloca\".");
         }
     } else if (reason === "far_from_path") {
-        show("O ponto de partida ou o destino estão longe de um passeio acessível. Escolha um ponto mais perto da rua.");
+        show("A partida ou o destino estão longe de um passeio acessível. Escolha um ponto mais perto da rua.");
     } else {
         show("Não foi possível calcular o caminho agora. Tente de novo dentro de momentos.");
     }
@@ -624,12 +748,10 @@ function showRoute(route) {
     state.route = route;
     route.cumulative = cumulativeDistances(route.shape);
     drawRoute(route);
-    $("route-title").textContent = state.to ? `Até ${state.to.label}` : "O seu caminho";
+    updatePlaceLabels();
     $("sum-time").textContent = formatDuration(route.timeS);
-    $("sum-distance").textContent = formatDistance(route.distanceKm);
-    const verdict = $("sum-verdict");
-    verdict.textContent = `Caminho com ${describeNeeds(state.needs)}.`;
-    verdict.className = "verdict verdict-ok";
+    $("sum-meta").textContent = `${formatDistance(route.distanceKm)} · chega às ${clockIn(route.timeS)}`;
+    setVerdict(true, describeNeeds(state.needs) ? `Caminho com ${describeNeeds(state.needs)}.` : "O caminho a pé mais direto.");
     $("slope-details").hidden = true;
     route.streets = streetList(route.maneuvers);
     renderStreets($("streets"), route.streets, -1);
@@ -637,9 +759,17 @@ function showRoute(route) {
     loadSlopes(route);
 }
 
+function setVerdict(ok, text) {
+    const v = $("sum-verdict");
+    v.className = `verdict ${ok ? "verdict-ok" : "verdict-warn"}`;
+    v.innerHTML = iconHtml(ok ? "check" : "triangle-alert");
+    v.append(document.createTextNode(" " + text));
+    refreshIcons();
+}
+
 function drawRoute(route) {
     routeLayer.clearLayers();
-    L.polyline(route.shape, { className: "route-casing", weight: 11, interactive: false }).addTo(routeLayer);
+    L.polyline(route.shape, { className: "route-casing", weight: 12, interactive: false }).addTo(routeLayer);
     L.polyline(route.shape, { className: "route-line", weight: 7, interactive: false }).addTo(routeLayer);
     passedLine = L.polyline([], { className: "route-passed", weight: 7, interactive: false }).addTo(routeLayer);
 }
@@ -687,9 +817,9 @@ function renderStreets(list, streets, currentIndex) {
 }
 
 async function loadSlopes(route) {
-    const edges = await routeService.slopes(route, state.needs);
-    if (!edges || state.route !== route) return;
     const needs = state.needs;
+    const edges = await routeService.slopes(route, needs);
+    if (!edges || state.route !== route) return;
     let steepestUp = 0, steepestDown = 0, overLimit = 0, hasSteps = false;
     for (const e of edges) {
         if (e.use === "steps") hasSteps = true;
@@ -698,7 +828,7 @@ async function loadSlopes(route) {
         const down = degreesToPercent(Math.abs(e.max_downward_grade));
         steepestUp = Math.max(steepestUp, up);
         steepestDown = Math.max(steepestDown, down);
-        const over = Math.round(Math.max(up, down)) > needs.maxGrade;
+        const over = needs.maxGrade < GRADE_LIMIT && Math.round(Math.max(up, down)) > needs.maxGrade;
         if (over) overLimit += 1;
         if ((over || (e.use === "steps" && needs.avoidSteps)) && e.end_shape_index > e.begin_shape_index) {
             const part = route.shape.slice(e.begin_shape_index, e.end_shape_index + 1);
@@ -708,10 +838,7 @@ async function loadSlopes(route) {
     const problems = [];
     if (overLimit > 0) problems.push(overLimit === 1 ? "uma parte mais inclinada do que pediu" : `${overLimit} partes mais inclinadas do que pediu`);
     if (hasSteps && needs.avoidSteps) problems.push("escadas que não foi possível evitar");
-    if (problems.length) {
-        $("sum-verdict").textContent = `Atenção: este caminho tem ${problems.join(" e ")} (a laranja no mapa).`;
-        $("sum-verdict").className = "verdict verdict-warn";
-    }
+    if (problems.length) setVerdict(false, `Atenção: tem ${problems.join(" e ")} (a laranja no mapa).`);
     $("sum-slopes").textContent = `Subida mais inclinada: ${Math.round(steepestUp)}%. Descida mais inclinada: ${Math.round(steepestDown)}%.`;
     $("slope-details").hidden = false;
 }
@@ -729,12 +856,13 @@ async function startGuidance() {
     state.offRouteCount = 0;
     showScreen("guide");
     $("guide-message").hidden = true;
+    $("recenter-btn").hidden = true;
     if (DEMO) {
         startDemoWalk();
     } else {
         startWatchingPosition();
         if (!await currentPosition() && state.guiding) {
-            setBanner("Não conseguimos saber onde está.", "Siga a linha azul no mapa e a lista de ruas.");
+            setBanner("navigation", "", "Não conseguimos saber onde está. Siga a linha azul e a lista de ruas.");
             return;
         }
     }
@@ -745,7 +873,7 @@ function stopGuidance() {
     state.guiding = false;
     stopDemoWalk();
     showScreen("route");
-    if (state.route) map.fitBounds(L.latLngBounds(state.route.shape), { padding: [40, 40] });
+    if (state.route) fitRoute(state.route.shape);
 }
 
 function updateGuidance() {
@@ -753,17 +881,18 @@ function updateGuidance() {
     const p = state.position;
     if (!route || !p || state.arrived) return;
 
-    if (state.following) map.setView([p.lat, p.lon], Math.max(map.getZoom(), 17), { animate: true });
+    if (state.following) centerOn([p.lat, p.lon], Math.max(map.getZoom(), 17));
 
     const near = nearestOnRoute(route, p);
-    const toEnd = route.cumulative[route.cumulative.length - 1] - near.along;
+    const total = route.cumulative[route.cumulative.length - 1];
+    const toEnd = total - near.along;
     const toDestination = state.to ? metersBetween(p, state.to) : toEnd;
 
     if (toEnd < ARRIVED_M || toDestination < ARRIVED_M) {
         state.arrived = true;
         stopDemoWalk();
-        setBanner("Chegou ao destino!", state.to ? state.to.label : "");
-        $("guide-remaining").textContent = "0 m";
+        setBanner("flag", "Chegou!", state.to ? state.to.label : "");
+        setGuideStats(0, 0);
         renderStreets($("guide-streets"), route.streets, route.streets.length);
         return;
     }
@@ -783,45 +912,57 @@ function updateGuidance() {
     const next = route.maneuvers[current + 1];
     const toTurn = route.cumulative[route.maneuvers[current].end] - near.along;
     if (next) {
-        const nextText = next.arrive ? "chega ao destino." : lowerFirst(next.instruction);
-        setBanner(`Daqui a ${formatMeters(toTurn)}: ${nextText}`, streetNow(route, current));
+        setBanner(turnIcon(next), formatMeters(toTurn), next.arrive ? "Chega ao destino" : next.instruction);
     } else {
-        setBanner(route.maneuvers[current].instruction, "");
+        setBanner("arrow-up", "", route.maneuvers[current].instruction);
     }
-    $("guide-remaining").textContent = `${formatMeters(toEnd)} · cerca de ${formatDuration(route.timeS * (toEnd / Math.max(1, route.cumulative[route.cumulative.length - 1])))}`;
+    setGuideStats(toEnd, route.timeS * (toEnd / Math.max(1, total)));
     const streetIndex = route.streets.findIndex((s) => current >= s.firstManeuver && current <= s.lastManeuver);
     renderStreets($("guide-streets"), route.streets, streetIndex);
 }
 
-function streetNow(route, maneuverIndex) {
-    const s = route.streets.find((x) => maneuverIndex >= x.firstManeuver && maneuverIndex <= x.lastManeuver);
-    return s ? `Está em: ${s.name}` : "";
+function setGuideStats(meters, seconds) {
+    $("guide-arrival").textContent = clockIn(seconds);
+    $("guide-time").textContent = formatDuration(seconds);
+    $("guide-dist").textContent = formatMeters(meters);
+}
+
+// Valhalla maneuver types → an arrow.
+function turnIcon(m) {
+    if (m.arrive) return "flag";
+    if (m.type === 9) return "arrow-up-right";
+    if (m.type === 10 || m.type === 11) return "corner-up-right";
+    if (m.type === 16) return "arrow-up-left";
+    if (m.type === 14 || m.type === 15) return "corner-up-left";
+    if (m.type === 12 || m.type === 13) return "undo-2";
+    return "arrow-up";
+}
+
+let bannerIconName = null;
+function setBanner(icon, distance, text) {
+    if (icon !== bannerIconName) {
+        bannerIconName = icon;
+        setIcon($("turn-icon"), icon);
+    }
+    $("turn-dist").textContent = distance;
+    $("turn-dist").hidden = !distance;
+    $("turn-text").textContent = text;
 }
 
 async function rerouteFromHere(message) {
     if (Date.now() - state.lastRerouteAt < REROUTE_EVERY_MS || !state.position || !state.to) return;
     state.lastRerouteAt = Date.now();
-    setBanner(message, "");
+    setBanner("navigation", "", message);
     const result = await routeService.route(state.position, state.to, state.needs);
     if (!state.guiding) return;
     if (!result.ok) {
-        showRouteProblem(result.reason, (text) => showGuideMessage(text));
+        showRouteProblem(result.reason, (text) => showNotice($("guide-message"), text));
         return;
     }
     state.offRouteCount = 0;
     showRoute(result.route);
-    if (DEMO) restartDemoWalk();
+    if (DEMO) startDemoWalk();
     updateGuidance();
-}
-
-function setBanner(next, then) {
-    $("guide-next").textContent = next;
-    $("guide-then").textContent = then;
-}
-
-function showGuideMessage(text) {
-    $("guide-message").textContent = text;
-    $("guide-message").hidden = false;
 }
 
 // ?demo: walks along the route at a brisk pace so the guidance can be shown without leaving the room.
@@ -834,10 +975,6 @@ function startDemoWalk() {
     demoAlong = 0;
     demoTimer = setInterval(demoTick, 1000);
     demoTick();
-}
-
-function restartDemoWalk() {
-    startDemoWalk();
 }
 
 function stopDemoWalk() {
@@ -947,14 +1084,14 @@ function formatDuration(seconds) {
     return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
 }
 
+function clockIn(seconds) {
+    return new Date(Date.now() + seconds * 1000).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+}
+
 // Valhalla's pt-PT templates contract "a" + article badly ("à o passeio"); fix the common cases.
 function fixPortuguese(s) {
     const contracted = { o: "ao", os: "aos", a: "à", as: "às" };
     return (s || "").replace(/à (os|as|o|a)(?=[\s.,;]|$)/g, (_, article) => contracted[article]);
-}
-
-function lowerFirst(s) {
-    return s ? s[0].toLowerCase() + s.slice(1) : s;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -962,12 +1099,13 @@ function lowerFirst(s) {
 // removes it. Reports past their expires_at are ignored.
 
 let mqttClient = null;
+let brokerOnline = false;
 const barrierTopic = (id) => `${config.topicPrefix}/barriers/${id}`;
 
 function connectBroker() {
     if (!config.brokerUrl) {
         console.warn("brokerUrl is not set in config.js");
-        setBrokerStatus("off", "Os reportes não estão disponíveis de momento.");
+        setBrokerStatus(false, "Os reportes não estão disponíveis de momento.");
         return;
     }
     mqttClient = mqtt.connect(config.brokerUrl, {
@@ -977,14 +1115,14 @@ function connectBroker() {
         reconnectPeriod: 5000,
     });
     mqttClient.on("connect", () => {
-        setBrokerStatus("on", "Obstáculos atualizados em tempo real.");
+        setBrokerStatus(true, "Obstáculos atualizados em tempo real.");
         mqttClient.subscribe(barrierTopic("+"));
     });
-    mqttClient.on("reconnect", () => setBrokerStatus("wait", "A ligar…"));
-    mqttClient.on("offline", () => setBrokerStatus("off", "Sem ligação. A tentar de novo…"));
+    mqttClient.on("reconnect", () => setBrokerStatus(false, "A ligar…"));
+    mqttClient.on("offline", () => setBrokerStatus(false, "Sem ligação. A tentar de novo…"));
     mqttClient.on("error", (err) => {
         console.warn("MQTT error", err);
-        setBrokerStatus("off", "Os reportes não estão disponíveis de momento.");
+        setBrokerStatus(false, "Os reportes não estão disponíveis de momento.");
     });
     mqttClient.on("message", onBarrierMessage);
 }
@@ -1030,21 +1168,24 @@ function renderBarriers() {
     barrierLayer.clearLayers();
     const active = activeBarriers();
     for (const b of active) {
+        const kind = BARRIER_KINDS[b.kind] || BARRIER_KINDS.other;
         const marker = L.marker([b.lat, b.lon], {
-            icon: L.divIcon({ className: "barrier", html: "!", iconSize: [28, 28], iconAnchor: [14, 14] }),
-            title: BARRIER_KINDS[b.kind] || BARRIER_KINDS.other,
+            icon: L.divIcon({ className: "barrier", html: iconHtml(kind.icon), iconSize: [32, 32], iconAnchor: [16, 16] }),
+            title: kind.label,
         });
         marker.bindPopup(() => barrierPopup(b));
         barrierLayer.addLayer(marker);
     }
+    refreshIcons();
     $("barrier-count").textContent = active.length === 0 ? ""
         : active.length === 1 ? "· 1 obstáculo no mapa" : `· ${active.length} obstáculos no mapa`;
 }
 
 function barrierPopup(b) {
     const div = document.createElement("div");
+    div.className = "popup";
     const title = document.createElement("strong");
-    title.textContent = BARRIER_KINDS[b.kind] || BARRIER_KINDS.other;
+    title.textContent = (BARRIER_KINDS[b.kind] || BARRIER_KINDS.other).label;
     div.append(title);
     if (b.description) {
         const p = document.createElement("p");
@@ -1056,20 +1197,20 @@ function barrierPopup(b) {
     div.append(when);
     const gone = document.createElement("button");
     gone.type = "button";
+    gone.className = "secondary";
     gone.textContent = "Já não está lá";
     gone.addEventListener("click", () => {
-        publish(barrierTopic(b.id), "");
+        if (publish(barrierTopic(b.id), "")) showToast("Obrigado! O obstáculo foi retirado do mapa.");
         map.closePopup();
     });
     div.append(gone);
     return div;
 }
 
-function setBrokerStatus(kind, text) {
-    $("broker-dot").className = `dot dot-${kind}`;
+function setBrokerStatus(online, text) {
+    brokerOnline = online;
+    $("broker-dot").className = `dot ${online ? "dot-on" : "dot-off"}`;
     $("broker-status").textContent = text;
-    $("report-here-btn").disabled = kind !== "on";
-    $("report-map-btn").disabled = kind !== "on";
 }
 
 function publish(topic, message) {
@@ -1078,50 +1219,70 @@ function publish(topic, message) {
     return true;
 }
 
-$("report-here-btn").addEventListener("click", async () => {
-    const p = await currentPosition();
-    if (p) openReportDialog({ lat: p.lat, lon: p.lon });
-    else setReportPicking(true);
-});
-$("report-map-btn").addEventListener("click", () => setReportPicking(true));
-$("report-cancel").addEventListener("click", () => setReportPicking(false));
-
-let mapPickBeforeReport = null;
-
-function setReportPicking(on) {
-    if (on && state.mapPick !== "report") mapPickBeforeReport = state.mapPick;
-    state.mapPick = on ? "report" : mapPickBeforeReport;
-    $("report-hint").hidden = !on;
-    $("map").classList.toggle("picking", on);
+// Report: one tap on the orange button, one tap on what it is.
+for (const [kind, k] of Object.entries(BARRIER_KINDS)) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tile";
+    b.innerHTML = `<span class="tile-ic">${iconHtml(k.icon)}</span><span></span>`;
+    b.lastChild.textContent = k.label;
+    b.addEventListener("click", () => sendReport(kind));
+    $("report-tiles").append(b);
 }
 
-function openReportDialog(point) {
-    state.pendingReport = point;
-    $("report-form").reset();
+$("report-btn").addEventListener("click", async () => {
+    if (!brokerOnline) {
+        showToast("Os reportes não estão disponíveis de momento. Tente mais tarde.");
+        return;
+    }
+    if (state.position) {
+        openReportDialog({ lat: state.position.lat, lon: state.position.lon }, null);
+    } else {
+        setPick("report", "Toque no mapa onde está o obstáculo.");
+    }
+});
+
+$("report-close").addEventListener("click", () => $("report-dialog").close());
+
+function openReportDialog(point, placeText) {
+    state.reportPoint = point;
+    $("description-input").value = "";
+    const where = $("report-where");
+    where.replaceChildren(document.createTextNode(placeText || "Onde está agora. "));
+    const other = document.createElement("button");
+    other.type = "button";
+    other.className = "link";
+    other.textContent = "Escolher outro sítio no mapa";
+    other.addEventListener("click", () => {
+        $("report-dialog").close();
+        setPick("report", "Toque no mapa onde está o obstáculo.");
+    });
+    where.append(other);
     $("report-dialog").showModal();
 }
 
-$("report-dialog").addEventListener("close", () => {
-    const point = state.pendingReport;
-    state.pendingReport = null;
-    if (state.mapPick === "report") setReportPicking(false);
-    if ($("report-dialog").returnValue !== "send" || !point) return;
+function sendReport(kind) {
+    const point = state.reportPoint;
+    $("report-dialog").close();
+    if (!point) return;
     const hours = Number($("duration-select").value);
     const now = new Date();
     const id = `b${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const barrier = {
         id,
-        kind: document.querySelector('input[name="kind"]:checked').value,
+        kind,
         description: $("description-input").value.trim(),
         lat: Number(point.lat.toFixed(6)),
         lon: Number(point.lon.toFixed(6)),
         reported_at: now.toISOString(),
         expires_at: new Date(now.getTime() + hours * 3600 * 1000).toISOString(),
     };
-    if (!publish(barrierTopic(id), JSON.stringify(barrier))) {
-        alert("Não foi possível enviar o reporte. Tente de novo dentro de momentos.");
+    if (publish(barrierTopic(id), JSON.stringify(barrier))) {
+        showToast("Obrigado! Os caminhos de todos passam a evitar este obstáculo.");
+    } else {
+        showToast("Não foi possível enviar o reporte. Tente de novo dentro de momentos.");
     }
-});
+}
 
 // Expired barriers disappear without waiting for a new message.
 setInterval(renderBarriers, 60 * 1000);
@@ -1129,13 +1290,10 @@ setInterval(renderBarriers, 60 * 1000);
 // ---------------------------------------------------------------------------------------------------------------
 // Start
 
+refreshIcons();
 const saved = loadNeeds();
-if (saved) {
-    applyNeeds(saved);
-    showScreen("plan");
-} else {
-    applyNeeds({ profile: "wheelchair", ...PROFILES.wheelchair, avoidBarriers: true });
-    showScreen("welcome");
-}
+applyNeeds(saved || profileNeeds("wheelchair"));
+$("welcome").hidden = !!saved;
+showScreen("plan");
 renderBarriers();
 connectBroker();

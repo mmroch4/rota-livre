@@ -1,11 +1,16 @@
-# Route planner (web app)
+# Rota Livre web app
 
 Static page (HTML + JS, no build step) for accessible walking routes in Porto. UI in European Portuguese.
+Map-first layout inspired by Waze: a full-screen map with floating cards (a bottom sheet on phones), round
+buttons and Lucide icons.
 
-Screens: **welcome** (first visit only: "how do you get around?", remembered in `localStorage`) → **plan**
-("where do you want to go?", start = your location unless changed; everything else under *Opções avançadas*)
-→ **route** (time, one-line verdict, the streets you pass) → **guide** (live position, next-step banner, map
-follows you, recalculates when you leave the route or a new barrier appears ahead).
+Flow: **welcome** (first visit only: "how do you get around?", five profiles from wheelchair to *no mobility
+difficulties*, remembered in `localStorage`; the chip at the top changes it, with the slope/steps/surface/barrier
+options under *Opções avançadas*) → **plan** ("Para onde quer ir?" opens a full-screen search; tapping the map also
+picks a destination) → **route** (shown as soon as a destination is chosen: time, arrival time, a one-line
+verdict, the streets you pass) → **guide** (turn arrow and distance on top, arrival/time/distance at the bottom,
+the map follows you, recalculates when you leave the route or a new barrier appears ahead). The orange button
+reports a barrier with one tap on its type.
 
 Open with `?demo` (e.g. `http://localhost:8765/?demo`) for the pitch: the position starts at the map centre and
 walks along the route by itself.
@@ -58,10 +63,11 @@ python -m http.server 8765 --directory hackathon/app
 Live at <https://accessible-routes.benlubetzky.workers.dev> (add `?demo` for the pitch). It is a Cloudflare Worker
 that only serves this folder's static files (`wrangler.jsonc`; `.assetsignore` keeps the README and local config out).
 
-**Automatic:** Cloudflare's Git integration redeploys on every push to `main` that touches `hackathon/app/`.
-One-time setup in the dashboard: Workers & Pages → `accessible-routes` → Settings → Build → Connect →
-`mmroch4/scitech-2026`, branch `main`, root directory `hackathon/app`, deploy command `npx wrangler deploy`,
-build watch paths `hackathon/app/*`.
+**Automatic:** the GitHub Action [`deploy-app.yml`](../../.github/workflows/deploy-app.yml) redeploys on every push
+to `main` that touches `hackathon/app/` (or by hand: Actions tab → *Deploy web app* → *Run workflow*).
+It needs the repository secret `CLOUDFLARE_API_TOKEN`: a token from Cloudflare (My Profile → API Tokens →
+Create Token → template *Edit Cloudflare Workers*), added by the repo owner under Settings → Secrets and
+variables → Actions.
 
 **By hand** (from `hackathon/app/`, logged in with `npx wrangler login`):
 

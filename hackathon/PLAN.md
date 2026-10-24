@@ -1,7 +1,7 @@
-# Development plan: Passo Livre
+# Development plan: Rota Livre
 
 Updated 24 October 2026 for the Valhalla implementation and the agreed team tracks.
-Passo Livre provides accessible routes in Porto that react to reported barriers.
+Rota Livre provides accessible routes in Porto that react to reported barriers.
 This plan supersedes the earlier OpenRouteService plan and its deleted fixtures.
 
 ## Tracks and initial owners

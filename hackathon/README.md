@@ -1,4 +1,4 @@
-# Passo Livre — accessible routes in Porto
+# Rota Livre — accessible routes in Porto
 
 > **Status (24/10):** Valhalla-based web interface implemented; endpoint configuration and end-to-end
 > accessibility validation remain to be verified. See [PLAN.md](PLAN.md) for owners, priorities and checkpoints.
@@ -11,7 +11,7 @@ People with reduced mobility need routes that respect their accessibility needs 
 
 ## 2. The solution
 
-Passo Livre lets people choose accessibility limits, plan a route and report barriers that update other users'
+Rota Livre lets people choose accessibility limits, plan a route and report barriers that update other users'
 maps and trigger route recalculation. The current implementation is in [app/](app/README.md).
 
 ## 3. Architecture
