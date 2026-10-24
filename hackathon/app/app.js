@@ -561,6 +561,8 @@ function onPosition(p) {
             keyboard: false,
         }).addTo(map);
         if (!state.guiding) $("recenter-btn").hidden = false;
+        // First fix: show the person, unless a route is already on the map.
+        if (!state.route && !state.guiding) centerOn(ll, Math.max(map.getZoom(), 16));
     } else {
         personMarker.setLatLng(ll);
         accuracyCircle.setLatLng(ll).setRadius(p.accuracy || 10);
@@ -568,14 +570,9 @@ function onPosition(p) {
     if (state.guiding) updateGuidance();
 }
 
-// If the browser already allowed location, show the person straight away; otherwise wait until it is needed.
-if (DEMO) {
-    startWatchingPosition();
-} else if (navigator.permissions) {
-    navigator.permissions.query({ name: "geolocation" })
-        .then((s) => { if (s.state === "granted") startWatchingPosition(); })
-        .catch(() => {});
-}
+// Ask for location as soon as the page opens, so the map shows where the person is. If they refuse, everything
+// still works: they choose the start by hand.
+startWatchingPosition();
 
 // ---------------------------------------------------------------------------------------------------------------
 // Routing. Everything that talks to the routing backend is in routeService, so the backend can change
