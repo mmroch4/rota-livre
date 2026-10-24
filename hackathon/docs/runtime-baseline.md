@@ -1,0 +1,292 @@
+# Passo Livre runtime baseline
+
+## Update: local custom Valhalla verified (24 October 2026, ~10:30 UTC)
+
+The custom Valhalla runtime now runs locally at **http://127.0.0.1:8003**. Setup,
+data provenance and commands are in [`../runtime/valhalla/README.md`](../runtime/valhalla/README.md).
+The rest of this document is the earlier pre-setup baseline, kept as a record.
+
+| Item | Verified result |
+|---|---|
+| Image | `passolivre-valhalla:9f6f67e`, ID `2cbb4732c5bb`, built from `projects/valhalla` with the slope fix below; `/status` reports `3.9.1-passolivre-9f6f67e` |
+| Data | BBBike Porto PBF (MD5 matches the published checksum) and Skadi cells `N40W009`, `N41W009`; hashes in `data-manifest.json` |
+| Graph | `setup.sh tiles` built in ~35 s; elevation added to all 13 tiles; 62 MB `tiles.tar`. No admin/timezone DBs (warnings expected) |
+| Service | Compose container `passolivre-valhalla`, loopback only, 2 CPUs / 2 GiB; `/route` and `/trace_attributes` answer |
+| CORS | Responses carry `Access-Control-Allow-Origin: *`, so a locally served app can call it |
+| Smoke | `setup.sh smoke` passes: Aliados pedestrian route 0.388 km (matches the public instance), trace with 30 edges, slope-cap case |
+
+**Slope fix.** With the image as first built, every pedestrian route failed with error
+442 while `auto` worked. Cause, in `PedestrianCost::Allowed`/`AllowedReverse`:
+`max_down_slope()` is a negative `int` and `max_grade_` a `uint32_t`, so the comparison
+converted e.g. -3 to ~4.29e9 and rejected every edge with any downhill. The cap was also
+in percent while edge slopes are in degrees. The fix converts `max_grade` once with the
+existing `grade_percent_to_degrees` helper and compares `max_up_slope()` and
+`-max_down_slope()` against it. Tiles were not rebuilt (costing is evaluated at query time).
+
+Observed cap behaviour (foot and wheelchair identical):
+
+| Route | 90 % | 12 % | 8 % | 6 % and below |
+|---|---|---|---|---|
+| Aliados (66 → 94 m over 334 m, ~8.4 %) | 0.388 km | 0.388 km | 0.388 km | no route |
+| Ribeira → Sé | 0.89–1.00 km (edges up to 13°/-16°) | no route | no route | no route |
+| Ribeira → Batalha | 1.42–1.50 km (edges up to 13°/-16°) | no route | no route | no route |
+
+The cap is enforced and monotonic. `trace_attributes` `max_upward_grade` /
+`max_downward_grade` are in **degrees** (4° ≈ 7 %); the app already converts them
+with `degreesToPercent`.
+
+**Still open (not fixed):**
+- The origin and destination partial edges are not checked against the cap (Aliados has
+  11° end edges and still routes at 8 %).
+- Missing elevation is stored as slope 0, so unknown segments pass any cap.
+- Slopes above 15° are quantized in 4° steps; the per-edge maximum is sensitive to DEM
+  resolution (~30 m) on short edges.
+- No route is returned when the cap cannot be met (by design: the app does not relax it).
+  For the demo, choose an origin/destination pair where a stricter cap *changes* the route
+  rather than blocks it.
+- Coreflux WebSocket transport and the `access/barriers/<id>` exchange are still untested.
+- The app's `valhallaUrl` is still empty; Ben sets it (locally `http://127.0.0.1:8003`).
+
+## Original baseline (pre-setup)
+
+Observed on 24 October 2026, approximately 08:55–09:00 UTC, on Miguel's workstation.
+Repository baseline: `9f6f67e`. Initial `git status --short` was empty.
+This session only added this document: no app edits, service changes, deployments,
+broker writes, package installs, builds, dataset downloads, commits or pushes.
+
+## Result
+
+**Local Coreflux is healthy. The intended custom Valhalla runtime is not available
+at the documented local endpoints. The documented public fallback successfully
+answered one basic Porto route request.** That public result does not establish
+custom slope enforcement or an integrated working app.
+
+Sources read: `hackathon/AGENTS.md`, `hackathon/PLAN.md`, `hackathon/README.md`,
+`hackathon/app/README.md`, the routing handoff (especially sections 2.4–4.5 and 7),
+the broker Compose files, app configuration, and specific Valhalla build/config files.
+The handoff describes another machine; its old upload warnings and old website
+setup are not the current app baseline. Miguel owns runtime recovery; Pedro is
+not an ongoing dependency. Ben owns `hackathon/app/`.
+
+## Available versus actually verified
+
+| Component | Evidence observed now | Limit of the evidence |
+|---|---|---|
+| Docker | Engine CLI 29.9.1; Compose v5.6.0; daemon accessible | No new containers started |
+| Coreflux | `o1n-broker`, image `coreflux/coreflux-mqtt-broker:2.22.0`, running; `GET http://127.0.0.1:9100/health` returned HTTP 200, `status: healthy`, `version: 2.22.0` | Health is not a barrier integration test |
+| Coreflux version | `/health` supplies version; `/version` on port 9100 returned HTTP 404 | No standalone version endpoint verified |
+| Broker MCP | `GET http://127.0.0.1:6278/health` returned HTTP 200, healthy, `CorefluxBroker`, version 2.22.0, 98 tools | No authenticated MCP operations performed |
+| MQTT TCP | `127.0.0.1:1883` accepted a TCP connection | No authenticated MQTT session, subscription, publish or retained-message test |
+| MQTT WebSocket | Compose override declares `127.0.0.1:9001:5000`, intended URL `ws://127.0.0.1:9001/mqtt` | Override is not active: no host mapping, TCP connection refused on 9001; browser transport unavailable locally |
+| HUB / Mailpit | `o1n-hub` (2.12.0) and `o1n-mailpit` (`latest`) running and Docker-healthchecked healthy; ports 3000 and 8025 bound to loopback | No UI workflow tested; port 3000 belongs to the HUB, not the old OSM website |
+| Custom Valhalla | No Valhalla-named image or container in local Docker inventory; no service/build tools on PATH | Both `http://127.0.0.1:8003/status` (historical service) and `:8002/status` (source default) refused connections |
+| Public fallback | `https://valhalla1.openstreetmap.de/status`: HTTP 200, version `3.9.1-618cad5`; actions include `route`, `trace_attributes`, `height`, `status` | An advertised action is not a test of that action; this is not the team's custom build |
+| Public route | POST `/route`: HTTP 200; `trip.status: 0`, `Found route between points`; one leg, 0.388 km, 324.654 seconds | Plain pedestrian route only; no slope, wheelchair, barrier, CORS or browser integration validation |
+| App configuration | Committed `valhallaUrl` and `brokerUrl` are empty; `config.local.js` absent; topic prefix `access` | No actual cloud Coreflux endpoint or custom Valhalla tunnel URL identified |
+
+The public request used origin `(41.1466, -8.6110)` and destination
+`(41.1496, -8.6109)`, pedestrian costing, kilometers. No slope cap was submitted.
+The app's documentation explicitly says the public fallback does not implement
+the custom cap; do not turn this smoke test into an accessibility claim.
+
+`hackathon/broker/.env` exists and is ignored. Only setting names were checked;
+it contains an obsolete ORS key setting, not a routing endpoint. Its value is
+neither needed nor recorded. Do not restore ORS. No credentials are required for
+the reproducible probes below.
+
+## Startup requirements and missing artifacts
+
+### Coreflux
+
+The checked-in base stack uses:
+
+- `coreflux/coreflux-mqtt-broker:2.22.0`, `coreflux/coreflux-hub:2.12.0`,
+  and `axllent/mailpit:latest`. All are already local and running.
+- Broker persistent volume mounted at `/etc/project` (actual volume
+  `broker_broker-data`); `templates` and `../lot` mounted read-only;
+  `exports` writable at `/data/exports`. These mounts were inspected without
+  dumping container environment or broker data. Preserve the persistent volume.
+- MCP enabled with container-internal bind `0.0.0.0`, but published on host
+  loopback only. MQTT, health, HUB and Mailpit host mappings are also loopback.
+- Optional licence configuration through ignored local configuration. No licence
+  activation or entitlement check was performed; do not infer a tier from health.
+- For browser use, the WebSocket Compose override plus a suitable existing
+  login restricted to `access/barriers/#`. User/rule provisioning was not checked
+  or changed. HTTPS-hosted clients also need a reachable secure WebSocket endpoint;
+  a localhost plain WebSocket endpoint is only a local integration option.
+
+Base startup command, documented here but **not run** because the services already
+exist:
+
+```bash
+cd hackathon/broker
+docker compose up -d
+```
+
+The separate next-session transport change would be:
+
+```bash
+cd hackathon/broker
+docker compose -f docker-compose.yml -f docker-compose.ws.yml up -d broker
+```
+
+That may recreate the broker; plan it as an explicit integration step. Keep
+loopback bindings and existing volumes. Do not use `down -v` or overwrite `.env`.
+The optional export mount is currently writable; email/export automation is not
+needed to establish routing and barrier transport.
+
+### Valhalla
+
+The original handoff reports a local image `valhalla-slope:local`, config
+`/custom_files/slope-build/valhalla.json`, an Andorra PBF, elevation tile
+`elevation_data/N42/N42E001.hgt`, and seven loaded tiles on version 3.9.1.
+**These are historical claims, not artifacts verified on this workstation.**
+Andorra data would not cover the Porto demo.
+
+Checked locations absent here: `/home/peteryellow/valhalla/custom_files`,
+`/home/miguel/valhalla`, `/data/valhalla`, `projects/valhalla/custom_files`,
+`projects/valhalla/valhalla_tiles`, `projects/valhalla/build`, and `hackathon/data`.
+The source root has no runtime data/config directory. Tracked test PBFs and
+binding-test JSON files exist; they are not a Porto runtime bundle. No graph,
+Porto PBF, DEM coverage or deployment config was identified in the inspected
+locations. This was a targeted inspection, not a whole-disk artifact search.
+
+A usable custom runtime requires all of:
+
+1. **Executable/image built from the modified source.**
+   `projects/valhalla/docker/Dockerfile` is a concrete source-build recipe, with
+   build context `projects/valhalla`, Ubuntu 24.04 stages, and dependency setup
+   via `scripts/install-linux-deps.sh`. It builds/install binaries and Python
+   bindings. A stock scripted image would not prove the team's modifications
+   are present. The original custom image's provenance/digest is unknown.
+2. **Compatible routing graph covering the intended points.** Serve prebuilt
+   graph tiles or their tile archive; a PBF is a build input, not a directly
+   routable graph. Reusing a compatible elevation-enhanced Porto bundle is the
+   smallest setup path if one can be obtained with provenance.
+3. **Elevation used during graph construction.** For slope claims the graph
+   needs valid elevation-derived attributes. HGTs use latitude directories and
+   names such as `N41/N41W009.hgt` for the tested Porto coordinates; obtain all
+   cells covering the chosen extract. Merely adding DEM files beside an existing
+   graph does not retrofit slope attributes. Missing-elevation policy remains
+   a separate task. Raw DEMs are also needed if serving elevation queries from
+   local elevation data; a basic route can work without proving any of this.
+4. **Explicit JSON config and matching mounts.** Generate with
+   `valhalla_build_config`; set `mjolnir.tile_dir`, `mjolnir.tile_extract`,
+   `additional_data.elevation`, and `httpd.service.listen`. Source defaults are
+   `/data/valhalla`, `/data/valhalla/tiles.tar`, `/data/valhalla/elevation/`, and
+   `tcp://*:8002`. Admin/timezone database paths must match any supplied bundle;
+   they support administrative/time-dependent behavior. Check enabled actions
+   and service limits for `/route` and `/trace_attributes`.
+5. **Correct service port.** The historical command maps 8003 to 8003 and assumes
+   its missing JSON listens on 8003. Generated defaults instead listen on 8002.
+   Choose one explicitly, e.g. host `127.0.0.1:8003` to container 8002; run
+   `valhalla_service <container-config-path> 1`. Do not reuse the old absolute
+   machine paths or an unmatched port mapping.
+
+Candidate image-build command for a later, explicitly budgeted setup session
+(recipe inspected, **not built or validated**):
+
+```bash
+docker build -f projects/valhalla/docker/Dockerfile \
+  --build-arg CONCURRENCY=2 -t valhalla-slope:local projects/valhalla
+```
+
+The recipe requires network package downloads and compilation, including
+`prime_server` 0.12.0. No build or download was started. A native build needs
+CMake >=3.15, a C++20 compiler, Boost >=1.71, Protobuf/compiler, zlib, curl,
+prime_server/ZeroMQ, SQLite/SpatiaLite, LuaJIT, GEOS and OpenSSL; optional/default
+features add GeoTIFF/TIFF, LZ4 and Python development requirements. The exact
+package list is in the installer script. Keep `ENABLE_SERVICES` and
+`ENABLE_DATA_TOOLS` enabled when building the service and graph tools.
+
+Host preflight: GCC/G++, Python 3, curl and pkg-config exist; CMake, Ninja,
+`protoc`, `valhalla_service`, `valhalla_build_tiles`, `valhalla_build_config`,
+`valhalla_build_elevation`, and `valhalla_build_extract` are not on PATH.
+pkg-config finds zlib 1.3 and expat 2.6.1; it does not find libcurl, protobuf,
+libprime_server, sqlite3, spatialite, luajit, geos, openssl or liblz4. This is
+not a full native dependency audit (CMake-only packages were not resolved).
+Docker can supply build dependencies without installing them on the host.
+Approximately 235 GiB disk space was available; build memory/time were not assessed.
+
+If no reusable bundle exists, obtaining a bounded Porto OSM extract and matching
+DEM coverage, generating config, building/enhancing tiles, and producing the
+extract are separate next actions. The handoff's build → elevation download →
+enhance → extract sequence is historical guidance, not a build verified here.
+The scripted image can automatically download/build on startup, so it was not launched.
+
+## Reproducible read-only checks
+
+Run from the repository root. These commands do not include credentials.
+
+```bash
+git status --short
+git rev-parse --short HEAD
+docker --version
+docker compose version
+docker ps -a --filter name=o1n --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
+docker ps -a --filter name=valhalla
+docker image ls '*valhalla*'
+curl --max-time 5 -sS -i http://127.0.0.1:9100/health
+curl --max-time 5 -sS -i http://127.0.0.1:9100/version
+curl --max-time 5 -sS -i http://127.0.0.1:6278/health
+curl --max-time 5 -sS -i http://127.0.0.1:8003/status
+curl --max-time 5 -sS -i http://127.0.0.1:8002/status
+```
+
+The HTTP probes above were executed with Python's standard-library HTTP client;
+curl equivalents are provided for convenience. Check TCP transport without login:
+
+```bash
+python3 - <<'PY'
+import socket
+for port in (1883, 9001):
+    try:
+        with socket.create_connection(('127.0.0.1', port), timeout=3):
+            print(port, 'TCP connected')
+    except OSError as error:
+        print(port, error)
+PY
+```
+
+Repeat the public smoke test (or replace the base URL with a verified custom
+service once it has Porto coverage). These are public coordinates, not user data:
+
+```bash
+curl --max-time 15 -sS https://valhalla1.openstreetmap.de/status
+curl --max-time 15 -sS https://valhalla1.openstreetmap.de/route \
+  -H 'Content-Type: application/json' \
+  --data '{"locations":[{"lat":41.1466,"lon":-8.6110},{"lat":41.1496,"lon":-8.6109}],"costing":"pedestrian","units":"kilometers"}'
+```
+
+Avoid dumping `.env`, full `docker inspect`, rendered Compose environment,
+broker logs or stored broker data into shared output; none is needed to reproduce
+these checks. The execution sandbox failed before its first command with a
+network-namespace initialization error; subsequent checks ran with approved host
+access. Connection refusals reported above are from that host context.
+
+## Blockers and smallest next actions
+
+| Blocker | Smallest next action |
+|---|---|
+| No intended custom Valhalla endpoint/artifact bundle | Miguel identifies an accessible existing custom service or obtains a compatible image + config + Porto graph bundle with provenance. If neither exists, time-box a separate local build/data setup task before starting downloads. |
+| Browser MQTT transport unavailable locally | In a separate integration task, enable the existing WebSocket override, confirm port 9001 and an authenticated MQTT-over-WebSocket connection with a suitable existing account. |
+| App endpoints blank; no verified limited browser login | Coordinate with Ben on endpoint values and ignored local configuration; Miguel supplies verified URLs. Human-managed account setup may be needed; do not use user-management tools. |
+| Barrier exchange and retention untested | Once transport/login work, test one `access/barriers/<id>` report across two sessions and reload, then remove only that test report. No automation needed for this check. |
+| Slope behavior unverified | After a custom service is reproducible, schedule a distinct units/downhill/missing-elevation validation task with known cases. Do not claim success based on a route response. |
+
+Existing code includes forward/reverse pedestrian slope comparisons and an unused
+conversion helper in `projects/valhalla/src/sif/pedestriancost.cc`. The handoff
+flags units, negative downhill comparisons and missing elevation. Those checks
+were located, not fixed or executed. The app's route, trace and barrier behavior
+is described in its README; no browser flow was tested in this baseline.
+
+## Recommended next session
+
+Take **one bounded routing-runtime recovery task**: establish a usable custom
+Valhalla service with known image/source provenance, valid configuration and
+Porto graph coverage; verify `/status` and the same basic route; record the exact
+artifact paths and startup command. First time-box reuse discovery; if rebuilding
+is necessary, state the data/build budget before proceeding. Stop before slope
+fixes, broker automation, frontend edits, deployments or end-to-end demo work.
+Then take WebSocket/barrier integration as its own task with Ben. Keep the current
+Valhalla architecture and `access/barriers/<id>` contract.

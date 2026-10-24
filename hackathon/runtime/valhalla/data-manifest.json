@@ -1,0 +1,30 @@
+{
+  "downloaded_at_utc": "2026-10-24T09:08:12.708371+00:00",
+  "source_revision": "9f6f67e",
+  "osm_url": "https://download.bbbike.org/osm/bbbike/Porto/Porto.osm.pbf",
+  "osm_attribution": "OpenStreetMap contributors, ODbL; extract by BBBike.org",
+  "bounds_west_south_east_north": [
+    -8.82,
+    40.9,
+    -8.2,
+    41.42
+  ],
+  "elevation_url_template": "https://elevation-tiles-prod.s3.us-east-1.amazonaws.com/skadi/{latitude}/{tile}.hgt.gz",
+  "artifacts": [
+    {
+      "path": "data/Porto.osm.pbf",
+      "bytes": 45551863,
+      "sha256": "ccb546e8d9645a1d962f413a86f0d2058bd19e8071cc1e8516d54654121d94bb"
+    },
+    {
+      "path": "data/elevation/N40/N40W009.hgt",
+      "bytes": 25934402,
+      "sha256": "2241a7915627cd12a26f779ddc5bf950abdb9d59ae0d74fe88d2409dd66076fb"
+    },
+    {
+      "path": "data/elevation/N41/N41W009.hgt",
+      "bytes": 25934402,
+      "sha256": "060a02f61a510143e546c40d676e13c5ccd03d3c54e81e62c6761953794edbec"
+    }
+  ]
+}
