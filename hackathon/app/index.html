@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rotas acessíveis</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="layout">
+        <section class="panel" aria-label="Planear percurso">
+            <h1>Rotas acessíveis</h1>
+
+            <div class="field">
+                <label for="from-input">Partida</label>
+                <div class="search">
+                    <input id="from-input" type="search" placeholder="Rua, praça ou local" autocomplete="off">
+                    <button id="locate-btn" type="button" title="Usar a minha localização">A minha localização</button>
+                </div>
+                <ul class="suggestions" id="from-suggestions" hidden></ul>
+            </div>
+
+            <div class="field">
+                <label for="to-input">Destino</label>
+                <div class="search">
+                    <input id="to-input" type="search" placeholder="Rua, praça ou local" autocomplete="off">
+                </div>
+                <ul class="suggestions" id="to-suggestions" hidden></ul>
+            </div>
+
+            <p class="hint">Ou toque no mapa: primeiro a partida, depois o destino. Pode arrastar os marcadores.</p>
+
+            <fieldset>
+                <legend>As minhas necessidades</legend>
+
+                <div class="field">
+                    <label for="profile-select">Perfil</label>
+                    <select id="profile-select">
+                        <option value="wheelchair">Cadeira de rodas</option>
+                        <option value="walker">Andarilho ou canadianas</option>
+                        <option value="stroller">Carrinho de bebé</option>
+                        <option value="custom">Personalizado</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label for="grade-input">Inclinação máxima: <output id="grade-output">6</output>%</label>
+                    <input id="grade-input" type="range" min="2" max="15" step="1" value="6">
+                </div>
+
+                <label class="check"><input id="steps-check" type="checkbox" checked> Evitar escadas</label>
+                <label class="check"><input id="surface-check" type="checkbox" checked> Evitar pisos irregulares (calçada solta, gravilha, terra)</label>
+                <label class="check"><input id="barriers-check" type="checkbox" checked> Evitar obstáculos reportados</label>
+            </fieldset>
+
+            <div class="actions">
+                <button id="route-btn" type="button" class="primary">Calcular percurso</button>
+                <button id="clear-btn" type="button">Limpar</button>
+            </div>
+
+            <section id="result" aria-live="polite">
+                <p id="message" class="message" hidden></p>
+                <div id="summary" hidden>
+                    <p class="totals"><strong id="sum-distance"></strong> · <strong id="sum-time"></strong></p>
+                    <p id="sum-slopes" class="slopes"></p>
+                    <ul id="warnings" class="warnings"></ul>
+                    <details>
+                        <summary>Indicações passo a passo</summary>
+                        <ol id="maneuvers"></ol>
+                    </details>
+                </div>
+            </section>
+
+            <section class="barriers" aria-label="Obstáculos">
+                <h2>Obstáculos</h2>
+                <p class="status"><span id="broker-dot" class="dot"></span> <span id="broker-status">A ligar…</span></p>
+                <button id="report-btn" type="button">Reportar um obstáculo</button>
+                <p id="report-hint" class="hint" hidden>Toque no mapa onde está o obstáculo. <button id="report-cancel" type="button" class="link">Cancelar</button></p>
+                <p id="barrier-count" class="hint"></p>
+            </section>
+        </section>
+
+        <div id="map" aria-label="Mapa"></div>
+    </main>
+
+    <dialog id="report-dialog">
+        <form id="report-form" method="dialog">
+            <h2>Reportar obstáculo</h2>
+            <div class="field">
+                <label for="kind-select">O que é?</label>
+                <select id="kind-select">
+                    <option value="works">Obras ou andaime</option>
+                    <option value="blocked_sidewalk">Passeio bloqueado</option>
+                    <option value="parked_car">Carro em cima do passeio</option>
+                    <option value="broken_lift">Elevador ou rampa avariados</option>
+                    <option value="damaged_pavement">Piso danificado ou buraco</option>
+                    <option value="other">Outro</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="description-input">Descrição (opcional)</label>
+                <textarea id="description-input" rows="3" maxlength="280"></textarea>
+            </div>
+            <div class="field">
+                <label for="duration-select">Durante quanto tempo deve ser evitado?</label>
+                <select id="duration-select">
+                    <option value="2">2 horas</option>
+                    <option value="24" selected>1 dia</option>
+                    <option value="168">1 semana</option>
+                </select>
+            </div>
+            <div class="actions">
+                <button value="send" class="primary">Enviar</button>
+                <button value="cancel" formnovalidate>Cancelar</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+    <script src="config.js"></script>
+    <script>
+        // Optional local overrides (broker login), never committed.
+        document.write('<script src="config.local.js" onerror="void 0"><\/script>');
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>

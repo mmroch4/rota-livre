@@ -1,0 +1,87 @@
+/* Functional layout only; the visual design comes later. */
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; }
+
+body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+    color: #1a1a1a;
+    background: #fff;
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    height: 100%;
+}
+
+.panel {
+    overflow-y: auto;
+    padding: 16px;
+    border-right: 1px solid #ccc;
+}
+
+#map { height: 100%; }
+#map.picking { cursor: crosshair; }
+
+h1 { font-size: 1.4rem; margin: 0 0 12px; }
+h2 { font-size: 1.1rem; margin: 16px 0 8px; }
+
+.field { margin-bottom: 12px; }
+.field label { display: block; font-weight: 600; margin-bottom: 4px; }
+
+input[type="search"], select, textarea { width: 100%; font: inherit; padding: 8px; }
+input[type="range"] { width: 100%; }
+
+.search { display: flex; gap: 6px; }
+.search input { flex: 1; }
+
+button { font: inherit; padding: 8px 12px; min-height: 44px; cursor: pointer; }
+button.primary { font-weight: 600; }
+button.link { min-height: 0; padding: 0; border: 0; background: none; text-decoration: underline; }
+
+.suggestions { list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid #ccc; }
+.suggestions li { padding: 6px; }
+.suggestions button { width: 100%; text-align: left; min-height: 0; padding: 4px; border: 0; background: none; }
+
+fieldset { margin: 12px 0; padding: 12px; }
+.check { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
+
+.actions { display: flex; gap: 8px; margin: 12px 0; }
+.hint { font-size: 0.9rem; color: #555; }
+
+.message { padding: 8px; border: 1px solid #999; }
+.totals { font-size: 1.1rem; margin: 8px 0; }
+.warnings { padding-left: 18px; }
+.dist { color: #555; }
+
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #999; }
+.dot-on { background: #2a8a3a; }
+.dot-off { background: #b3261e; }
+
+/* Map overlays */
+.route-line { stroke: #1f5fd1; }
+.route-warning { stroke: #e07b00; }
+
+.endpoint, .barrier {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #fff;
+    font-weight: 700;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px #0006;
+}
+.endpoint-from { background: #2a8a3a; }
+.endpoint-to { background: #b3261e; }
+.barrier { background: #e07b00; }
+
+@media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
+    #map { height: 55vh; order: -1; }
+    .panel { border-right: 0; }
+}
