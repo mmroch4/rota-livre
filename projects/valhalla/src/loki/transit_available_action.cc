@@ -1,0 +1,48 @@
+#include "loki/worker.h"
+#include "midgard/distanceapproximator.h"
+#include "tyr/serializers.h"
+
+using namespace valhalla;
+using namespace valhalla::baldr;
+using namespace valhalla::midgard;
+
+namespace valhalla {
+namespace loki {
+
+void loki_worker_t::init_transit_available(Api& request) {
+  if (request.options().locations_size() < 1) {
+    throw valhalla_exception_t{120};
+  };
+}
+
+std::string loki_worker_t::transit_available(Api& request) {
+  // time this whole method and save that statistic
+  auto _ = measure_scope_time(request);
+
+  init_transit_available(request);
+  try {
+    const auto& tiles = TileHierarchy::levels().back().tiles;
+    auto* locations = request.mutable_options()->mutable_locations();
+    for (auto& location : *locations) {
+      // Get a list of tiles required within the radius of the projected point
+      const auto& ll = location.ll();
+      DistanceApproximator<PointLL> approximator({ll.lng(), ll.lat()});
+      auto latdeg = location.radius() / kMetersPerDegreeLat;
+      auto lngdeg = location.radius() / DistanceApproximator<PointLL>::MetersPerLngDegree(ll.lat());
+      AABB2<PointLL> bbox(ll.lng() - lngdeg, ll.lat() - latdeg, ll.lng() + lngdeg, ll.lat() + latdeg);
+      std::vector<int32_t> tilelist = tiles.TileList(bbox);
+      for (auto id : tilelist) {
+        // transit is level hierarchy level 3
+        auto color = connectivity_map->get_color(GraphId(id, 3, 0));
+        if (color != 0) {
+          location.set_transit_available(true);
+        }
+      }
+    }
+  } catch (const std::exception&) { throw valhalla_exception_t{170}; }
+
+  return tyr::serializeTransitAvailable(request);
+}
+
+} // namespace loki
+} // namespace valhalla
