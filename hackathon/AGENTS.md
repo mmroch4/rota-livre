@@ -51,6 +51,11 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
   (`SET "c" WITH {r}`), fails at runtime with `SafeParseDouble ... instance reference`.
   `validate_lot` accepts all of these forms, so **run `diagnose` after every deploy and after the first message**.
 - `GET JSON ... AS BOOL` publishes `True`/`False` (capitalized).
+- **`PUBLISH MODEL` (verified 24/10):** a model header with `RETAIN` is rejected (LOT1001 "empty body") unless it
+  also has `WITH TOPIC`; even then `PUBLISH MODEL ... TO` publishes **not retained**, and a field declared
+  `WITH TIMESTAMP "ISO"` is missing from the payload. For retained state, use `PUBLISH TOPIC ... WITH RETAIN QOS1`.
+- `GET TOPIC {var}` and `GET TOPIC {a} + "/x" AS INT` work with a computed topic; an unknown topic reads as `""`
+  (`0` with `AS INT`), so it can be used to skip duplicates.
 - **REST connector:** `WITH ENDPOINT "...?date={payload.json.date}"` works. A non-2xx answer is published to
   DESTINATION_TOPIC as `{"success":false,"statusCode":404,...}`; check for it.
 - **FILE_STORAGE:** the QUERY is `CLEAN:{table: <name>, data: {value.json}}` (comma, not the template's

@@ -84,7 +84,9 @@ topic map in `hackathon/README.md` in the same commit.
   or from a barrier's popup) **does not remove the barrier**: it publishes a **non-retained**, QoS 1 message on
   `access/barriers/<barrier id>/feedback` = `{"id", "barrier_id", "answer": "gone", "answered_at", "lat"?, "lon"?}`
   (`lat`/`lon` = where the person was, when known). **The backend must store these** (the page does not keep them
-  once sent); the team reviews the counts per barrier at the end of the day and decides. Until a broker is
+  once sent); the team reviews the counts per barrier at the end of the day and decides. The broker Action
+  `StoreBarrierFeedback` (`hackathon/lot/barrier_feedback.lotnb`) stores them under `access/feedback/<barrier id>/`
+  (see the topic map in `hackathon/README.md`). Until a broker is
   connected, answers wait in the device outbox (`localStorage` key `access.feedbackOutbox`) and are sent on connect.
 - Payload: `{"id", "kind", "description", "lat", "lon", "reported_at", "expires_at"}` (ISO 8601 times; `id` like
   `b<base36 time><random>`; `description` may be `""`; expiry = report + 24 h). `kind` is one of `works`,
