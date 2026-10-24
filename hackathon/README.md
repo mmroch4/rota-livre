@@ -1,33 +1,42 @@
-# Hackathon — Coreflux solution
+# Passo Livre — accessible routes in Porto
 
-> **Status:** new idea, not written up yet (24/10).
+> **Status (24/10):** Valhalla-based web interface implemented; endpoint configuration and end-to-end
+> accessibility validation remain to be verified. See [PLAN.md](PLAN.md) for owners, priorities and checkpoints.
 > The write-up follows the 4 points the jury judges on (Rules, Art. 1, 3):
 > **problem → demo → architecture → maturity**.
 
 ## 1. The problem
 
-TODO
+People with reduced mobility need routes that respect their accessibility needs and react to obstacles.
 
 ## 2. The solution
 
-TODO
+Passo Livre lets people choose accessibility limits, plan a route and report barriers that update other users'
+maps and trigger route recalculation. The current implementation is in [app/](app/README.md).
 
 ## 3. Architecture
 
-TODO
+The static web app calls Valhalla for routes and slope details. Coreflux MQTT over WebSocket distributes retained
+barrier reports. The checked-in routing source and [handoff](../accessibility_routing_project_handoff.md) support
+validation of the custom slope cap; correct enforcement still needs runtime verification.
 
 ### MQTT topic map
 
 | Topic | Producer | Consumer | Payload |
 |-------|----------|----------|---------|
+| `access/barriers/<id>` (retained) | web app | web app; future broker automation | `{id, kind, description, lat, lon, reported_at, expires_at}`; empty retained payload removes the barrier |
 
 ## 4. Demo
 
-TODO
+Plan a route under the chosen accessibility limits, report an obstacle from a second session, and show the route
+recalculate around it. Current-position rerouting and explanation of changes are planned next; demonstrate only
+verified behavior. Victor owns the script, slides, recording and rehearsals with technical support from Ben and Miguel.
 
 ## 5. Maturity and next steps
 
-TODO
+Validate uphill/downhill slope limits and missing-elevation behavior, verify the deployed endpoints, and make the
+demo repeatable. Prioritize the core route/report/reroute flow; LLM analysis and lift simulation are stretch work.
+The app already exposes a no-route message without silently relaxing the user's settings.
 
 ---
 
