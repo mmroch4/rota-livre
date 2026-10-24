@@ -128,3 +128,28 @@ seven-section slope-display warning remained. Exact distances in the table are
 API checks, not measurements extracted from browser requests. Subsequent detour,
 reload and clearing observations will be recorded separately after broker stability
 is confirmed. No services were restarted or reconfigured by this session.
+
+### Stable-broker retry — 12:43 UTC: city-off regression
+
+Miguel confirmed the broker was stable and authorized resuming checks. Published
+retained `off` again, cleared only `demo-*`, then checked again after nine seconds:
+
+| UTC | Operation | Switch | Active city / total | Exact API route |
+|---|---|---|---|---|
+| 12:43:26 | Publish off, snapshot | retained off | 24 / 26 | 2.164 km |
+| 12:43:29 | Clear demo barriers, snapshot | retained off | 24 / 24 | 2.164 km |
+| 12:43:35 | Read-only retry | retained off | 24 / 24 | 2.164 km |
+
+All 24 city records were unexpired. Both existing browser tabs changed without
+reload from **1.3 km / 21 min** to **2.2 km / 35 min**, with 24 works markers and
+the city itinerary through Alves da Veiga. This confirms live updates, but **does
+not pass the requested city-off demo sequence**. Its seed/reload/clear acceptance
+remains incomplete. Miguel was asked to have Claude investigate `SwitchCityAlerts`;
+no LoT changes or manual city-barrier retirement were performed here.
+
+The checker initially returned PASS for these snapshots because routing and grade
+checks succeeded. It now also fails `city_switch_mismatch` when off coexists with
+active city barriers, retaining route/grade diagnostics. An offline regression test
+covers that case. Current broker intent: retained off; demo barriers cleared.
+Restart durability remains unverified: there is no controlled before/after snapshot
+of identical barrier payloads and switch across a confirmed restart in this session.

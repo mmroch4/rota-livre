@@ -286,6 +286,9 @@ def run(args, result):
         raise CheckError('grade_check', 'Interior cap could not be verified within 6%')
     if counts['invalid_records']:
         raise CheckError('invalid_barriers', 'Invalid retained records excluded; inspect producer data')
+    if result['city_switch']['state'] == 'off' and counts['active_city_barriers']:
+        raise CheckError('city_switch_mismatch',
+                         'City switch is off but active city barriers remain; retry after Action completion')
 
 
 def positive(value):

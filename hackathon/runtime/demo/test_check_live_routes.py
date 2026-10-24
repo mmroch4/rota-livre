@@ -155,6 +155,20 @@ class MqttTests(unittest.TestCase):
 
 
 class HttpAndGradeTests(unittest.TestCase):
+    def test_city_off_with_active_city_barriers_fails_after_route(self):
+        route = {'trip': {'status': 0, 'summary': {'length': 2.164, 'time': 2072.82},
+                          'legs': [{'shape': 'test-shape'}]}}
+        trace = {'edges': [{'max_upward_grade': 6, 'max_downward_grade': -6}] * 3}
+        with patch.object(live, 'Reader') as client, patch.object(live, 'post', side_effect=[route, trace]):
+            client.return_value.snapshot.return_value = ({'city-test': payload()}, 0)
+            client.return_value.city_switch = {'retained': True, 'state': 'off', 'effective': 'off'}
+            output = io.StringIO()
+            with patch('sys.stdout', output):
+                self.assertEqual(live.main(['--json']), 1)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result['error']['category'], 'city_switch_mismatch')
+            self.assertEqual(result['route']['length_km'], 2.164)
+
     def test_overall_deadline_returns_json_failure(self):
         output = io.StringIO()
         with patch.object(live, 'run', side_effect=lambda *args: time.sleep(.2)), patch('sys.stdout', output):

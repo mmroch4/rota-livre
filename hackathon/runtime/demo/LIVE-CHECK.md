@@ -64,6 +64,9 @@ payload fails the check with `invalid_switch` and an unknown effective state.
 Live switch updates invalidate the snapshot just like live barrier updates.
 This records the switch, not proof that the import Action has finished executing:
 inspect the active city count as well. The checker never changes the switch.
+An off switch with active city barriers fails with `city_switch_mismatch` after
+recording the route and grades. A brief mismatch can occur while retirement runs;
+retry once after completion. Persistent mismatch requires the LoT owner's review.
 
 The current app (`onBarrierMessage`, `activeBarriers`, `squareAround` in `app.js`)
 uses the topic's final component as the ID, numeric coordinates, and no kind or
