@@ -1,0 +1,11 @@
+// Cloudflare Worker that serves this folder as a static site (https://accessible-routes.benlubetzky.workers.dev).
+// Deployed by Cloudflare's Git integration on every push to main that touches hackathon/app/
+// (root directory: hackathon/app, deploy command: npx wrangler deploy). Files left out are in .assetsignore.
+{
+    "$schema": "../../node_modules/wrangler/config-schema.json",
+    "name": "accessible-routes",
+    "compatibility_date": "2026-10-01",
+    "assets": {
+        "directory": "."
+    }
+}

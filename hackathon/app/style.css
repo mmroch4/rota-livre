@@ -1,87 +1,235 @@
-/* Functional layout only; the visual design comes later. */
+/* Accessible layout: large text, big touch targets (≥ 48 px), strong contrast and visible focus.
+   The visual design (colours, fonts, brand) comes later. */
+
+:root {
+    --blue: #1f5fd1;
+    --blue-dark: #174aa6;
+    --text: #1a1a1a;
+    --muted: #4a4a4a;
+    --line: #8a8a8a;
+    --ok-bg: #e3f2e5;
+    --warn-bg: #fde9cf;
+    --warn: #b35c00;
+    --focus: #ffbf47;
+}
 
 * { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
 
 html, body { margin: 0; height: 100%; }
 
 body {
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    font-size: 16px;
-    line-height: 1.4;
-    color: #1a1a1a;
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--text);
     background: #fff;
 }
 
-.layout {
-    display: grid;
-    grid-template-columns: 380px 1fr;
-    height: 100%;
-}
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
-.panel {
-    overflow-y: auto;
-    padding: 16px;
-    border-right: 1px solid #ccc;
-}
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 8px; top: 8px; z-index: 2000; background: #fff; padding: 8px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
+/* Layout: map left, panel right on big screens; map on top on phones. */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); height: 100%; }
+.layout > * { min-width: 0; min-height: 0; }
+.map-wrap { position: relative; }
 #map { height: 100%; }
 #map.picking { cursor: crosshair; }
+.panel { overflow-y: auto; padding: 20px; border-left: 1px solid #ddd; }
 
-h1 { font-size: 1.4rem; margin: 0 0 12px; }
-h2 { font-size: 1.1rem; margin: 16px 0 8px; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 12px; }
+h2 { font-size: 1.2rem; margin: 24px 0 8px; }
+p { margin: 0 0 12px; }
+.lead { font-size: 1.1rem; }
+.hint { font-size: 1rem; color: var(--muted); }
 
-.field { margin-bottom: 12px; }
-.field label { display: block; font-weight: 600; margin-bottom: 4px; }
+/* Controls */
+button, input, select, textarea { font: inherit; }
+button {
+    min-height: 48px;
+    padding: 10px 16px;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+button.primary:hover { background: var(--blue-dark); }
+button.big { width: 100%; min-height: 60px; font-size: 1.2rem; margin: 12px 0; }
+button.link {
+    min-height: 44px; padding: 0 4px; border: 0; background: none;
+    color: var(--blue); text-decoration: underline; font-weight: 600;
+}
 
-input[type="search"], select, textarea { width: 100%; font: inherit; padding: 8px; }
-input[type="range"] { width: 100%; }
+input[type="search"], select, textarea {
+    width: 100%;
+    min-height: 52px;
+    padding: 10px 12px;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+}
+input[type="range"] { width: 100%; min-height: 44px; }
 
-.search { display: flex; gap: 6px; }
-.search input { flex: 1; }
+.search { display: flex; gap: 8px; }
+.search input { flex: 1; min-width: 0; }
 
-button { font: inherit; padding: 8px 12px; min-height: 44px; cursor: pointer; }
-button.primary { font-weight: 600; }
-button.link { min-height: 0; padding: 0; border: 0; background: none; text-decoration: underline; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-weight: 700; margin-bottom: 6px; }
+.check { display: flex; gap: 12px; align-items: center; min-height: 48px; }
+.check input { width: 24px; height: 24px; flex: none; }
 
-.suggestions { list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid #ccc; }
-.suggestions li { padding: 6px; }
-.suggestions button { width: 100%; text-align: left; min-height: 0; padding: 4px; border: 0; background: none; }
+/* Big choices (welcome screen, report types) */
+.choices { display: grid; gap: 10px; margin: 12px 0; }
+.choice {
+    display: flex; align-items: center; gap: 12px;
+    min-height: 60px; padding: 12px 16px;
+    border: 2px solid var(--line); border-radius: 12px;
+    font-size: 1.1rem; font-weight: 600; text-align: left; cursor: pointer;
+}
+.choice:hover, .choice:has(input:checked) { border-color: var(--blue); background: #eef3fc; }
+.choice input { width: 22px; height: 22px; flex: none; }
 
-fieldset { margin: 12px 0; padding: 12px; }
-.check { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
+/* Search results */
+.results { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.results li { color: var(--muted); }
+.results button { width: 100%; text-align: left; display: grid; }
+.results button span { font-size: 0.9rem; color: var(--muted); }
 
-.actions { display: flex; gap: 8px; margin: 12px 0; }
-.hint { font-size: 0.9rem; color: #555; }
+.chosen { font-weight: 700; padding: 10px 12px; border-left: 4px solid var(--blue); background: #eef3fc; }
+.from-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.from-row p { margin: 0; }
 
-.message { padding: 8px; border: 1px solid #999; }
-.totals { font-size: 1.1rem; margin: 8px 0; }
-.warnings { padding-left: 18px; }
-.dist { color: #555; }
+.message { padding: 12px; border-radius: 10px; background: #f1f1f1; }
+.message button { margin-top: 8px; }
 
-.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #999; }
+.advanced { margin: 20px 0; padding: 4px 16px; border: 2px solid #ddd; border-radius: 12px; }
+.advanced summary, details summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
+.advanced[open] { padding-bottom: 12px; }
+
+/* Route */
+.totals { font-size: 1.3rem; }
+.verdict { padding: 12px; border-radius: 10px; }
+.verdict-ok { background: var(--ok-bg); }
+.verdict-warn { background: var(--warn-bg); }
+
+.streets { margin: 0; padding: 0; list-style: none; counter-reset: street; border-left: 4px solid var(--blue); }
+.streets li {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 10px 12px; border-bottom: 1px solid #eee;
+}
+.streets .len { color: var(--muted); white-space: nowrap; }
+.streets li.done { color: #888; text-decoration: line-through; }
+.streets li.current { background: #eef3fc; font-weight: 700; border-left: 6px solid var(--blue); margin-left: -4px; }
+
+.report { margin-top: 28px; padding-top: 8px; border-top: 2px solid #eee; }
+.status { font-size: 0.95rem; color: var(--muted); }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #999; }
 .dot-on { background: #2a8a3a; }
 .dot-off { background: #b3261e; }
 
-/* Map overlays */
-.route-line { stroke: #1f5fd1; }
-.route-warning { stroke: #e07b00; }
-
-.endpoint, .barrier {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    color: #fff;
-    font-weight: 700;
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 1px #0006;
+/* Guided mode: the next step over the map */
+.guide-banner {
+    position: absolute; top: 12px; left: 56px; right: 12px; z-index: 1000;
+    padding: 14px 18px; border-radius: 14px;
+    background: var(--blue); color: #fff; box-shadow: 0 4px 16px #0004;
 }
-.endpoint-from { background: #2a8a3a; }
-.endpoint-to { background: #b3261e; }
+.guide-next { font-size: 1.35rem; font-weight: 700; line-height: 1.3; margin: 0; }
+.guide-then { margin: 4px 0 0; font-size: 1rem; }
+.guide-then:empty { display: none; }
+.map-btn { position: absolute; bottom: 24px; right: 12px; z-index: 1000; font-weight: 700; box-shadow: 0 2px 8px #0003; }
+
+/* Map overlays */
+.route-casing { stroke: #fff; }
+.route-line { stroke: var(--blue); }
+.route-passed { stroke: #9aa5b8; }
+.route-warning { stroke: #e07b00; }
+.accuracy { stroke: var(--blue); stroke-width: 1; fill: var(--blue); fill-opacity: 0.12; }
+
+.person {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; background: var(--blue); border: 3px solid #fff; box-shadow: 0 0 0 2px var(--blue), 0 2px 6px #0005;
+}
+.person svg { width: 22px; height: 22px; fill: #fff; }
+
+.pin, .barrier {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; color: #fff; font-weight: 700; border: 3px solid #fff; box-shadow: 0 1px 4px #0006;
+}
+.pin-from { background: #2a8a3a; }
+.pin-to { background: #b3261e; }
 .barrier { background: #e07b00; }
 
-@media (max-width: 760px) {
-    .layout { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
-    #map { height: 55vh; order: -1; }
-    .panel { border-right: 0; }
+dialog { border: 0; border-radius: 16px; padding: 20px; width: min(480px, calc(100vw - 32px)); }
+dialog::backdrop { background: #0006; }
+
+.sheet-handle { display: none; }
+.guide-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.guide-bar .totals { margin: 0; }
+
+/* Phones: full-screen map, the panel is a bottom sheet over it (see updateSheet in app.js). */
+@media (max-width: 760px) and (orientation: portrait) {
+    body { overflow: hidden; }
+    .layout { display: block; position: relative; height: 100vh; height: 100dvh; overflow: hidden; }
+
+    /* The visible map ends where the closed sheet starts (a little under its rounded corners). */
+    .map-wrap { position: absolute; top: 0; left: 0; right: 0; bottom: calc(var(--sheet-h, 45dvh) - 16px); }
+
+    .panel {
+        position: absolute; left: 0; right: 0; bottom: 0; z-index: 1100;
+        height: var(--sheet-h, 45dvh); max-height: 88dvh;
+        overflow: hidden;
+        padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+        border-left: 0; border-radius: 20px 20px 0 0;
+        background: #fff; box-shadow: 0 -4px 24px #0003;
+        transition: height 0.2s ease;
+    }
+    .panel.expanded { height: 88dvh; overflow-y: auto; overscroll-behavior: contain; }
+    /* While walking, the open sheet must not cover the next-step banner. */
+    .layout.guiding .panel.expanded { height: 68dvh; }
+
+    .sheet-handle {
+        position: sticky; top: 0; z-index: 1;
+        display: flex; flex-direction: column; align-items: center; gap: 2px;
+        width: calc(100% + 32px); margin: 0 -16px 4px; min-height: 48px; padding: 8px 0 4px;
+        border: 0; border-radius: 20px 20px 0 0; background: #fff;
+        font-size: 0.9rem; font-weight: 600; color: var(--muted);
+        touch-action: none;
+    }
+    .sheet-handle .grip { width: 44px; height: 5px; border-radius: 3px; background: #b5b5b5; }
+
+    /* Nothing above the first heading but the handle: keep the closed sheet compact. */
+    .panel h1 { font-size: 1.4rem; margin-top: 4px; }
+    .screen > :first-child { margin-top: 0; }
+    .lead { font-size: 1rem; }
+    button.big { min-height: 56px; margin: 8px 0; }
+    .advanced { margin: 12px 0; }
+
+    /* Pinch to zoom on phones; the +/- buttons only take space from the banner. */
+    .leaflet-control-zoom { display: none; }
+    .guide-banner { left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); padding: 12px 14px; }
+    .guide-next { font-size: 1.25rem; }
+    .map-btn { bottom: 28px; }
+
+    /* Dialogs slide up from the bottom, like the sheet. */
+    dialog {
+        margin: auto 0 0; width: 100%; max-width: 100%; max-height: 90dvh;
+        border-radius: 20px 20px 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    }
+}
+
+/* Landscape phones: sheet on the side instead, so the map keeps its height. */
+@media (max-width: 960px) and (max-height: 500px) and (orientation: landscape) {
+    body { overflow: hidden; }
+    .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 360px); height: 100dvh; }
+    .panel { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+    .panel h1 { font-size: 1.3rem; }
+    .guide-banner { top: 8px; left: 52px; right: 8px; padding: 10px 14px; }
+    .guide-next { font-size: 1.1rem; }
 }

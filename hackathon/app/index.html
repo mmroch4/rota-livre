@@ -2,115 +2,178 @@
 <html lang="pt-PT">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#1f5fd1">
     <title>Rotas acessíveis</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <main class="layout">
-        <section class="panel" aria-label="Planear percurso">
-            <h1>Rotas acessíveis</h1>
+    <a class="skip" href="#panel">Saltar para o painel</a>
 
-            <div class="field">
-                <label for="from-input">Partida</label>
-                <div class="search">
-                    <input id="from-input" type="search" placeholder="Rua, praça ou local" autocomplete="off">
-                    <button id="locate-btn" type="button" title="Usar a minha localização">A minha localização</button>
+    <main class="layout" id="layout">
+        <div class="map-wrap">
+            <div id="map" aria-label="Mapa com o percurso"></div>
+
+            <!-- Guided mode: the next step, always visible over the map. -->
+            <div id="guide-banner" class="guide-banner" hidden aria-live="polite">
+                <p id="guide-next" class="guide-next"></p>
+                <p id="guide-then" class="guide-then"></p>
+            </div>
+            <button id="recenter-btn" type="button" class="map-btn" hidden>Centrar em mim</button>
+        </div>
+
+        <section class="panel" id="panel" tabindex="-1">
+            <!-- Phones only: the panel is a bottom sheet over the map; this opens and closes it. -->
+            <button id="sheet-handle" class="sheet-handle" type="button" aria-expanded="false" aria-controls="panel">
+                <span class="grip" aria-hidden="true"></span>
+                <span id="sheet-handle-text">Ver mais</span>
+            </button>
+
+            <!-- 1. First visit: ask once how the person gets around. -->
+            <div id="screen-welcome" class="screen" hidden>
+                <h1>Bem-vindo</h1>
+                <p class="lead">Mostramos-lhe caminhos a pé sem escadas, sem subidas difíceis e longe de obras.</p>
+                <h2>Como se desloca?</h2>
+                <p class="hint">Só perguntamos uma vez. Pode mudar depois.</p>
+                <div class="choices">
+                    <button type="button" class="choice" data-profile="wheelchair">Cadeira de rodas</button>
+                    <button type="button" class="choice" data-profile="walker">Andarilho ou canadianas</button>
+                    <button type="button" class="choice" data-profile="stroller">Carrinho de bebé</button>
+                    <button type="button" class="choice" data-profile="foot">A pé, com dificuldade em subidas</button>
                 </div>
-                <ul class="suggestions" id="from-suggestions" hidden></ul>
             </div>
 
-            <div class="field">
-                <label for="to-input">Destino</label>
-                <div class="search">
-                    <input id="to-input" type="search" placeholder="Rua, praça ou local" autocomplete="off">
+            <!-- 2. Main screen: where to? -->
+            <div id="screen-plan" class="screen" hidden data-more="Mais opções">
+                <h1>Para onde quer ir?</h1>
+
+                <form id="to-form" class="search" role="search">
+                    <label class="visually-hidden" for="to-input">Destino</label>
+                    <input id="to-input" type="search" placeholder="Ex.: Hospital de Santo António" autocomplete="off" enterkeyhint="search">
+                    <button type="submit">Procurar</button>
+                </form>
+                <ul class="results" id="to-results" hidden></ul>
+                <p class="hint">Também pode tocar no mapa no sítio para onde quer ir.</p>
+
+                <p id="to-chosen" class="chosen" hidden></p>
+
+                <div class="from-row">
+                    <p>A partir de: <strong id="from-label">a sua localização</strong></p>
+                    <button id="from-change-btn" type="button" class="link">Mudar</button>
                 </div>
-                <ul class="suggestions" id="to-suggestions" hidden></ul>
+                <div id="from-editor" hidden>
+                    <form id="from-form" class="search" role="search">
+                        <label class="visually-hidden" for="from-input">Partida</label>
+                        <input id="from-input" type="search" placeholder="Ponto de partida" autocomplete="off" enterkeyhint="search">
+                        <button type="submit">Procurar</button>
+                    </form>
+                    <ul class="results" id="from-results" hidden></ul>
+                    <div class="row">
+                        <button id="from-gps-btn" type="button">Usar a minha localização</button>
+                        <button id="from-map-btn" type="button">Escolher no mapa</button>
+                    </div>
+                </div>
+
+                <button id="route-btn" type="button" class="primary big" data-peek>Mostrar caminho</button>
+                <p id="plan-message" class="message" hidden role="status" data-peek></p>
+
+                <details class="advanced" id="advanced">
+                    <summary>Opções avançadas</summary>
+
+                    <div class="field">
+                        <label for="profile-select">Como se desloca</label>
+                        <select id="profile-select">
+                            <option value="wheelchair">Cadeira de rodas</option>
+                            <option value="walker">Andarilho ou canadianas</option>
+                            <option value="stroller">Carrinho de bebé</option>
+                            <option value="foot">A pé, com dificuldade em subidas</option>
+                            <option value="custom" hidden>Personalizado</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="grade-input">Subida máxima: <output id="grade-output">6</output>%</label>
+                        <input id="grade-input" type="range" min="2" max="15" step="1" value="6" aria-describedby="grade-help">
+                        <p id="grade-help" class="hint">Mais baixo = caminho mais plano, às vezes mais longo. 6% é o recomendado para rampas.</p>
+                    </div>
+
+                    <label class="check"><input id="steps-check" type="checkbox"> Evitar escadas</label>
+                    <label class="check"><input id="surface-check" type="checkbox"> Evitar piso irregular (calçada solta, gravilha, terra)</label>
+                    <label class="check"><input id="barriers-check" type="checkbox"> Evitar obstáculos reportados por outras pessoas</label>
+                </details>
             </div>
 
-            <p class="hint">Ou toque no mapa: primeiro a partida, depois o destino. Pode arrastar os marcadores.</p>
+            <!-- 3. The route, before starting. -->
+            <div id="screen-route" class="screen" hidden data-more="Ver as ruas do caminho">
+                <button id="back-btn" type="button" class="link">← Mudar destino</button>
+                <h1 id="route-title">O seu caminho</h1>
+                <p class="totals"><strong id="sum-time"></strong> · <span id="sum-distance"></span></p>
+                <p id="sum-verdict" class="verdict"></p>
 
-            <fieldset>
-                <legend>As minhas necessidades</legend>
+                <button id="start-btn" type="button" class="primary big" data-peek>Começar</button>
 
-                <div class="field">
-                    <label for="profile-select">Perfil</label>
-                    <select id="profile-select">
-                        <option value="wheelchair">Cadeira de rodas</option>
-                        <option value="walker">Andarilho ou canadianas</option>
-                        <option value="stroller">Carrinho de bebé</option>
-                        <option value="custom">Personalizado</option>
-                    </select>
-                </div>
+                <h2>Vai passar por</h2>
+                <ol id="streets" class="streets"></ol>
 
-                <div class="field">
-                    <label for="grade-input">Inclinação máxima: <output id="grade-output">6</output>%</label>
-                    <input id="grade-input" type="range" min="2" max="15" step="1" value="6">
-                </div>
-
-                <label class="check"><input id="steps-check" type="checkbox" checked> Evitar escadas</label>
-                <label class="check"><input id="surface-check" type="checkbox" checked> Evitar pisos irregulares (calçada solta, gravilha, terra)</label>
-                <label class="check"><input id="barriers-check" type="checkbox" checked> Evitar obstáculos reportados</label>
-            </fieldset>
-
-            <div class="actions">
-                <button id="route-btn" type="button" class="primary">Calcular percurso</button>
-                <button id="clear-btn" type="button">Limpar</button>
+                <details id="slope-details" hidden>
+                    <summary>Detalhes das subidas</summary>
+                    <p id="sum-slopes"></p>
+                </details>
             </div>
 
-            <section id="result" aria-live="polite">
-                <p id="message" class="message" hidden></p>
-                <div id="summary" hidden>
-                    <p class="totals"><strong id="sum-distance"></strong> · <strong id="sum-time"></strong></p>
-                    <p id="sum-slopes" class="slopes"></p>
-                    <ul id="warnings" class="warnings"></ul>
-                    <details>
-                        <summary>Indicações passo a passo</summary>
-                        <ol id="maneuvers"></ol>
-                    </details>
+            <!-- 4. Guided mode. -->
+            <div id="screen-guide" class="screen" hidden data-more="Ver as ruas do caminho">
+                <div class="guide-bar" data-peek>
+                    <p class="totals">Faltam <strong id="guide-remaining"></strong></p>
+                    <button id="stop-btn" type="button">Terminar</button>
                 </div>
-            </section>
+                <p id="guide-message" class="message" hidden role="status" data-peek></p>
+                <h2>Vai passar por</h2>
+                <ol id="guide-streets" class="streets"></ol>
+            </div>
 
-            <section class="barriers" aria-label="Obstáculos">
-                <h2>Obstáculos</h2>
-                <p class="status"><span id="broker-dot" class="dot"></span> <span id="broker-status">A ligar…</span></p>
-                <button id="report-btn" type="button">Reportar um obstáculo</button>
+            <!-- Always available: report a barrier. -->
+            <section class="report" id="report-section" aria-label="Reportar obstáculo" hidden>
+                <h2>Viu algum obstáculo?</h2>
+                <p class="hint">Obras, passeios bloqueados ou elevadores avariados: ao reportar, o caminho de todos passa a evitá-los.</p>
+                <div class="row">
+                    <button id="report-here-btn" type="button">Reportar onde estou</button>
+                    <button id="report-map-btn" type="button">Escolher no mapa</button>
+                </div>
                 <p id="report-hint" class="hint" hidden>Toque no mapa onde está o obstáculo. <button id="report-cancel" type="button" class="link">Cancelar</button></p>
-                <p id="barrier-count" class="hint"></p>
+                <p class="status"><span id="broker-dot" class="dot"></span> <span id="broker-status">A ligar…</span> <span id="barrier-count"></span></p>
             </section>
         </section>
-
-        <div id="map" aria-label="Mapa"></div>
     </main>
 
-    <dialog id="report-dialog">
+    <dialog id="report-dialog" aria-labelledby="report-title">
         <form id="report-form" method="dialog">
-            <h2>Reportar obstáculo</h2>
-            <div class="field">
-                <label for="kind-select">O que é?</label>
-                <select id="kind-select">
-                    <option value="works">Obras ou andaime</option>
-                    <option value="blocked_sidewalk">Passeio bloqueado</option>
-                    <option value="parked_car">Carro em cima do passeio</option>
-                    <option value="broken_lift">Elevador ou rampa avariados</option>
-                    <option value="damaged_pavement">Piso danificado ou buraco</option>
-                    <option value="other">Outro</option>
-                </select>
+            <h2 id="report-title">O que encontrou?</h2>
+            <div class="choices" role="radiogroup" aria-label="Tipo de obstáculo">
+                <label class="choice"><input type="radio" name="kind" value="works" checked> Obras ou andaime</label>
+                <label class="choice"><input type="radio" name="kind" value="blocked_sidewalk"> Passeio bloqueado</label>
+                <label class="choice"><input type="radio" name="kind" value="parked_car"> Carro em cima do passeio</label>
+                <label class="choice"><input type="radio" name="kind" value="broken_lift"> Elevador ou rampa avariados</label>
+                <label class="choice"><input type="radio" name="kind" value="damaged_pavement"> Piso danificado ou buraco</label>
+                <label class="choice"><input type="radio" name="kind" value="other"> Outro</label>
             </div>
-            <div class="field">
-                <label for="description-input">Descrição (opcional)</label>
-                <textarea id="description-input" rows="3" maxlength="280"></textarea>
-            </div>
-            <div class="field">
-                <label for="duration-select">Durante quanto tempo deve ser evitado?</label>
-                <select id="duration-select">
-                    <option value="2">2 horas</option>
-                    <option value="24" selected>1 dia</option>
-                    <option value="168">1 semana</option>
-                </select>
-            </div>
-            <div class="actions">
+            <details class="advanced">
+                <summary>Mais detalhes (opcional)</summary>
+                <div class="field">
+                    <label for="description-input">Descrição</label>
+                    <textarea id="description-input" rows="3" maxlength="280"></textarea>
+                </div>
+                <div class="field">
+                    <label for="duration-select">Evitar durante</label>
+                    <select id="duration-select">
+                        <option value="2">2 horas</option>
+                        <option value="24" selected>1 dia</option>
+                        <option value="168">1 semana</option>
+                    </select>
+                </div>
+            </details>
+            <div class="row">
                 <button value="send" class="primary">Enviar</button>
                 <button value="cancel" formnovalidate>Cancelar</button>
             </div>

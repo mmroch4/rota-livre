@@ -22,3 +22,6 @@ hackathon/broker/exports/*
 
 # Local overrides for the route planner (broker login)
 hackathon/app/config.local.js
+
+# Wrangler (Cloudflare) local cache
+.wrangler/
