@@ -70,8 +70,12 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
   remove + `deploy_lot` the next boot still logged the duplicates and reverted. So **after every broker restart**,
   re-run `add_python` (`CityAlerts` cell) and `deploy_lot` (`ImportCityAlerts` cell) from `lot/city_alerts.lotnb`,
   then compare the live code in `$SYS/Coreflux/Actions/<Name>` with the notebook: subscribe to that exact topic, since
-  a `$SYS/Coreflux/#` subscription also gets non-retained traffic and gave a false mismatch. No project swap: Ben's
-  `10-barriers-db.lotnb` must stay unloaded.
+  a `$SYS/Coreflux/#` subscription also gets non-retained traffic and gave a false mismatch. No project swap
+  (`load_project` would bring back the copy's old `ImportCityAlerts`). Ben's `10-barriers-db.lotnb` **stays loaded**
+  (`RouteBarrierMessage` + `BarriersDB`): reports and answers are saved in Supabase. Never remove them; if they are
+  missing after a restart, add those two cells one at a time (it needs the env `SUPABASE_DB_HOST`/`SUPABASE_DB_USER`
+  and the secret `SUPABASE_DB_PASSWORD` on the broker, see `db/README.md`), then check that
+  `$SYS/Coreflux/Routes/BarriersDB/status` says `Connected`.
 - **An Action's triggers run concurrently (verified 24/10).** Reading a retained topic, changing it and publishing it
   back loses updates on a burst: a summary updated by 24 back-to-back barrier messages counted 6, and a plain LoT
   counter on a single topic lost 5 of 40 once. There is no way to serialise an Action. A Python script's module
