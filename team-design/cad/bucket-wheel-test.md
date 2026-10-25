@@ -42,3 +42,21 @@ and the complete budget remain to be reconciled with the store.
 A low receiver count is evidence of a weakness in THIS geometry/simulation, not a
 reason to prescribe particle motion to make the demonstration look successful.
 Test a real cup with the supplied sand before adopting or rejecting the mechanism.
+
+## Result of the first bake (25 Oct, 11:02)
+
+346 grain proxies, one revolution at 6 rpm (`bucket-wheel-report.json`,
+frames `wheel-frame-*.png`):
+
+- 0 grains reached the test receiver; 0 left A's footprint.
+- 15 grains (4 %) were ever lifted above 105 mm; all fell back into A.
+
+Why the receiver count says nothing yet: this geometry has NO discharge path. The
+wheel's top is directly above A and there is no funnel or chute towards the
+receiver, so anything the cups release at the top drops back into A. The test only
+measures pickup. Pickup itself is pessimistic: 10 mm spheres against cups about
+33 x 26 mm means each cup holds only a few proxies, unlike real loose sand.
+
+Next steps, if this alternative is kept: add a stationary funnel under the top of
+the wheel leading out of A, use smaller proxies (or fewer, larger cups), and
+measure pickup with a real cup in the supplied sand before trusting any count.
