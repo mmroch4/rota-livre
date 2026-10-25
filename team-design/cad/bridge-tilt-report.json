@@ -1,0 +1,249 @@
+{
+  "option": "tilt",
+  "frames": 600,
+  "seconds": 25.0,
+  "grains": 120,
+  "fed_onto_bridge": 93,
+  "fed_back_into_A_while_bridge_moving": 27,
+  "final": {
+    "frame": 600,
+    "released": 120,
+    "in_B": 59,
+    "in_A": 50,
+    "spilled_on_arena": 0,
+    "ejected_numerical": 0,
+    "on_bridge_or_airborne": 11
+  },
+  "samples": [
+    {
+      "frame": 24,
+      "released": 3,
+      "in_B": 0,
+      "in_A": 0,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 3
+    },
+    {
+      "frame": 48,
+      "released": 8,
+      "in_B": 0,
+      "in_A": 0,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 8
+    },
+    {
+      "frame": 72,
+      "released": 15,
+      "in_B": 0,
+      "in_A": 0,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 15
+    },
+    {
+      "frame": 96,
+      "released": 16,
+      "in_B": 0,
+      "in_A": 0,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 16
+    },
+    {
+      "frame": 120,
+      "released": 24,
+      "in_B": 0,
+      "in_A": 0,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 24
+    },
+    {
+      "frame": 144,
+      "released": 27,
+      "in_B": 0,
+      "in_A": 0,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 27
+    },
+    {
+      "frame": 168,
+      "released": 32,
+      "in_B": 0,
+      "in_A": 0,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 32
+    },
+    {
+      "frame": 192,
+      "released": 39,
+      "in_B": 0,
+      "in_A": 5,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 34
+    },
+    {
+      "frame": 216,
+      "released": 40,
+      "in_B": 32,
+      "in_A": 8,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 0
+    },
+    {
+      "frame": 240,
+      "released": 48,
+      "in_B": 32,
+      "in_A": 16,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 0
+    },
+    {
+      "frame": 264,
+      "released": 51,
+      "in_B": 32,
+      "in_A": 17,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 2
+    },
+    {
+      "frame": 288,
+      "released": 56,
+      "in_B": 32,
+      "in_A": 24,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 0
+    },
+    {
+      "frame": 312,
+      "released": 63,
+      "in_B": 32,
+      "in_A": 24,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 7
+    },
+    {
+      "frame": 336,
+      "released": 64,
+      "in_B": 32,
+      "in_A": 24,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 8
+    },
+    {
+      "frame": 360,
+      "released": 72,
+      "in_B": 32,
+      "in_A": 24,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 16
+    },
+    {
+      "frame": 384,
+      "released": 75,
+      "in_B": 32,
+      "in_A": 24,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 19
+    },
+    {
+      "frame": 408,
+      "released": 80,
+      "in_B": 32,
+      "in_A": 24,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 24
+    },
+    {
+      "frame": 432,
+      "released": 87,
+      "in_B": 32,
+      "in_A": 26,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 29
+    },
+    {
+      "frame": 456,
+      "released": 88,
+      "in_B": 32,
+      "in_A": 29,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 27
+    },
+    {
+      "frame": 480,
+      "released": 96,
+      "in_B": 59,
+      "in_A": 37,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 0
+    },
+    {
+      "frame": 504,
+      "released": 99,
+      "in_B": 59,
+      "in_A": 38,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 2
+    },
+    {
+      "frame": 528,
+      "released": 104,
+      "in_B": 59,
+      "in_A": 45,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 0
+    },
+    {
+      "frame": 552,
+      "released": 111,
+      "in_B": 59,
+      "in_A": 50,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 2
+    },
+    {
+      "frame": 576,
+      "released": 112,
+      "in_B": 59,
+      "in_A": 50,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 3
+    },
+    {
+      "frame": 600,
+      "released": 120,
+      "in_B": 59,
+      "in_A": 50,
+      "spilled_on_arena": 0,
+      "ejected_numerical": 0,
+      "on_bridge_or_airborne": 11
+    }
+  ],
+  "grain": "7 mm faceted convex hull, 0.3 g, angular damping 0.9",
+  "pair_friction": 0.49,
+  "feed": "prescribed: 8 grains per cup passage every 40 frames; wheel pickup NOT simulated here",
+  "drive": "prescribed motion, infinite torque",
+  "cache_baked": true
+}

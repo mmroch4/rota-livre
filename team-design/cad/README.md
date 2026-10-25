@@ -1,5 +1,8 @@
 # Sand transfer concept — A to B
 
+Bridge from the bucket wheel to B (tilting tray vs belt conveyor): see
+`bridge-options.md`; bucket-wheel pickup test: `bucket-wheel-test.md`.
+
 Animated extraction prototype: `sand-extraction-animated.blend`; see
 `extraction-animation.md` for playback, physical simulation scope and limitations.
 
