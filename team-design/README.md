@@ -1,10 +1,21 @@
-# Team Design — Arduino Uno robot
+# Team Design — sand transfer (Arduino Uno)
 
-Prototype for the SciTeCh '26 **Team Design** challenge. Right now it is a **practice skeleton**:
-the real brief is only revealed at the start of the event, and this project is here so we arrive with the toolchain,
-tests and simulation already working.
+Our entry for the SciTeCh '26 **Team Design** challenge (Sunday, 25 October 2026).
 
-**Current behaviour:** a hanging scoop moves sand from A to B (build guide and CAD:
+> **Result: not finished.** In the 6 hours we explored several mechanisms in CAD and wrote, tested and simulated the
+> firmware below, but we did not complete the physical prototype. This folder is kept as it was at the end of the
+> day; the team's work after the event continues in [`hackathon/`](../hackathon/) (Rota Livre).
+
+**The brief** (as measured and recorded in [`cad/README.md`](cad/README.md)): move loose sand from container A
+(190 × 190 × 95 mm, right) to container B (160 × 240 × 60 mm, left), 500 mm apart in a 1200 × 600 mm arena with a
+30 mm rim; both containers stay fixed. Parts are bought with credits from the organizers' shop (catalogue in
+[`store.json`](store.json); returns do not refund credits).
+
+**Concepts we studied** (details and renders in [`cad/`](cad/README.md)): a fixed chute with a scoop, an electric
+carriage revision, a bucket wheel with a tilting-tray or belt bridge, an Archimedes screw, a claw on a swinging arm,
+and the **hanging-scoop tower** that the firmware drives.
+
+**What the firmware does:** a hanging scoop moves sand from A to B (build guide and CAD:
 `cad/scoop-tower-guide.html`, `cad/build_scoop_tower.py`). A DC-motor winch on the ground pulls a string up a
 tower, over two pulleys and down to the kit servo, which hangs over A with a cup on its horn. The servo turns the
 cup through the sand like a hand, the winch lifts it, and the servo turns it over the mouth of the chute to B.
@@ -28,8 +39,11 @@ build. `raiseMs` is longer than `lowerMs` because the winch lifts the sand going
 sand (× 200 ms = `lowerMs`), find the angles with `s`, write them into `CraneConfig`, then flash again.
 If the scoop ends a cycle lower or higher than it started, adjust `raiseMs`.
 
-> ⚠️ **Materials:** under the rules (Art. 5, 7.a), on the day we may only use the **materials provided by the
-> organizers**. The hardware below is the practice kit; adapt `pins.h` and `diagram.json` to the kit we receive.
+> ⚠️ **Materials:** under the rules (Art. 5, 7.a), only the **materials provided by the organizers** could be used.
+> The wiring below is the competition's electronics kit (shop item 160: Arduino, L298N, 2 DC motors, 1 servo).
+
+**State at the end of the day:** `pio test -e native` (16/16), `pio run -e uno` and the Wokwi scenario
+`test/wokwi/crane_cycle.yaml` all pass. The timings and angles in `CraneConfig` are the starting values, not calibrated on a finished build.
 
 ## Setup (Linux / macOS)
 
@@ -86,7 +100,7 @@ test/test_control/      Unity tests, run on the PC with `pio test -e native`
 | `diagram.json`, `wokwi.toml` | Circuit and configuration for the Wokwi simulator. |
 | `platformio.ini` | `uno` (firmware) and `native` (PC tests) environments. |
 
-### Adapting to the day's brief
+### Extending the firmware
 
 1. New logic (sensors, states, timings) → pure functions in `lib/Control/` **with tests**.
 2. `main.cpp` only wires that logic to the pins.

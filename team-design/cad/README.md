@@ -1,16 +1,27 @@
-# Sand transfer concept — A to B
+# Sand transfer concepts — A to B
 
-Bridge from the bucket wheel to B (tilting tray vs belt conveyor): see
-`bridge-options.md`; bucket-wheel pickup test: `bucket-wheel-test.md`.
+Concepts studied on 25/10/2026 for the Team Design brief (move loose sand from A to B). None of them was
+built to completion: the challenge ended without a finished prototype (see [`../README.md`](../README.md)).
+Every file here is an editable spatial concept or a Blender physics study, NOT fabrication-ready CAD or a
+validated mechanism. Generators run with `blender --background --python cad/<script>.py`.
 
-Animated extraction prototype: `sand-extraction-animated.blend`; see
-`extraction-animation.md` for playback, physical simulation scope and limitations.
+In the order they were made:
 
-Latest revision: see `electric-revision.md` and open `sand-transfer-electric.blend`.
-The generator now builds the electric revision. The older files below are retained
-as the original concept and the inline `model-view.html` still shows that older version.
+| Concept | Generator | Files | Notes |
+|---------|-----------|-------|-------|
+| Fixed chute + scoop (original) | `build_concept.py` (now builds the electric revision) | `sand-transfer-concept.*`, `model-view.html`, `sand-transfer-preview.png` | Below, from "Confirmed geometry" |
+| Electric revision: motorised carriage + tipping scoop | `build_concept.py` | `sand-transfer-electric.*` | `electric-revision.md` |
+| Animated extraction | `build_extraction_animation.py`, `play_extraction.py`, `check_extraction_cache.py` | `sand-extraction-animated.blend`, `extraction-frame-*.png` | `extraction-animation.md`, `extraction-alternative-wheel.md` |
+| Bucket wheel in A | `build_bucket_wheel.py` | `bucket-wheel-test.blend`, `wheel-frame-*.png` | `bucket-wheel-test.md` |
+| Bridge from the wheel to B: tilting tray vs belt | `build_bridge_options.py -- tilt\|belt` | `bridge-*.blend`, `bridge-*-frame-*.png` | `bridge-options.md` (the belt delivered ~1.7× the tray) |
+| Archimedes screw + fixed chute | `build_archimedes_screw.py` | `archimedes-screw.blend`, `archimedes-screw-frame-*.png` | `archimedes-screw-report.json`: 46 of 420 grains lifted above 120 mm in 12.5 s |
+| Claw on a swinging arm + hopper + chute | `build_claw_chute.py` | `claw-chute.blend`, `claw-chute.png`, `claw-detail.png` | Build guide `claw-build-guide.html` (Portuguese) |
+| **Hanging-scoop tower** (the one the firmware drives) | `build_scoop_tower.py` | `scoop-tower.blend`, `scoop-tower.png`, `scoop-tower-mouth.png` | Build guide `scoop-tower-guide.html` (Portuguese); firmware in [`../README.md`](../README.md) |
 
-This is an editable spatial concept, NOT fabrication-ready CAD or a validated mechanism.
+Shop data: `photo-review.md` (what the shop photos do and do not show) and `store-photos/`; the catalogue with
+prices is [`../store.json`](../store.json).
+
+## Original concept: fixed chute + scoop
 
 Open `sand-transfer-concept.blend` in Blender or import the OBJ into a 3D viewer.
 The OBJ uses metres and contains geometry only; the Blender file retains colours.

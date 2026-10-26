@@ -1,5 +1,8 @@
 # Pitch and demo
 
+> **Historical.** Pitch preparation for 24/10/2026; Rota Livre won 1st place. What was prepared for the demo
+> is summarised in [README.md](README.md), section 4.
+
 > The presentation **matters a lot**: it is how the jury judges the solution (Rules, Art. 1, 3).
 > Set aside at least **1h30 of the 6h** to prepare and rehearse the pitch and the demo.
 

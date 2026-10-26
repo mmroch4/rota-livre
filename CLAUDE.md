@@ -4,6 +4,11 @@ Repository of team O(1/n) (Miguel, Victor, Ben, Pedro) at SciTeCh '26 (BEST Port
 24–25 Oct 2026). Two challenges, each with 6 h of work: `hackathon/` (Coreflux,
 **Saturday 24**) and `team-design/` (Arduino, **Sunday 25**). See `README.md` and `regulamento.pdf`.
 
+**Status (26 Oct 2026): the event is over.** `hackathon/` (Rota Livre) won **1st place** and is the active project:
+it goes on to a further stage of the competition, mentored by Coreflux, competing for a place at **Hannover Messe**
+(open items: "Next phase" in `hackathon/README.md`). `team-design/` was **not finished** and is closed, kept as it
+was at the end of 25/10; change it only when asked.
+
 ## Conventions (mandatory)
 
 - **Everything in English**: code (identifiers, file/folder names, Serial messages, MQTT topics,
@@ -80,8 +85,9 @@ around steep parts itself (`saferRoute`, below). The slope-aware instance is
   despite its "degrees" comments);
   32768 = no elevation. Used for the "steeper than you asked" warning; if it fails, the route still shows.
 
-**Barriers (Coreflux MQTT over secure WebSocket).** With `brokerUrl` empty (today) reports stay on the device
-(`localStorage` key `access.barriers`) and nobody else sees them; setting `brokerUrl` switches to the broker. The broker is the team's local Docker one,
+**Barriers (Coreflux MQTT over secure WebSocket).** Today `brokerUrl` is the team's broker through its quick tunnel
+(it changes when the tunnel container is recreated). With `brokerUrl` empty, reports stay on the device
+(`localStorage` key `access.barriers`) and nobody else sees them. The broker is the team's local Docker one,
   reached through the opt-in Cloudflare tunnel (`hackathon/broker/docker-compose.tunnel.yml`, steps in `hackathon/README.md`)
   as user `web`, which `hackathon/lot/web_access.lotnb` limits to `access/barriers/#`.
 - Topic `access/barriers/<id>`, one **retained** message per barrier, QoS 1. The page subscribes to

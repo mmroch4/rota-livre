@@ -1,5 +1,8 @@
 # Development plan: Rota Livre
 
+> **Historical.** This was the plan for the 6 hours of 24/10/2026; Rota Livre won 1st place. The current state
+> and the open items for the next phase are in [README.md](README.md).
+
 Updated 24 October 2026 for the Valhalla implementation and the agreed team tracks.
 Rota Livre provides accessible routes in Porto that react to reported barriers.
 This plan supersedes the earlier OpenRouteService plan and its deleted fixtures.

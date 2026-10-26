@@ -1,24 +1,62 @@
 # Rota Livre — accessible routes in Porto
 
-> **Status (24/10):** Valhalla-based web interface implemented; endpoint configuration and end-to-end
-> accessibility validation remain to be verified. See [PLAN.md](PLAN.md) for owners, priorities and checkpoints.
-> The write-up follows the 4 points the jury judges on (Rules, Art. 1, 3):
-> **problem → demo → architecture → maturity**.
+> **Result: 1st place** in the SciTeCh '26 Hackathon (Coreflux challenge, 24 October 2026).
+> Rota Livre now goes on to a further stage of the competition, **mentored by Coreflux**, competing for a place at
+> **Hannover Messe**: see [Next phase](#next-phase-coreflux-mentoring-and-hannover-messe).
+>
+> Sections 1–5 describe the system as demonstrated on 24/10, in the order the jury judged it (Rules, Art. 1, 3):
+> **problem → demo → architecture → maturity**. Event-day planning is kept in [PLAN.md](PLAN.md) and
+> [PITCH.md](PITCH.md).
 
 ## 1. The problem
 
-People with reduced mobility need routes that respect their accessibility needs and react to obstacles.
+People with reduced mobility need walking routes that respect their limits (how steep, whether there are steps,
+how rough the surface is) and that react to what is in the way on the day: road works, a car on the pavement,
+a broken lift. Porto's historic centre is steep, with steps and cobbled streets.
 
 ## 2. The solution
 
-Rota Livre lets people choose accessibility limits, plan a route and report barriers that update other users'
-maps and trigger route recalculation. The current implementation is in [app/](app/README.md).
+Rota Livre is a web app (in European Portuguese) where a person picks how they get around, from wheelchair to no
+mobility difficulties, plans a walking route in Porto under those limits and is guided along it. Anyone can report
+a barrier in a few taps: it reaches every open map at once and routes go around it. The Câmara do Porto's registered
+road works are imported as barriers automatically. Screens and behaviour: [app/README.md](app/README.md).
+
+Public page: <https://accessible-routes.benlubetzky.workers.dev> (`?demo` walks along the route by itself).
+It routes and shares barriers only while the team's Valhalla and broker are running behind their Cloudflare tunnels
+(see "Web app over the internet" below); on 26/10 the page was up but its Valhalla tunnel did not answer.
 
 ## 3. Architecture
 
-The static web app calls Valhalla for routes and slope details. Coreflux MQTT over WebSocket distributes retained
-barrier reports. The checked-in routing source and [handoff](../accessibility_routing_project_handoff.md) support
-validation of the custom slope cap; correct enforcement still needs runtime verification.
+```text
+ Browser: app/ (static page, Cloudflare Worker)
+   │ HTTPS: /route, /trace_attributes            │ MQTT over WSS, user `web` (access/barriers/# only)
+   ▼                                             ▼
+ Valhalla (runtime/valhalla/)              Coreflux broker (broker/, LoT in lot/)
+ pedestrian costing with a                   ├─ retained barrier per topic, durable across restarts
+ slope cap (max_grade), steps,               ├─ PortoUrbanPlatform (REST, every 10 min) → ImportCityAlerts → city-* barriers
+ surface; barriers sent as                   ├─ StoreBarrierFeedback: "Já não está" answers and counts
+ exclude_polygons                            ├─ OpsSummary* → access/ops/summary → HUB panel RotaLivreOps
+                                             ├─ NotifyNewBarrier / NotifyGoneThreshold → TeamTelegram (Telegram)
+                                             └─ RouteBarrierMessage → BarriersDB (PostgreSQL) → Supabase (db/)
+```
+
+- **Web app** ([`app/`](app/README.md)): all routing calls are in `routeService` in `app.js`. When no route fits
+  the slope limit it says so and offers the gentlest one; it never relaxes steps, surface or barriers.
+- **Routing** ([`runtime/valhalla/`](runtime/valhalla/README.md)): Valhalla built from
+  [`projects/valhalla`](../projects/valhalla) with one costing fix, so that `max_grade` is applied to uphill and
+  downhill edges ([handoff](../accessibility_routing_project_handoff.md), "Core 2 verified" in
+  [`docs/runtime-baseline.md`](docs/runtime-baseline.md)).
+- **Broker** ([`broker/`](#environment-setup-linux--macos)): Coreflux in Docker. The logic is LoT, one notebook per
+  feature in [`lot/`](lot/):
+
+  | Notebook | Entities | What it does |
+  |----------|----------|--------------|
+  | `city_alerts.lotnb` | `PortoUrbanPlatform`, `ImportCityAlerts`, `SwitchCityAlerts`, Python `CityAlerts` | Imports the Câmara's active road works near the demo route (FIWARE) as barriers; on/off switch |
+  | `barrier_feedback.lotnb` | `StoreBarrierFeedback` | Stores "it's gone" answers and a count per barrier; removes nothing |
+  | `ops_panel.lotnb` | `OpsSummaryOnBarrier`, `OpsSummaryOnFeedback`, `OpsSummaryRefresh`, Python `OpsSummary` | Live summary for the read-only HUB panel `RotaLivreOps` |
+  | `telegram_notify.lotnb` | `TeamTelegram`, `NotifyNewBarrier`, `NotifyGoneThreshold`, Python `TelegramNotify` | New reports to a public channel; 3 "gone" answers to the team group |
+  | `10-barriers-db.lotnb` | `RouteBarrierMessage`, `BarriersDB` | Keeps reports and answers in Supabase ([`db/`](db/README.md)) |
+  | `web_access.lotnb` | `AllowBarrierPublish`, `AllowBarrierSubscribe`, `DenyWebPublishElsewhere`, `DenyWebSubscribeElsewhere` | Limits the public page's user `web` to `access/barriers/#` |
 
 ### MQTT topic map
 
@@ -43,15 +81,52 @@ validation of the custom slope cap; correct enforcement still needs runtime veri
 
 ## 4. Demo
 
-Plan a route under the chosen accessibility limits, report an obstacle from a second session, and show the route
-recalculate around it. Current-position rerouting and explanation of changes are planned next; demonstrate only
-verified behavior. Victor owns the script, slides, recording and rehearsals with technical support from Ben and Miguel.
+Victor owned the pitch; Ben and Miguel supported the technical demo. As decided on 24/10, the demo ran on Miguel's
+laptop: locally served app, local broker and local Valhalla. It was prepared on São Bento → Batalha with the
+wheelchair profile (slopes up to 6 %): plan the route, switch the city's road works on and off and watch the route
+and the operator panel change, then report a barrier from the app and see it reach the panel.
 
-## 5. Maturity and next steps
+- Step-by-step setup and checks for the hour before: [`docs/demo-day-broker-checklist.md`](docs/demo-day-broker-checklist.md)
+- What the broker does, in plain language for the slides: [`docs/broker-for-pitch.md`](docs/broker-for-pitch.md)
+- Rehearsal of the panel moment, with recordings: [`docs/demo-rehearsal-2026-10-24.md`](docs/demo-rehearsal-2026-10-24.md)
+- Every verified number (routes, timings, restarts): [`docs/runtime-baseline.md`](docs/runtime-baseline.md)
 
-Validate uphill/downhill slope limits and missing-elevation behavior, verify the deployed endpoints, and make the
-demo repeatable. Prioritize the core route/report/reroute flow; LLM analysis and lift simulation are stretch work.
-The app already exposes a no-route message without silently relaxing the user's settings.
+## 5. Maturity
+
+Verified on 24/10 ([`docs/broker-for-pitch.md`](docs/broker-for-pitch.md) gives the source of each claim):
+
+- **Live sharing:** a report made in one browser appears in another without a reload, and the route goes around it.
+- **City data:** the broker polls the Porto Urban Platform every 10 minutes; 24 road works were kept near the demo
+  route. São Bento → Batalha at 6 %: 2.164 km with them, 1.302 km without.
+- **Feedback:** "Já não está" answers are stored and counted per barrier (a resent answer counts once).
+- **Durability:** after a broker restart every report, answer, count and the city switch came back.
+- **Operator panel:** `RotaLivreOps` in the HUB shows active barriers per source and the "gone" counts, live.
+- **Honest routing:** our Valhalla enforces the slope cap uphill and downhill ("Core 2 verified" in
+  [`docs/runtime-baseline.md`](docs/runtime-baseline.md)). When no route fits, the app says so, offers the gentlest
+  one and marks where it is steeper than asked. Steps, surface and barriers are never relaxed.
+- **Tests:** `pytest` for the Python cells (`services/tests/`) and the route checks (`runtime/demo/`), plus
+  `broker/redeploy_lot.py --check` to compare the broker with git.
+
+## Next phase: Coreflux mentoring and Hannover Messe
+
+After the win, Rota Livre goes on to a further stage of the competition, with mentoring from Coreflux, competing for
+a place at Hannover Messe. Dates, format and deliverables will be recorded here when the team receives them.
+
+Where the hackathon version leaves off, from the notes in this folder:
+
+- **Hosting.** Everything ran on one laptop. The public page reaches Valhalla and the broker through Cloudflare
+  quick tunnels (`*.trycloudflare.com`), whose address changes whenever the tunnel container is recreated, and
+  `app/config.js` must then be updated and pushed. A lasting deployment needs fixed hosts.
+- **Broker restarts.** Every boot of broker 2.22.0 restores an older `ImportCityAlerts`;
+  `python3 hackathon/broker/redeploy_lot.py --fix` repairs it by hand ([`AGENTS.md`](AGENTS.md), boot-revert quirk).
+- **Concurrent updates.** An Action's triggers run concurrently, so a read-change-publish counter can lose an update.
+  The operator summary is protected with a lock in Python; `gone_count` is not ([`AGENTS.md`](AGENTS.md)).
+- **City data.** These are road works on file at the Câmara, not checked on the street. They are polled, not pushed,
+  and each one is a single square at the middle of its works area, so a long street is only partly covered.
+- **Not shared yet.** A report's photo and address stay on the reporting device. Sharing them means adding optional
+  `photo`/`address` fields to the contract, the database schema and the connector's query first.
+- **Not built.** The LLM that turns free text or a photo into a report, weather effects and lift status. Kerb height
+  cannot be filtered: Valhalla's pedestrian costing has no option for it.
 
 ---
 
@@ -175,7 +250,13 @@ Layout: **one notebook per feature, one owner per notebook**, so two people neve
 - [`AI.md`](AI.md): AI tooling setup (MCP servers, Coreflux skills, token) and the daily loop.
 - [`AGENTS.md`](AGENTS.md): LoT rules for AI assistants (Claude Code reads it through `CLAUDE.md`).
 - [`LOT_CHEATSHEET.md`](LOT_CHEATSHEET.md): LoT syntax reference (Actions, Models, Connectors, Rules, Panels).
-- [`PITCH.md`](PITCH.md): presentation structure and demo checklist.
+- [`app/README.md`](app/README.md): the web app's screens, routing calls, settings and deployment.
+- [`db/README.md`](db/README.md): the Supabase schema, its tests and how the broker connects to it.
+- [`runtime/valhalla/README.md`](runtime/valhalla/README.md): building and running the slope-aware Valhalla;
+  [`runtime/demo/README.md`](runtime/demo/README.md): demo barriers and route checks.
+- [`docs/`](docs/): verified results ([`runtime-baseline.md`](docs/runtime-baseline.md),
+  [`integration-check-2026-10-24.md`](docs/integration-check-2026-10-24.md)), demo-day notes and pitch media.
+- [`PLAN.md`](PLAN.md) and [`PITCH.md`](PITCH.md): the event-day plan and pitch structure (historical).
 
 ## References
 
