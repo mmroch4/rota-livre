@@ -1,6 +1,0 @@
-.pio/
-.venv/
-.vscode/
-
-# Blender auto-backups
-*.blend1

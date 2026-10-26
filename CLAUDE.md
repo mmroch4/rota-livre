@@ -1,43 +1,22 @@
 # CLAUDE.md
 
 Repository of team O(1/n) (Miguel, Victor, Ben, Pedro) at SciTeCh '26 (BEST Porto, FCUP,
-24–25 Oct 2026). Two challenges, each with 6 h of work: `hackathon/` (Coreflux,
-**Saturday 24**) and `team-design/` (Arduino, **Sunday 25**). See `README.md` and `regulamento.pdf`.
+24–25 Oct 2026). This repo holds only our Hackathon entry, Rota Livre, in `hackathon/` (Coreflux, 6 h of work on
+**Saturday 24**). See `README.md` and `regulamento.pdf`.
 
-**Status (26 Oct 2026): the event is over.** `hackathon/` (Rota Livre) won **1st place** and is the active project:
-it goes on to a further stage of the competition, mentored by Coreflux, competing for a place at **Hannover Messe**
-(open items: "Next phase" in `hackathon/README.md`). `team-design/` was **not finished** and is closed, kept as it
-was at the end of 25/10; change it only when asked.
+**Status (26 Oct 2026): the event is over.** Rota Livre won **1st place** and goes on to a further stage of the
+competition, mentored by Coreflux, competing for a place at **Hannover Messe** (open items: "Next phase" in
+`hackathon/README.md`). The Team Design entry was removed from the tree; its last state is the git tag
+`team-design-final`.
 
 ## Conventions (mandatory)
 
-- **Everything in English**: code (identifiers, file/folder names, Serial messages, MQTT topics,
+- **Everything in English**: code (identifiers, file/folder names, MQTT topics,
   names of LoT Actions/Models/Connectors), code comments and documentation (READMEs, this file).
 - Trunk-based git: small commits straight to `main`; `git pull --rebase` before pushing.
 - Never commit secrets (`.env` is in `.gitignore`).
 - Hackathon: solutions go through plagiarism detection. Do not copy the Coreflux training labs
   (`CorefluxCommunity/weather-station-hackathon`); use them only as a syntax reference.
-
-## team-design/ (PlatformIO, Arduino Uno)
-
-```bash
-cd team-design && source .venv/bin/activate
-pio test -e native     # Unity tests of the pure logic on the PC — run after any change
-pio run -e uno         # build
-pio run -e uno -t upload && pio device monitor   # real board, Serial at 9600
-wokwi-cli --scenario test/wokwi/crane_cycle.yaml --timeout 20000  # needs WOKWI_CLI_TOKEN
-```
-
-Architecture: **pure logic** in `lib/Control/` (no `Arduino.h`, testable with `-e native`) vs.
-**hardware layer** in `src/main.cpp` (pins, Servo, Serial). New logic goes into `lib/` with tests
-in `test/test_control/`; `main.cpp` should stay thin.
-
-Invariants that are easy to break:
-- `include/pins.h`, `diagram.json` (Wokwi) and the real wiring must match.
-- Kit wiring: L298N IN1..IN4 on D4, D5, D2, D3 with ENA/ENB jumpers on (no PWM); servo on D6.
-- The `KEY=value` Serial output (e.g. `PHASE=LOWER WINCH=-200 SCOOP=180 CYCLES=0`) is checked verbatim by
-  `test/wokwi/crane_cycle.yaml`. If you change the format, update the scenario.
-- Wokwi has no L298N/DC motors: in `diagram.json` the H-bridge signals are LEDs.
 
 ## hackathon/ (Coreflux)
 
