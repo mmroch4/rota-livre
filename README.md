@@ -49,8 +49,8 @@ It routes and shares barriers only while the team's Valhalla and broker are runn
 - **Web app** ([`app/`](app/README.md)): all routing calls are in `routeService` in `app.js`. When no route fits
   the slope limit it says so and offers the gentlest one; it never relaxes steps, surface or barriers.
 - **Routing** ([`runtime/valhalla/`](runtime/valhalla/README.md)): Valhalla built from
-  [`projects/valhalla`](projects/valhalla) with one costing fix, so that `max_grade` is applied to uphill and
-  downhill edges.
+  upstream Valhalla plus [one costing fix](runtime/valhalla/slope-cap.patch), so that `max_grade` is applied to
+  uphill and downhill edges.
 - **Broker** ([`broker/`](#environment-setup-linux--macos)): Coreflux in Docker. The logic is LoT, one notebook per
   feature in [`lot/`](lot/):
 
@@ -119,7 +119,7 @@ Verified on 24/10:
 - **Honest routing:** our Valhalla enforces the slope cap uphill and downhill (São Bento → Batalha: 1.302 km at
   6 %, 1.041 km at 8 %, 0.49 km with no limit). When no route fits, the app says so, offers the gentlest one and
   marks where it is steeper than asked. Steps, surface and barriers are never relaxed.
-- **Tests:** `pytest` for the Python cells (`services/tests/`) and the route checks (`runtime/demo/`), plus
+- **Tests:** `pytest` for the Python cells and scripts (`tests/`) and the live route check (`runtime/demo/`), plus
   `broker/redeploy_lot.py --check` to compare the broker with git.
 
 ## Next phase: Coreflux mentoring and Hannover Messe
@@ -148,7 +148,7 @@ Where the hackathon version leaves off, from the notes in this folder:
 ## Repository layout
 
 ```text
-scitech-2026/
+rota-livre/
 ├── README.md            # this file: product, architecture, topic map, setup
 ├── CLAUDE.md            # context for AI agents (imports AGENTS.md, the LoT rules)
 ├── AI.md                # AI tooling setup: MCP servers, Coreflux skills, token
@@ -157,10 +157,9 @@ scitech-2026/
 ├── lot/                 # LoT notebooks: the broker's logic (git is the source of truth)
 ├── db/                  # Supabase Postgres schema and its tests
 ├── runtime/             # slope-aware Valhalla (valhalla/) and demo tools (demo/)
-├── services/tests/      # pytest for the notebooks' Python cells and the scripts
+├── tests/               # pytest for the notebooks' Python cells and the scripts
 ├── scripts/             # MCP token, Coreflux skills sync
-├── projects/valhalla/   # Valhalla source with our slope-cap fix (built by runtime/valhalla/setup.sh)
-└── regulamento.pdf      # official SciTeCh '26 rules (Portuguese)
+└── requirements.txt     # Python packages for the scripts and tests
 ```
 
 SciTeCh '26 also had a Team Design challenge (25/10). That entry was removed from this repo; its last state is the
@@ -184,7 +183,7 @@ Prerequisites: `git`, `python3`, **Docker** and **Docker Compose v2** (`docker -
 Every command below runs from the repo root unless it says otherwise.
 
 ```bash
-git clone git@github.com:mmroch4/scitech-2026.git && cd scitech-2026
+git clone git@github.com:mmroch4/rota-livre.git && cd rota-livre
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # paho-mqtt, pytest
 cd broker
 cp .env.example .env          # optional: event licence code
@@ -279,7 +278,7 @@ Layout: **one notebook per feature, one owner per notebook**, so two people neve
 ### Useful tools
 
 - **MQTT Explorer** or `mosquitto_sub -h localhost -u root -P coreflux -t '#' -v` to see every topic.
-- **Python tests:** `.venv/bin/python -m pytest services/tests runtime/demo` (the virtual environment from
+- **Python tests:** `.venv/bin/python -m pytest tests runtime/demo` (the virtual environment from
   the setup above).
 - Broker variables and secrets: `-setEnv NAME=value`, `-setSecret NAME=value` (no spaces around the `=`),
   then `{env.NAME}` or `GET ENV "NAME"` / `GET SECRET "NAME"` in LoT.
@@ -288,7 +287,6 @@ Layout: **one notebook per feature, one owner per notebook**, so two people neve
 
 - [`AI.md`](AI.md): AI tooling setup (MCP servers, Coreflux skills, token) and the daily loop.
 - [`AGENTS.md`](AGENTS.md): LoT rules for AI assistants (Claude Code reads it through `CLAUDE.md`).
-- [`regulamento.pdf`](regulamento.pdf): the official SciTeCh '26 rules (Portuguese).
 - [`app/README.md`](app/README.md): the web app's screens, routing calls, settings and deployment.
 - [`db/README.md`](db/README.md): the Supabase schema, its tests and how the broker connects to it.
 - [`runtime/valhalla/README.md`](runtime/valhalla/README.md): building and running the slope-aware Valhalla;

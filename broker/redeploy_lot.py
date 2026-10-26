@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check, and after a broker restart repair, the live LoT of Miguel's notebooks.
+"""Check, and after a broker restart repair, the live LoT of the notebooks in NOTEBOOKS.
 
     redeploy_lot.py [--check]   one line per Action / Python script: IDENTICAL, DIFFERS or NOT LIVE; exit 1 on any mismatch
     redeploy_lot.py --fix       resend what differs through $SYS/Coreflux/Command, then check again
@@ -45,7 +45,7 @@ SCRIPT_NAME = re.compile(r"^#\s*Script Name:\s*(\w+)", re.MULTILINE)
 FRACTION = re.compile(r"\.(\d{1,6})\d*")
 
 
-# ---- pure parts (tested in services/tests/test_redeploy_lot.py) ----
+# ---- pure parts (tested in tests/test_redeploy_lot.py) ----
 
 def split_blocks(text):
     """Split a LoT cell into its DEFINE blocks: [(kind, name, source)], kind upper case."""

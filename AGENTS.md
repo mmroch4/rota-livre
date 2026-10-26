@@ -20,7 +20,7 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 2. Write or edit the block in the notebook of its **feature** (one owner per notebook); a notebook holds that feature's Models, Actions, Connectors and Python.
    The broker loads by kind (Models before Actions), so a notebook may use a Model from another.
    Python for `CALL PYTHON` goes in a `python` cell with `# Script Name: <Name>`; keep it pure and add
-   `pytest` tests in `services/tests/`.
+   `pytest` tests in `tests/`.
 3. Deploy with the `/lot-deploy` skill (validate → swap → diagnose). For quick experiments,
    `validate_lot` + `deploy_lot` a single block, then move it into the notebook.
 4. Prove it works: `run_action <Name> {"topic":…,"payload":…}` or publish a test message, and
@@ -69,16 +69,17 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
   the `OpsSummary*` ones) came back current. `remove_action` reports "2 duplicate definitions cleaned up", but after
   remove + `deploy_lot` the next boot still logged the duplicates and reverted. So **after every broker restart** run
   `docker restart o1n-broker && sleep 10 && python3 broker/redeploy_lot.py --fix` (login from
-  `BROKER_USERNAME` / `BROKER_PASSWORD`). It compares every Action of Miguel's notebooks with its **retained**
+  `BROKER_USERNAME` / `BROKER_PASSWORD`). It compares every Action of the four notebooks in its `NOTEBOOKS` list
+(`barrier_feedback`, `city_alerts`, `ops_panel`, `telegram_notify`) with its **retained**
   `$SYS/Coreflux/Actions/<Name>` (one exact subscription each: `$SYS/Coreflux/#` also gets non-retained traffic and
   gave a false mismatch), resends the notebook's Python cells and then the Actions that differ through
   `$SYS/Coreflux/Command`, and checks again; `--check` alone only reports. It never sends routes or panels and never
-  removes anything. No project swap (`load_project` would bring back the copy's old `ImportCityAlerts`). Ben's
-  `10-barriers-db.lotnb` **stays loaded**
-  (`RouteBarrierMessage` + `BarriersDB`): reports and answers are saved in Supabase. Never remove them; if they are
-  missing after a restart, add those two cells one at a time (it needs the env `SUPABASE_DB_HOST`/`SUPABASE_DB_USER`
-  and the secret `SUPABASE_DB_PASSWORD` on the broker, see `db/README.md`), then check that
-  `$SYS/Coreflux/Routes/BarriersDB/status` says `Connected`. `redeploy_lot.py` does not cover these two.
+  removes anything. No project swap (`load_project` would bring back the copy's old `ImportCityAlerts`).
+  `10-barriers-db.lotnb` (`RouteBarrierMessage` + `BarriersDB`: reports and answers saved in Supabase) ran on Ben's
+  separate cloud broker; the local `o1n-broker` did not have it on 26/10. To add it to a broker, add those two cells
+  one at a time (it needs the env `SUPABASE_DB_HOST`/`SUPABASE_DB_USER` and the secret `SUPABASE_DB_PASSWORD`, see
+  `db/README.md`), then check that `$SYS/Coreflux/Routes/BarriersDB/status` says `Connected`. Where it is loaded,
+  never remove it. `redeploy_lot.py` does not cover these two.
 - **The command channel strips comments, Python included (verified 24/10).** A payload on `$SYS/Coreflux/Command`
   loses `//`, `/* */` and `-- ` outside string literals, so `-addPython` with `x // 2` in plain code fails
   (`'(' was never closed`); `//` inside a string or f-string (`f"{n // 1000:03d}"`) survives. Use `int(a / b)` or

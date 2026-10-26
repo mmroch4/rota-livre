@@ -1,7 +1,7 @@
 name: rota-livre-routing
 services:
   valhalla:
-    image: rota-livre-valhalla:9f6f67e
+    image: rota-livre-valhalla:618cad5
     container_name: rota-livre-valhalla
     restart: unless-stopped
     ports:

@@ -1,4 +1,4 @@
-# Adapted from projects/valhalla/docker/Dockerfile.
+# Adapted from upstream Valhalla's docker/Dockerfile (built from runtime/valhalla/src, see setup.sh).
 # Limit dependency compilation as well as Valhalla compilation.
 FROM ubuntu:24.04 AS builder
 ARG CONCURRENCY=2

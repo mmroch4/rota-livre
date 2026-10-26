@@ -2,7 +2,7 @@
 
 Rota Livre, accessible walking routes in Porto on Coreflux: the Hackathon entry of team O(1/n) (Miguel, Victor,
 Ben, Pedro) at SciTeCh '26 (BEST Porto, FCUP, 6 h of work on 24 Oct 2026). The whole repo is this one project, at
-the root. See `README.md` (product, architecture, MQTT topic map, setup) and `regulamento.pdf`.
+the root. See `README.md` (product, architecture, MQTT topic map, setup).
 
 **Status (26 Oct 2026): the event is over.** Rota Livre won **1st place** and goes on to a further stage of the
 competition, mentored by Coreflux, competing for a place at **Hannover Messe** (open items: "Next phase" in

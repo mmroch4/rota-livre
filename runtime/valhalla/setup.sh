@@ -2,8 +2,11 @@
 # Explicit stages; never downloads or rebuilds data as a side effect of startup.
 set -euo pipefail
 runtime_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-repo_dir="$(cd -- "$runtime_dir/../.." && pwd)"
-image=rota-livre-valhalla:9f6f67e
+# Upstream Valhalla (master, 19/10/2026) plus our slope-cap fix; `source` puts it in src/ (gitignored).
+valhalla_repo=https://github.com/valhalla/valhalla.git
+valhalla_commit=618cad5eb6a12c7787c3480851eda07c99eb5c74
+src_dir="$runtime_dir/src"
+image=rota-livre-valhalla:618cad5
 data_dir="$runtime_dir/data"
 # Git Bash on Windows rewrites arguments that look like paths (/data/valhalla/... becomes C:/.../Git/data/...),
 # which breaks the container paths; turn that off and hand host paths to Windows Python in its own form.
@@ -12,10 +15,19 @@ host_path() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else print
 mkdir -p "$data_dir"
 
 case "${1:-}" in
+  source)
+    test ! -e "$src_dir"
+    git init --quiet "$src_dir"
+    git -C "$src_dir" fetch --quiet --depth 1 "$valhalla_repo" "$valhalla_commit"
+    git -C "$src_dir" checkout --quiet FETCH_HEAD
+    git -C "$src_dir" submodule update --quiet --init --recursive --depth 1
+    git -C "$src_dir" apply "$runtime_dir/slope-cap.patch"
+    ;;
   image)
+    test -s "$src_dir/CMakeLists.txt"
     docker build -f "$runtime_dir/Dockerfile" --build-arg CONCURRENCY=2 \
-      --build-arg VERSION_MODIFIER=rota-livre-9f6f67e \
-      -t "$image" "$repo_dir/projects/valhalla"
+      --build-arg VERSION_MODIFIER=rota-livre-618cad5 \
+      -t "$image" "$src_dir"
     ;;
   download)
     # Refuse to replace an existing dataset silently.
@@ -38,13 +50,13 @@ if actual != expected:
     raise SystemExit("Published PBF checksum mismatch; leaving .part for inspection")
 (data / "Porto.osm.pbf.part").rename(data / "Porto.osm.pbf")
 PY
-    python3 "$(host_path "$repo_dir/projects/valhalla/scripts/valhalla_build_elevation")" \
+    python3 "$(host_path "$src_dir/scripts/valhalla_build_elevation")" \
       --from-bbox=-8.82,40.90,-8.2,41.42 --outdir "$(host_path "$data_dir/elevation")" \
       --decompress --parallelism 2 -v
     ;;
   config)
     test ! -e "$data_dir/valhalla.json"
-    python3 "$(host_path "$repo_dir/projects/valhalla/scripts/valhalla_build_config")" \
+    python3 "$(host_path "$src_dir/scripts/valhalla_build_config")" \
       --mjolnir-tile-dir /data/valhalla/tiles \
       --mjolnir-tile-extract /data/valhalla/tiles.tar \
       --mjolnir-concurrency 2 --mjolnir-max-cache-size 268435456 \
@@ -75,7 +87,7 @@ PY
     python3 "$(host_path "$runtime_dir/smoke.py")"
     ;;
   *)
-    printf 'Usage: bash %s {image|download|config|tiles|start|smoke}\n' "$0" >&2
+    printf 'Usage: bash %s {source|image|download|config|tiles|start|smoke}\n' "$0" >&2
     exit 2
     ;;
 esac
