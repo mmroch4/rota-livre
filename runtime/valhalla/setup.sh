@@ -3,7 +3,7 @@
 set -euo pipefail
 runtime_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "$runtime_dir/../.." && pwd)"
-image=passolivre-valhalla:9f6f67e
+image=rota-livre-valhalla:9f6f67e
 data_dir="$runtime_dir/data"
 # Git Bash on Windows rewrites arguments that look like paths (/data/valhalla/... becomes C:/.../Git/data/...),
 # which breaks the container paths; turn that off and hand host paths to Windows Python in its own form.
@@ -14,7 +14,7 @@ mkdir -p "$data_dir"
 case "${1:-}" in
   image)
     docker build -f "$runtime_dir/Dockerfile" --build-arg CONCURRENCY=2 \
-      --build-arg VERSION_MODIFIER=passolivre-9f6f67e \
+      --build-arg VERSION_MODIFIER=rota-livre-9f6f67e \
       -t "$image" "$repo_dir/projects/valhalla"
     ;;
   download)

@@ -1,8 +1,8 @@
-name: passolivre-routing
+name: rota-livre-routing
 services:
   valhalla:
-    image: passolivre-valhalla:9f6f67e
-    container_name: passolivre-valhalla
+    image: rota-livre-valhalla:9f6f67e
+    container_name: rota-livre-valhalla
     restart: unless-stopped
     ports:
       - "127.0.0.1:8003:8002"

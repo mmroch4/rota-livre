@@ -10,7 +10,7 @@
 services:
   tunnel:
     image: cloudflare/cloudflared:2025.10.0
-    container_name: passolivre-valhalla-tunnel
+    container_name: rota-livre-valhalla-tunnel
     restart: unless-stopped
     # Reaches Valhalla's own port (8002) inside the Docker network; no extra host port needed.
     command: tunnel --no-autoupdate --url http://valhalla:8002

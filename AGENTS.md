@@ -98,12 +98,6 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
   (`0` with `AS INT`), so it can be used to skip duplicates.
 - **REST connector:** `WITH ENDPOINT "...?date={payload.json.date}"` works. A non-2xx answer is published to
   DESTINATION_TOPIC as `{"success":false,"statusCode":404,...}`; check for it.
-- **FILE_STORAGE:** the QUERY is `CLEAN:{table: <name>, data: {value.json}}` (comma, not the template's
-  semicolon). Use `FORMAT "JSON"`: CSV triple-quotes strings. The host folder must be writable by uid 10001
-  (`chmod 777 broker/exports`), otherwise every write fails with "Access to the path ... is denied"
-  (only visible in `docker logs o1n-broker`).
-- **EMAIL to Mailpit:** `HOST "mailpit"`, `PORT 1025`, `USE_TLS false`; USERNAME/PASSWORD are required but
-  Mailpit accepts anything. USERNAME is the From address.
 - **Community limits** (`curl localhost:9100/license`): 3 Connectors, 24 Actions (Connector events and
   Python scripts count too), 24 Models, **0 Rules**, 5 Panels, and no `TYPE LLM`.
 

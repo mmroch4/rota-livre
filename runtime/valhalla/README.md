@@ -1,4 +1,4 @@
-# Local Passo Livre routing runtime
+# Rota Livre's slope-aware Valhalla
 
 Custom Valhalla built from `projects/valhalla` at repository revision `9f6f67e`.
 The image includes one costing fix in `src/sif/pedestriancost.cc`: `max_grade`

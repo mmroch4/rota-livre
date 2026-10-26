@@ -188,7 +188,6 @@ git clone git@github.com:mmroch4/scitech-2026.git && cd scitech-2026
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # paho-mqtt, pytest
 cd broker
 cp .env.example .env          # optional: event licence code
-chmod 777 exports             # the broker (uid 10001) writes the audit log here; git can't store this
 docker compose up -d
 ```
 
@@ -198,7 +197,6 @@ docker compose up -d
 | MQTT broker (from outside Docker) | `localhost:1883` | `root` / `coreflux` |
 | MQTT over WebSocket (opt-in, `docker-compose.ws.yml`) | `ws://localhost:9001/mqtt` | a limited dashboard user, not root |
 | MQTT over secure WebSocket on the internet (opt-in, `docker-compose.tunnel.yml`) | `wss://<random>.trycloudflare.com/mqtt` | `web`, limited to `access/barriers/#` |
-| Mailpit (test email inbox) | <http://localhost:8025> | — |
 | Broker health | <http://localhost:9100/health> | — |
 | Broker MCP server (AI agents) | <http://localhost:6278/mcp> (`/health` without a token) | bearer token, see [`AI.md`](AI.md) |
 
@@ -218,7 +216,7 @@ docker compose up -d
 Every port is bound to `127.0.0.1` (this machine only), because the default login `root` / `coreflux` is the same
 for every Coreflux broker. To let another device publish to the broker, first change the `root` password (or
 create a user for the devices) in the HUB, then set `MQTT_BIND=0.0.0.0` in `broker/.env` and run
-`docker compose up -d`. The HUB, Mailpit and the health endpoint always stay on localhost.
+`docker compose up -d`. The HUB and the health endpoint always stay on localhost.
 
 ### Web app over the internet (Cloudflare tunnel)
 

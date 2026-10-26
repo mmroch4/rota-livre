@@ -1,21 +1,19 @@
-# Team O(1/n)'s local Coreflux environment: broker + HUB + Mailpit (test email inbox).
+# Rota Livre's local Coreflux environment: broker + HUB.
 #
 #   docker compose up -d       starts everything
 #   docker compose down        stops (broker data stays in the broker-data volume)
 #   docker compose down -v     stops and WIPES the broker (including the activated licence!)
 #
 # HUB:     http://localhost:3000  (connection: host "broker", port 1883, root / coreflux)
-# Mailpit: http://localhost:8025  (the broker sends to mailpit:1025 inside Docker)
-# WS:      opt-in, see docker-compose.ws.yml (MQTT over WebSocket for the browser dashboard)
+# WS:      opt-in, see docker-compose.ws.yml (MQTT over WebSocket for the web app)
 # Health:  http://localhost:9100/health
 # MCP:     http://localhost:6278/mcp  (AI agents deploy/inspect LoT; bearer token, see ../AI.md)
 #
-# Security: other teams share the FCUP network. By default every port is bound to
-# 127.0.0.1 only. For a device (Arduino/ESP32) or a teammate's laptop to reach MQTT,
-# set MQTT_BIND=0.0.0.0 in .env and change the root password first (see README).
+# Security: every port is bound to 127.0.0.1. For another device to reach MQTT, change the
+# root password first, then set MQTT_BIND=0.0.0.0 in .env (README, "Network exposure").
 #
-# Event licence: put COREFLUX_ACTIVATION_CODE=CFLX-... in broker/.env
-# before the first `up`, or use -activateLicense in the HUB Command Console.
+# Licence: put COREFLUX_ACTIVATION_CODE=CFLX-... in broker/.env before the first `up`,
+# or use -activateLicense in the HUB Command Console.
 services:
   broker:
     image: ${BROKER_IMAGE:-coreflux/coreflux-mqtt-broker:2.22.0}
@@ -27,9 +25,6 @@ services:
       - "127.0.0.1:6278:6278"   # MCP server (Claude Code / Cursor); never expose beyond localhost
     volumes:
       - broker-data:/etc/project
-      - ./templates:/templates:ro   # HTML templates for EMAIL Connectors
-      - ./exports:/data/exports     # files written by FILE_STORAGE Connectors; the broker runs as
-                                    # uid 10001, so run `chmod 777 exports` once (git can't store it)
       - ../lot:/lot:ro              # our .lotnb notebooks (git = source of truth), see ../AI.md
     environment:
       - COREFLUX_ACTIVATION_CODE=${COREFLUX_ACTIVATION_CODE:-}
@@ -57,16 +52,6 @@ services:
       - HUB_DEFAULT_CONNECTION_PORT=1883
     volumes:
       - hub-data:/opt/coreflux-hub/data
-
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: o1n-mailpit
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:8025:8025"
-    environment:
-      - MP_SMTP_AUTH_ACCEPT_ANY=1
-      - MP_SMTP_AUTH_ALLOW_INSECURE=1
 
 volumes:
   broker-data:
