@@ -8,7 +8,7 @@
       "type": "http",
       "url": "${COREFLUX_MCP_URL:-http://127.0.0.1:6278/mcp}",
       "headers": {
-        "Authorization": "Bearer ${COREFLUX_MCP_TOKEN:-run-hackathon/scripts/mcp_token.py}"
+        "Authorization": "Bearer ${COREFLUX_MCP_TOKEN:-run-scripts/mcp_token.py}"
       }
     }
   }

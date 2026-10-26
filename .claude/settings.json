@@ -24,7 +24,7 @@
       "mcp__coreflux-broker__check_route_connection",
       "mcp__coreflux-broker__check_action_usage",
       "mcp__coreflux-broker__action_trace",
-      "Bash(hackathon/.venv/bin/python -m pytest:*)"
+      "Bash(.venv/bin/python -m pytest:*)"
     ],
     "deny": [
       "mcp__coreflux-broker__remove_all_actions",

@@ -1,0 +1,12 @@
+// Cloudflare Worker that serves this folder as a static site (https://accessible-routes.benlubetzky.workers.dev).
+// Deployed by .github/workflows/deploy-app.yml on every push to main that touches app/.
+// Files left out are in .assetsignore.
+{
+    "$schema": "../../node_modules/wrangler/config-schema.json",
+    "name": "accessible-routes",
+    "account_id": "2b44278da5be51e486687445cdaaf6c2", // Ben's Cloudflare account (an ID, not a secret)
+    "compatibility_date": "2026-10-01",
+    "assets": {
+        "directory": "."
+    }
+}

@@ -1,13 +1,13 @@
 # CLAUDE.md
 
-Repository of team O(1/n) (Miguel, Victor, Ben, Pedro) at SciTeCh '26 (BEST Porto, FCUP,
-24–25 Oct 2026). This repo holds only our Hackathon entry, Rota Livre, in `hackathon/` (Coreflux, 6 h of work on
-**Saturday 24**). See `README.md` and `regulamento.pdf`.
+Rota Livre, accessible walking routes in Porto on Coreflux: the Hackathon entry of team O(1/n) (Miguel, Victor,
+Ben, Pedro) at SciTeCh '26 (BEST Porto, FCUP, 6 h of work on 24 Oct 2026). The whole repo is this one project, at
+the root. See `README.md` (product, architecture, MQTT topic map, setup) and `regulamento.pdf`.
 
 **Status (26 Oct 2026): the event is over.** Rota Livre won **1st place** and goes on to a further stage of the
 competition, mentored by Coreflux, competing for a place at **Hannover Messe** (open items: "Next phase" in
-`hackathon/README.md`). The Team Design entry was removed from the tree; its last state is the git tag
-`team-design-final`.
+`README.md`). The Team Design entry was removed from the tree; its last state is the git tag
+`team-design-final`. Until 26/10 everything below lived in `hackathon/`: older commits and notes use that prefix.
 
 ## Conventions (mandatory)
 
@@ -18,36 +18,36 @@ competition, mentored by Coreflux, competing for a place at **Hannover Messe** (
 - Hackathon: solutions go through plagiarism detection. Do not copy the Coreflux training labs
   (`CorefluxCommunity/weather-station-hackathon`); use them only as a syntax reference.
 
-## hackathon/ (Coreflux)
+## Coreflux broker and LoT
 
-Coreflux MQTT broker + HUB in Docker (`hackathon/broker/`). The logic lives in the broker as LoT
+Coreflux MQTT broker + HUB in Docker (`broker/`). The logic lives in the broker as LoT
 (Actions, Models, Connectors, Rules, Panels); the source of truth is the `.lotnb` files in
-`hackathon/lot/` (mounted read-only in the broker at `/lot`). LoT rules for the AI are in `hackathon/AGENTS.md`
-(auto-loaded via `hackathon/CLAUDE.md`). **Never write LoT from memory**: use the Coreflux skills in
+`lot/` (mounted read-only in the broker at `/lot`). LoT rules for the AI are in `AGENTS.md`
+(imported at the end of this file). **Never write LoT from memory**: use the Coreflux skills in
 `.claude/skills/` (pinned to broker 2.22.0) and the `coreflux-docs` MCP server, check against the live broker with
 the `coreflux-broker` MCP server (`validate_lot`/`validate_lotnb`), and deploy with `/lot-deploy`.
-Setup: `hackathon/AI.md`. The team has an unlimited
-licence (`CFLX-...`, in `hackathon/broker/.env`, outside git); without it, the Community edition only allows
+Setup: `AI.md`. The team has an unlimited
+licence (`CFLX-...`, in `broker/.env`, outside git); without it, the Community edition only allows
 **3 Connectors**, no custom Rules and no `TYPE LLM`.
 The pitch (5 min + up to 3 min of questions; problem → demo → architecture → maturity) is in
-`hackathon/PITCH.md`.
+`PITCH.md`.
 
-### Web app ↔ backend contract (`hackathon/app/`, Rota Livre)
+### Web app ↔ backend contract (`app/`, Rota Livre)
 
 Static page (no build), UI in European Portuguese, live at <https://accessible-routes.benlubetzky.workers.dev>
-(`?demo` simulates a walking position). Every push to `main` touching `hackathon/app/` redeploys it
+(`?demo` simulates a walking position). Every push to `main` touching `app/` redeploys it
 (`.github/workflows/deploy-app.yml` → Cloudflare Worker; `.assetsignore` lists what is not published).
-The backend plugs in through `hackathon/app/config.js` only: `valhallaUrl`, `brokerUrl`, `topicPrefix` (`access`).
+The backend plugs in through `app/config.js` only: `valhallaUrl`, `brokerUrl`, `topicPrefix` (`access`).
 Broker credentials go in `config.local.js` (gitignored) and are visible to any browser, so give the page a broker
 user limited to `access/barriers/#`. The page is served over HTTPS: **both endpoints must be HTTPS/WSS and send
 CORS headers** (`Access-Control-Allow-Origin: *`), or the browser blocks them. All routing calls are in
-`routeService` in `app.js`; if the contract below changes, update that code, `hackathon/app/README.md` and the
-topic map in `hackathon/README.md` in the same commit.
+`routeService` in `app.js`; if the contract below changes, update that code, `app/README.md` and the
+topic map in `README.md` in the same commit.
 
 **Routing (Valhalla HTTP API).** Today `valhallaUrl` is the slope-aware instance through its tunnel (it changes when
 the tunnel container is recreated). With the public FOSSGIS instance, which ignores the slope cap, the page steers
 around steep parts itself (`saferRoute`, below). The slope-aware instance is
-`hackathon/runtime/valhalla/` (local on `http://127.0.0.1:8003`, public through its opt-in `compose.tunnel.yml`).
+`runtime/valhalla/` (local on `http://127.0.0.1:8003`, public through its opt-in `compose.tunnel.yml`).
 - `POST {valhallaUrl}/route` with `locations` (start, destination), `costing: "pedestrian"`,
   `costing_options.pedestrian` = `type` (`"wheelchair"` when avoiding rough surfaces, else `"foot"`), `max_grade`
   (percent, 2–14; **omitted** for "no limit"), `step_penalty: 43200` when avoiding steps; `exclude_polygons`
@@ -67,8 +67,8 @@ around steep parts itself (`saferRoute`, below). The slope-aware instance is
 **Barriers (Coreflux MQTT over secure WebSocket).** Today `brokerUrl` is the team's broker through its quick tunnel
 (it changes when the tunnel container is recreated). With `brokerUrl` empty, reports stay on the device
 (`localStorage` key `access.barriers`) and nobody else sees them. The broker is the team's local Docker one,
-  reached through the opt-in Cloudflare tunnel (`hackathon/broker/docker-compose.tunnel.yml`, steps in `hackathon/README.md`)
-  as user `web`, which `hackathon/lot/web_access.lotnb` limits to `access/barriers/#`.
+  reached through the opt-in Cloudflare tunnel (`broker/docker-compose.tunnel.yml`, steps in `README.md`)
+  as user `web`, which `lot/web_access.lotnb` limits to `access/barriers/#`.
 - Topic `access/barriers/<id>`, one **retained** message per barrier, QoS 1. The page subscribes to
   `access/barriers/+` and publishes new reports itself. Only the device that made a report may delete it
   ("Apagar o meu reporte"), by publishing an **empty retained** payload on its topic.
@@ -78,8 +78,8 @@ around steep parts itself (`saferRoute`, below). The slope-aware instance is
   `access/barriers/<barrier id>/feedback` = `{"id", "barrier_id", "answer": "gone", "answered_at", "lat"?, "lon"?}`
   (`lat`/`lon` = where the person was, when known). **The backend must store these** (the page does not keep them
   once sent); the team reviews the counts per barrier at the end of the day and decides. The broker Action
-  `StoreBarrierFeedback` (`hackathon/lot/barrier_feedback.lotnb`) stores them under `access/feedback/<barrier id>/`
-  (see the topic map in `hackathon/README.md`). Until a broker is
+  `StoreBarrierFeedback` (`lot/barrier_feedback.lotnb`) stores them under `access/feedback/<barrier id>/`
+  (see the topic map in `README.md`). Until a broker is
   connected, answers wait in the device outbox (`localStorage` key `access.feedbackOutbox`) and are sent on connect.
 - Payload: `{"id", "kind", "description", "lat", "lon", "reported_at", "expires_at"}` (ISO 8601 times; `id` like
   `b<base36 time><random>`; `description` may be `""`; expiry = report + 24 h). `kind` is one of `works`,
@@ -88,25 +88,27 @@ around steep parts itself (`saferRoute`, below). The slope-aware instance is
 - The page hides barriers past `expires_at` itself. A LoT Action cannot send an empty retained message (broker
   2.22.0), so the broker retires a barrier by republishing it with `expires_at` = now.
   Barriers published by the backend appear and are avoided like any report: `ImportCityAlerts`
-  (`hackathon/lot/city_alerts.lotnb`) imports the Câmara's active road works near the demo route as `city-<id>`
+  (`lot/city_alerts.lotnb`) imports the Câmara's active road works near the demo route as `city-<id>`
   barriers (`kind: "works"`, `expires_at` = the alert's end, extra field `source: "cm-porto"`).
   Retained `access/city/alerts/enabled` = `off` retires all of them the same way and pauses the import; `on` resumes it
   and republishes them at once (no flag counts as `on`). What was imported is kept in the internal retained topic
   `access/state/city_alerts` (broker only). Broker durability is on: every retained message above survives a restart.
 - **Operator panel.** The broker keeps a retained `access/ops/summary` (active barriers per source, active list,
-  "gone" counts; `hackathon/lot/ops_panel.lotnb`) for the read-only HUB panel `RotaLivreOps`. The app does not read it.
+  "gone" counts; `lot/ops_panel.lotnb`) for the read-only HUB panel `RotaLivreOps`. The app does not read it.
 - Valhalla rejects more than `max_exclude_polygons_vertices` (default 100 = 20 squares, error 176). So
   `saferRoute` in `app.js` starts with the barriers within 100 m of the start–destination line and, for up to 3
   requests, adds what each route runs into: barriers it goes through, then (with a slope limit) its parts steeper
   than the limit, read with `trace_attributes`; it keeps the route with the fewest barriers, then the fewest metres
-  over the limit. The custom instance allows 1000 (`hackathon/runtime/valhalla/setup.sh`); the public one does not.
+  over the limit. The custom instance allows 1000 (`runtime/valhalla/setup.sh`); the public one does not.
 - Not sent to the broker (device-only for now): the report's photo (≤ 800 px JPEG data URL) and the address text.
   Sharing them means adding optional `photo`/`address` fields to this contract first.
 
-**Storage (Supabase Postgres, written by Coreflux).** Coreflux is the backend: `hackathon/lot/10-barriers-db.lotnb`
+**Storage (Supabase Postgres, written by Coreflux).** Coreflux is the backend: `lot/10-barriers-db.lotnb`
 (Action `RouteBarrierMessage` + PostgreSQL connector `BarriersDB`) stores reports in `barriers` (a reporter's
 delete sets `deleted_at`, rows are never removed) and answers in `barrier_feedback`; the view `barrier_review`
-is the end-of-day count. Schema, tests and setup: `hackathon/db/` (`schema.sql`, `README.md`). Internal topics
+is the end-of-day count. Schema, tests and setup: `db/` (`schema.sql`, `README.md`). Internal topics
 `access/db/barriers/upsert` and `access/db/barriers/deleted` are for the broker only. The connector's
 credentials are broker env/secrets (`SUPABASE_DB_HOST`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`), never git.
 If you add a field to a payload above, add the column in `schema.sql` and the value in the connector's QUERY.
+
+@AGENTS.md

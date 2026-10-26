@@ -1,4 +1,4 @@
-# Deploys the Rota Livre web app (hackathon/app/) to Cloudflare on every push to main that changes it.
+# Deploys the Rota Livre web app (app/) to Cloudflare on every push to main that changes it.
 # Live at https://accessible-routes.benlubetzky.workers.dev. Needs the repository secret CLOUDFLARE_API_TOKEN
 # (a Cloudflare API token from the "Edit Cloudflare Workers" template); the account ID is in wrangler.jsonc.
 name: Deploy web app
@@ -7,7 +7,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "hackathon/app/**"
+      - "app/**"
       - ".github/workflows/deploy-app.yml"
   workflow_dispatch: # "Run workflow" button in the Actions tab
 
@@ -30,5 +30,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: "4.149.0"
-          workingDirectory: hackathon/app
+          workingDirectory: app
           command: deploy

@@ -1,18 +1,18 @@
 ---
 name: lot-deploy
-description: "Validate and deploy team O(1/n)'s .lotnb notebooks from hackathon/lot/ to the local Coreflux broker via the coreflux-broker MCP server, so the broker always matches git. Use after editing any .lotnb, or when asked to deploy, sync, reload or reset the broker's LoT."
+description: "Validate and deploy team O(1/n)'s .lotnb notebooks from lot/ to the local Coreflux broker via the coreflux-broker MCP server, so the broker always matches git. Use after editing any .lotnb, or when asked to deploy, sync, reload or reset the broker's LoT."
 ---
 
-# Deploy hackathon/lot/ to the local broker
+# Deploy lot/ to the local broker
 
-The broker mounts `hackathon/lot/` read-only at `/lot` (see `hackathon/broker/docker-compose.yml`)
+The broker mounts `lot/` read-only at `/lot` (see `broker/docker-compose.yml`)
 and loads it as the project **`lot`**. `-addProject` takes a *snapshot* of the folder, so after
 any edit the project has to be removed and re-added. `-loadProject` replaces every entity of the
 previous project (ad-hoc entities from `deploy_lot`/`add_action` survive).
 
 All tools below are on the `coreflux-broker` MCP server; each takes `{"argument": "<text>"}`.
-If that server is missing or answers 401, stop and tell the user to follow `hackathon/AI.md`
-(start the broker, run `hackathon/scripts/mcp_token.py`, restart Claude Code).
+If that server is missing or answers 401, stop and tell the user to follow `AI.md`
+(start the broker, run `scripts/mcp_token.py`, restart Claude Code).
 
 ## Steps
 
