@@ -5,8 +5,7 @@ The image includes one costing fix in `src/sif/pedestriancost.cc`: `max_grade`
 (percent) is compared with each edge's uphill and downhill slope in the direction
 of travel, and under a cap (below the foot default of 90) edges in tiles built
 without elevation are rejected. Edge slopes are labelled degrees in Valhalla's
-headers but are stored as percent (rise over a 60 m posting, rounded up); see
-"Core 2 verified" in `docs/runtime-baseline.md`. Before the fix,
+headers but are stored as percent (rise over a 60 m posting, rounded up). Before the fix,
 comparing the negative `int` downhill slope with the unsigned cap rejected every
 edge with any downhill, so pedestrian routes failed with error 442. The image tag
 still names the base revision; rebuild with `setup.sh image` after pulling a
@@ -36,7 +35,7 @@ time for a C++ build. The recipe is adapted from the vendored Dockerfile; it
 sets concurrency before the dependency installer and retries package-index
 fetches with caching disabled. Package signature/hash checks remain enabled.
 The base image/package repositories are not digest-pinned, so future rebuilds
-can differ; the tested image ID is recorded in `docs/runtime-baseline.md`.
+can differ; the image running on 26/10/2026 (ID `14d5aa490f12`) passes `setup.sh smoke`.
 
 `download` gets the approximately 43 MB
 [BBBike Porto OSM extract](https://download.bbbike.org/osm/bbbike/Porto/) and two

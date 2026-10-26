@@ -12,8 +12,7 @@ on a 5-minute pitch with a live demo.
 > **Hannover Messe**: see [Next phase](#next-phase-coreflux-mentoring-and-hannover-messe).
 >
 > Sections 1–5 describe the system as demonstrated on 24/10, in the order the jury judged it (Rules, Art. 1, 3):
-> **problem → demo → architecture → maturity**. Event-day planning is kept in [PLAN.md](PLAN.md) and
-> [PITCH.md](PITCH.md).
+> **problem → demo → architecture → maturity**.
 
 ## 1. The problem
 
@@ -51,8 +50,7 @@ It routes and shares barriers only while the team's Valhalla and broker are runn
   the slope limit it says so and offers the gentlest one; it never relaxes steps, surface or barriers.
 - **Routing** ([`runtime/valhalla/`](runtime/valhalla/README.md)): Valhalla built from
   [`projects/valhalla`](projects/valhalla) with one costing fix, so that `max_grade` is applied to uphill and
-  downhill edges ([handoff](docs/accessibility_routing_project_handoff.md), "Core 2 verified" in
-  [`docs/runtime-baseline.md`](docs/runtime-baseline.md)).
+  downhill edges.
 - **Broker** ([`broker/`](#environment-setup-linux--macos)): Coreflux in Docker. The logic is LoT, one notebook per
   feature in [`lot/`](lot/):
 
@@ -93,14 +91,24 @@ laptop: locally served app, local broker and local Valhalla. It was prepared on 
 wheelchair profile (slopes up to 6 %): plan the route, switch the city's road works on and off and watch the route
 and the operator panel change, then report a barrier from the app and see it reach the panel.
 
-- Step-by-step setup and checks for the hour before: [`docs/demo-day-broker-checklist.md`](docs/demo-day-broker-checklist.md)
-- What the broker does, in plain language for the slides: [`docs/broker-for-pitch.md`](docs/broker-for-pitch.md)
-- Rehearsal of the panel moment, with recordings: [`docs/demo-rehearsal-2026-10-24.md`](docs/demo-rehearsal-2026-10-24.md)
-- Every verified number (routes, timings, restarts): [`docs/runtime-baseline.md`](docs/runtime-baseline.md)
+Running it again locally, from the repo root, with the broker login exported as `BROKER_USERNAME` /
+`BROKER_PASSWORD` (setup in [Environment setup](#environment-setup-linux--macos)):
+
+```bash
+(cd broker && docker compose -f docker-compose.yml -f docker-compose.ws.yml up -d)   # broker with WebSocket
+python3 broker/redeploy_lot.py --fix && python3 broker/redeploy_lot.py --check       # every line IDENTICAL
+bash runtime/valhalla/setup.sh start && bash runtime/valhalla/setup.sh smoke         # slope-aware Valhalla
+python3 -m http.server 8765 --bind 127.0.0.1 --directory app                         # then open 127.0.0.1:8765
+python3 -c "import sys; sys.path.insert(0,'runtime/demo'); from barriers import connect; c=connect(); c.publish('access/city/alerts/enabled', sys.argv[1].encode()); c.close()" on
+```
+
+`app/config.local.js` must point `valhallaUrl` at `http://127.0.0.1:8003` and `brokerUrl` at
+`ws://127.0.0.1:9001/mqtt`. The last line switches the city's road works on (`off` retires them);
+`python3 runtime/demo/barriers.py seed` / `list` / `clear` manage the demo barriers.
 
 ## 5. Maturity
 
-Verified on 24/10 ([`docs/broker-for-pitch.md`](docs/broker-for-pitch.md) gives the source of each claim):
+Verified on 24/10:
 
 - **Live sharing:** a report made in one browser appears in another without a reload, and the route goes around it.
 - **City data:** the broker polls the Porto Urban Platform every 10 minutes; 24 road works were kept near the demo
@@ -108,9 +116,9 @@ Verified on 24/10 ([`docs/broker-for-pitch.md`](docs/broker-for-pitch.md) gives 
 - **Feedback:** "Já não está" answers are stored and counted per barrier (a resent answer counts once).
 - **Durability:** after a broker restart every report, answer, count and the city switch came back.
 - **Operator panel:** `RotaLivreOps` in the HUB shows active barriers per source and the "gone" counts, live.
-- **Honest routing:** our Valhalla enforces the slope cap uphill and downhill ("Core 2 verified" in
-  [`docs/runtime-baseline.md`](docs/runtime-baseline.md)). When no route fits, the app says so, offers the gentlest
-  one and marks where it is steeper than asked. Steps, surface and barriers are never relaxed.
+- **Honest routing:** our Valhalla enforces the slope cap uphill and downhill (São Bento → Batalha: 1.302 km at
+  6 %, 1.041 km at 8 %, 0.49 km with no limit). When no route fits, the app says so, offers the gentlest one and
+  marks where it is steeper than asked. Steps, surface and barriers are never relaxed.
 - **Tests:** `pytest` for the Python cells (`services/tests/`) and the route checks (`runtime/demo/`), plus
   `broker/redeploy_lot.py --check` to compare the broker with git.
 
@@ -144,7 +152,6 @@ scitech-2026/
 ├── README.md            # this file: product, architecture, topic map, setup
 ├── CLAUDE.md            # context for AI agents (imports AGENTS.md, the LoT rules)
 ├── AI.md                # AI tooling setup: MCP servers, Coreflux skills, token
-├── LOT_CHEATSHEET.md    # LoT syntax reference
 ├── app/                 # web app: static page, deployed as a Cloudflare Worker
 ├── broker/              # Coreflux broker + HUB in Docker; redeploy_lot.py
 ├── lot/                 # LoT notebooks: the broker's logic (git is the source of truth)
@@ -152,14 +159,13 @@ scitech-2026/
 ├── runtime/             # slope-aware Valhalla (valhalla/) and demo tools (demo/)
 ├── services/tests/      # pytest for the notebooks' Python cells and the scripts
 ├── scripts/             # MCP token, Coreflux skills sync
-├── docs/                # verified results, demo-day notes, pitch media, routing handoff
-├── projects/            # source trees: Valhalla (with the slope-cap fix) and the OSM website
-├── PLAN.md, PITCH.md    # event-day plan and pitch (historical)
+├── projects/valhalla/   # Valhalla source with our slope-cap fix (built by runtime/valhalla/setup.sh)
 └── regulamento.pdf      # official SciTeCh '26 rules (Portuguese)
 ```
 
 SciTeCh '26 also had a Team Design challenge (25/10). That entry was removed from this repo; its last state is the
-git tag `team-design-final`.
+git tag `team-design-final`. The event-day plan, pitch notes, demo notes, verification logs, rehearsal media and
+the LoT cheatsheet were removed on 26/10; they are in commit `ca5d3d1` (e.g. `git show ca5d3d1:docs/runtime-baseline.md`).
 
 ## How we work
 
@@ -207,17 +213,12 @@ docker compose up -d
 - The HUB connects to `broker` (the Docker service name), not `localhost`.
 - Port taken? Change the host port number in `docker-compose.yml` (e.g. `"127.0.0.1:3001:3000"`).
 
-### Security on the event network
+### Network exposure
 
-At FCUP we are on the same network as the other teams, and the default password (`root` / `coreflux`)
-is the same for everyone. That is why **every port is bound to `127.0.0.1` only** (this machine only).
-For an Arduino/ESP32 or a teammate's laptop to publish to our broker:
-
-1. **First** change the `root` password (or create a dedicated user for the devices)
-   in the HUB: see the [broker documentation](https://docs.coreflux.org/latest/mqtt-broker/overview).
-2. Then set `MQTT_BIND=0.0.0.0` in `broker/.env` and run `docker compose up -d`.
-
-The HUB, Mailpit and the health endpoint always stay on localhost only.
+Every port is bound to `127.0.0.1` (this machine only), because the default login `root` / `coreflux` is the same
+for every Coreflux broker. To let another device publish to the broker, first change the `root` password (or
+create a user for the devices) in the HUB, then set `MQTT_BIND=0.0.0.0` in `broker/.env` and run
+`docker compose up -d`. The HUB, Mailpit and the health endpoint always stay on localhost.
 
 ### Web app over the internet (Cloudflare tunnel)
 
@@ -230,7 +231,7 @@ gives the local broker a public `wss://` address. Do steps 1–3 once per broker
 2. **Create the page's user.** Run `-addUser web <password>`. This password ends up in `app/config.js`, which is
    public, so do not reuse it anywhere.
 3. **Deploy the Rules** in [`lot/web_access.lotnb`](lot/web_access.lotnb), which keep `web` on `access/barriers/#`.
-   Rules need the licence (see below). Use `/lot-deploy` or run the cells.
+   Rules need the [licence](#licence). Use `/lot-deploy` or run the cells.
 4. **Start the tunnel.** Run it from `broker`:
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
@@ -248,19 +249,14 @@ The address changes every time the tunnel container is recreated, for example by
 does, repeat steps 4 and 5. `docker compose stop` / `start` and laptop restarts keep the same container, and with
 it the same address. To close the broker to the internet again, run `docker compose -f docker-compose.yml -f docker-compose.tunnel.yml rm -sf tunnel`.
 
-### Event licence
+### Licence
 
-The organizers give us a **licence code** (`CFLX-...`). Without it, the broker runs as
-**Community Edition**, which only allows **3 Connectors** and **no custom `DEFINE RULE`**.
-With the licence we get more Connectors and can use Rules, which count as a
-**maturity/security** argument in the pitch.
-
-Activate it in one of two ways:
-- put `COREFLUX_ACTIVATION_CODE=CFLX-...` in `broker/.env` (outside git) **before** the first `docker compose up`;
-- HUB → `root` → Broker Settings → License, or `-activateLicense CFLX-...` in the Command Console.
-
-Each activation uses up a *seat*, so avoid `docker compose down -v` after activating.
-Check the tier in the badge next to `root` or at <http://localhost:9100/license>.
+Without a licence code (`CFLX-...`) the broker runs as **Community Edition**: 3 Connectors, no custom
+`DEFINE RULE` and no `TYPE LLM`. Rota Livre's Rules (`lot/web_access.lotnb`) need the licence, and its three
+Connectors are already at the Community limit.
+Put `COREFLUX_ACTIVATION_CODE=CFLX-...` in `broker/.env` (outside git) **before** the first `docker compose up`, or
+run `-activateLicense CFLX-...` in the HUB Command Console. Each activation uses a seat, so avoid
+`docker compose down -v` afterwards. Check the tier at <http://localhost:9100/license>.
 
 ### LoT code workflow
 
@@ -295,15 +291,10 @@ Layout: **one notebook per feature, one owner per notebook**, so two people neve
 - [`AI.md`](AI.md): AI tooling setup (MCP servers, Coreflux skills, token) and the daily loop.
 - [`AGENTS.md`](AGENTS.md): LoT rules for AI assistants (Claude Code reads it through `CLAUDE.md`).
 - [`regulamento.pdf`](regulamento.pdf): the official SciTeCh '26 rules (Portuguese).
-- [`LOT_CHEATSHEET.md`](LOT_CHEATSHEET.md): LoT syntax reference (Actions, Models, Connectors, Rules, Panels).
 - [`app/README.md`](app/README.md): the web app's screens, routing calls, settings and deployment.
 - [`db/README.md`](db/README.md): the Supabase schema, its tests and how the broker connects to it.
 - [`runtime/valhalla/README.md`](runtime/valhalla/README.md): building and running the slope-aware Valhalla;
   [`runtime/demo/README.md`](runtime/demo/README.md): demo barriers and route checks.
-- [`docs/`](docs/): verified results ([`runtime-baseline.md`](docs/runtime-baseline.md),
-  [`integration-check-2026-10-24.md`](docs/integration-check-2026-10-24.md)), demo-day notes, pitch media and
-  the [routing handoff](docs/accessibility_routing_project_handoff.md) of the Valhalla slope-cap work.
-- [`PLAN.md`](PLAN.md) and [`PITCH.md`](PITCH.md): the event-day plan and pitch structure (historical).
 
 ## References
 

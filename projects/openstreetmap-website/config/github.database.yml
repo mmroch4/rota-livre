@@ -1,4 +1,0 @@
-test:
-  adapter: postgresql
-  database: openstreetmap
-  encoding: utf8

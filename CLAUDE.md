@@ -29,8 +29,6 @@ the `coreflux-broker` MCP server (`validate_lot`/`validate_lotnb`), and deploy w
 Setup: `AI.md`. The team has an unlimited
 licence (`CFLX-...`, in `broker/.env`, outside git); without it, the Community edition only allows
 **3 Connectors**, no custom Rules and no `TYPE LLM`.
-The pitch (5 min + up to 3 min of questions; problem → demo → architecture → maturity) is in
-`PITCH.md`.
 
 ### Web app ↔ backend contract (`app/`, Rota Livre)
 

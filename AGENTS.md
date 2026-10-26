@@ -10,7 +10,7 @@ Setup of the AI tooling (MCP servers, skills, token) is in [`AI.md`](AI.md).
 - **Topics:** the topic map in `README.md`. Add a row there whenever you create a topic.
 - **Syntax:** never from memory. In this order: the vendored skills in `.claude/skills/`
   (`lot-actions`, `lot-models`, `lot-routes`, `lot-rules`, `lot-panels`, `python-scripts`, …;
-  pinned to broker 2.22.0), then the `coreflux-docs` MCP server, then `LOT_CHEATSHEET.md`.
+  pinned to broker 2.22.0), then the `coreflux-docs` MCP server.
   If they disagree, `validate_lot` on the live broker decides.
 
 ## Workflow
