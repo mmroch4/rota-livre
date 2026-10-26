@@ -1,22 +1,19 @@
 #pragma once
 
-// Arduino Uno pin map. Must match diagram.json and the real wiring.
+// Arduino Uno pin map of the competition kit, read from its wiring. Must match diagram.json.
 //
-// Note: the Servo library uses Timer1 and disables analogWrite on pins 9 and 10,
-// so the motor PWM (ENA/ENB) lives on pins 5 and 6 (Timer0).
+// The L298N keeps its ENA/ENB jumpers on: no PWM pin, the motor always runs at full speed.
+// The winch drives both channels the same way, so it works on whichever L298N output the
+// motor is connected to (the second DC motor is not used).
 
-// Button: wired to GND, uses the internal pull-up (pressed = LOW)
-constexpr uint8_t PIN_BUTTON = 2;
+// L298N inputs
+constexpr uint8_t PIN_IN1 = 4;  // channel A
+constexpr uint8_t PIN_IN2 = 5;
+constexpr uint8_t PIN_IN3 = 2;  // channel B
+constexpr uint8_t PIN_IN4 = 3;
 
-// 180° servo (signal)
-constexpr uint8_t PIN_SERVO = 9;
+// 180° servo (signal): the kit servo hanging on the string, cup on its horn
+constexpr uint8_t PIN_SCOOP_SERVO = 6;
 
-// H-bridge (L298N) — motor A (left)
-constexpr uint8_t PIN_ENA = 5;  // PWM
-constexpr uint8_t PIN_IN1 = 7;
-constexpr uint8_t PIN_IN2 = 8;
-
-// H-bridge (L298N) — motor B (right)
-constexpr uint8_t PIN_ENB = 6;  // PWM
-constexpr uint8_t PIN_IN3 = 10;
-constexpr uint8_t PIN_IN4 = 11;
+// Optional start/stop button: wired to GND, uses the internal pull-up (pressed = LOW)
+constexpr uint8_t PIN_BUTTON = 12;

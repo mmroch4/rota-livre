@@ -1,0 +1,40 @@
+# Simulation test: one full timed cycle of the hanging scoop, then stop.
+#   pio run -e uno && wokwi-cli --scenario test/wokwi/crane_cycle.yaml --timeout 20000
+#
+# Note: wait-serial only sees text that arrives after the step starts, so we
+# wait for each message right after the action that causes it.
+name: Crane cycle
+version: 1
+author: scitech-2026
+
+steps:
+  - wait-serial: 'System ready'
+  - expect-pin: { part-id: led_in1, pin: A, value: 0 }
+  - expect-pin: { part-id: led_in2, pin: A, value: 0 }
+
+  # START (scoop at the top) -> LOWER: winch down, scoop at rest
+  - set-control: { part-id: btn1, control: pressed, value: 1 }
+  - wait-serial: 'PHASE=LOWER WINCH=-200 SCOOP=180 CYCLES=0'
+  - set-control: { part-id: btn1, control: pressed, value: 0 }
+  - delay: 100ms
+  - expect-pin: { part-id: led_in1, pin: A, value: 0 }
+  - expect-pin: { part-id: led_in2, pin: A, value: 1 }
+
+  # Timed phases, winch off while the scoop turns
+  - wait-serial: 'PHASE=DIG WINCH=0 SCOOP=180 CYCLES=0'
+  - wait-serial: 'PHASE=RAISE WINCH=200 SCOOP=100 CYCLES=0'
+  - delay: 100ms
+  - expect-pin: { part-id: led_in1, pin: A, value: 1 }
+  - expect-pin: { part-id: led_in2, pin: A, value: 0 }
+  - wait-serial: 'PHASE=SETTLE WINCH=0 SCOOP=100 CYCLES=0'
+  - wait-serial: 'PHASE=DUMP WINCH=0 SCOOP=0 CYCLES=0'
+  - wait-serial: 'PHASE=RETURN WINCH=0 SCOOP=0 CYCLES=0'
+  - wait-serial: 'PHASE=LOWER WINCH=-200 SCOOP=180 CYCLES=1'
+
+  # START again stops at once
+  - set-control: { part-id: btn1, control: pressed, value: 1 }
+  - wait-serial: 'PHASE=IDLE WINCH=0'
+  - set-control: { part-id: btn1, control: pressed, value: 0 }
+  - delay: 100ms
+  - expect-pin: { part-id: led_in1, pin: A, value: 0 }
+  - expect-pin: { part-id: led_in2, pin: A, value: 0 }

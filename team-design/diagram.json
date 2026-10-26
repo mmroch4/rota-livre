@@ -3,38 +3,150 @@
   "author": "scitech-2026",
   "editor": "wokwi",
   "parts": [
-    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
-    { "type": "wokwi-pushbutton", "id": "btn1", "top": 260, "left": 10, "attrs": { "color": "green", "label": "MODE" } },
-    { "type": "wokwi-servo", "id": "servo1", "top": -150, "left": 60, "attrs": {} },
-
-    { "type": "wokwi-led", "id": "led_ena", "top": -110, "left": 330, "attrs": { "color": "yellow", "label": "ENA" } },
-    { "type": "wokwi-led", "id": "led_in1", "top": -110, "left": 380, "attrs": { "color": "green", "label": "IN1" } },
-    { "type": "wokwi-led", "id": "led_in2", "top": -110, "left": 430, "attrs": { "color": "red", "label": "IN2" } },
-    { "type": "wokwi-led", "id": "led_enb", "top": 230, "left": 330, "attrs": { "color": "yellow", "label": "ENB" } },
-    { "type": "wokwi-led", "id": "led_in3", "top": 230, "left": 380, "attrs": { "color": "green", "label": "IN3" } },
-    { "type": "wokwi-led", "id": "led_in4", "top": 230, "left": 430, "attrs": { "color": "red", "label": "IN4" } }
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 260,
+      "left": 10,
+      "attrs": {
+        "color": "green",
+        "label": "START (D12)"
+      }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "scoop_servo",
+      "top": -150,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_in1",
+      "top": -110,
+      "left": 430,
+      "attrs": {
+        "color": "green",
+        "label": "IN1 up"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_in2",
+      "top": -110,
+      "left": 480,
+      "attrs": {
+        "color": "red",
+        "label": "IN2 down"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_in3",
+      "top": -110,
+      "left": 530,
+      "attrs": {
+        "color": "green",
+        "label": "IN3 up"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_in4",
+      "top": -110,
+      "left": 580,
+      "attrs": {
+        "color": "red",
+        "label": "IN4 down"
+      }
+    }
   ],
   "connections": [
-    [ "btn1:1.l", "uno:2", "green", [] ],
-    [ "btn1:2.l", "uno:GND.2", "black", [] ],
-
-    [ "servo1:PWM", "uno:9", "orange", [] ],
-    [ "servo1:V+", "uno:5V", "red", [] ],
-    [ "servo1:GND", "uno:GND.1", "black", [] ],
-
-    [ "led_ena:A", "uno:5", "yellow", [] ],
-    [ "led_in1:A", "uno:7", "green", [] ],
-    [ "led_in2:A", "uno:8", "red", [] ],
-    [ "led_enb:A", "uno:6", "yellow", [] ],
-    [ "led_in3:A", "uno:10", "green", [] ],
-    [ "led_in4:A", "uno:11", "red", [] ],
-
-    [ "led_ena:C", "uno:GND.1", "black", [] ],
-    [ "led_in1:C", "uno:GND.1", "black", [] ],
-    [ "led_in2:C", "uno:GND.1", "black", [] ],
-    [ "led_enb:C", "uno:GND.3", "black", [] ],
-    [ "led_in3:C", "uno:GND.3", "black", [] ],
-    [ "led_in4:C", "uno:GND.3", "black", [] ]
+    [
+      "btn1:2.l",
+      "uno:GND.2",
+      "black",
+      []
+    ],
+    [
+      "scoop_servo:V+",
+      "uno:5V",
+      "red",
+      []
+    ],
+    [
+      "scoop_servo:GND",
+      "uno:GND.1",
+      "black",
+      []
+    ],
+    [
+      "btn1:1.l",
+      "uno:12",
+      "green",
+      []
+    ],
+    [
+      "scoop_servo:PWM",
+      "uno:6",
+      "orange",
+      []
+    ],
+    [
+      "led_in1:A",
+      "uno:4",
+      "green",
+      []
+    ],
+    [
+      "led_in2:A",
+      "uno:5",
+      "red",
+      []
+    ],
+    [
+      "led_in3:A",
+      "uno:2",
+      "green",
+      []
+    ],
+    [
+      "led_in4:A",
+      "uno:3",
+      "red",
+      []
+    ],
+    [
+      "led_in1:C",
+      "uno:GND.1",
+      "black",
+      []
+    ],
+    [
+      "led_in2:C",
+      "uno:GND.1",
+      "black",
+      []
+    ],
+    [
+      "led_in3:C",
+      "uno:GND.1",
+      "black",
+      []
+    ],
+    [
+      "led_in4:C",
+      "uno:GND.1",
+      "black",
+      []
+    ]
   ],
   "dependencies": {}
 }
